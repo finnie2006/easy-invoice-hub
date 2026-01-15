@@ -9,8 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { 
   Calendar as CalendarIcon, 
@@ -56,7 +54,7 @@ export default function Calendar() {
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [feedDialogOpen, setFeedDialogOpen] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  
 
   // Event form
   const [eventForm, setEventForm] = useState({
@@ -108,13 +106,6 @@ export default function Calendar() {
     setEventDialogOpen(true);
   };
 
-  const handleDateSelect = (date: Date | undefined) => {
-    if (date) {
-      setCurrentMonth(date);
-      setSelectedDate(date);
-      setDatePickerOpen(false);
-    }
-  };
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -446,33 +437,8 @@ export default function Calendar() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {/* Sidebar with date picker and labels */}
+        {/* Sidebar with labels filter */}
         <div className="lg:col-span-1 space-y-4">
-          {/* Mini Calendar Date Picker */}
-          <Card>
-            <CardContent className="p-3">
-              <CalendarComponent
-                mode="single"
-                selected={selectedDate}
-                onSelect={handleDateSelect}
-                month={currentMonth}
-                onMonthChange={setCurrentMonth}
-                locale={nl}
-                className={cn("rounded-md pointer-events-auto")}
-                modifiers={{
-                  hasEvents: (date) => getEventsForDay(date).length > 0,
-                }}
-                modifiersStyles={{
-                  hasEvents: {
-                    fontWeight: 'bold',
-                    textDecoration: 'underline',
-                    textDecorationColor: 'hsl(var(--primary))',
-                  },
-                }}
-              />
-            </CardContent>
-          </Card>
-
           {/* Labels Filter */}
           <Card>
             <CardHeader className="pb-3">
@@ -516,31 +482,10 @@ export default function Calendar() {
         {/* Main Calendar */}
         <Card className="lg:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <div className="flex items-center gap-3">
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5" />
-                {format(currentMonth, 'MMMM yyyy', { locale: nl })}
-              </CardTitle>
-              
-              {/* Jump to date picker */}
-              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8">
-                    Ga naar datum
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-popover" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={handleDateSelect}
-                    locale={nl}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              {format(currentMonth, 'MMMM yyyy', { locale: nl })}
+            </CardTitle>
             <div className="flex gap-1">
               <Button variant="outline" size="icon" onClick={handlePrevMonth}>
                 <ChevronLeft className="h-4 w-4" />

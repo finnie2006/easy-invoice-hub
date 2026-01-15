@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useInvoice, useInvoices } from '@/hooks/useInvoices';
 import { useProfile } from '@/hooks/useProfile';
@@ -17,11 +17,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, ArrowLeft, Send, CheckCircle2, Printer, AlertTriangle, Pencil, Mail, Copy } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, CheckCircle2, Download, AlertTriangle, Pencil, Mail, Copy } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -32,11 +34,13 @@ export default function InvoiceDetail() {
   const { clients } = useClients();
   const { toast } = useToast();
 
+  const invoiceRef = useRef<HTMLDivElement>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailTo, setEmailTo] = useState('');
   const [emailName, setEmailName] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
@@ -49,8 +53,56 @@ export default function InvoiceDetail() {
     return `€${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownloadPdf = async () => {
+    if (!invoiceRef.current || !invoice) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      const element = invoiceRef.current;
+      
+      // Create canvas from the invoice element
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      
+      // Create PDF with A4 dimensions
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      const imgWidth = pdfWidth - 20; // 10mm margins on each side
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      // Add image to PDF, centered with margins
+      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, Math.min(imgHeight, pdfHeight - 20));
+
+      // Download the PDF
+      pdf.save(`Factuur-${invoice.invoice_number}.pdf`);
+
+      toast({
+        title: 'PDF gedownload',
+        description: `Factuur ${invoice.invoice_number} is opgeslagen als PDF`,
+      });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: 'Fout bij genereren PDF',
+        description: 'Er is een fout opgetreden bij het maken van de PDF',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   const handleOpenEmailDialog = () => {
@@ -215,9 +267,9 @@ export default function InvoiceDetail() {
             <Copy className="h-4 w-4 mr-2" />
             Dupliceren
           </Button>
-          <Button variant="outline" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" />
-            Afdrukken
+          <Button variant="outline" onClick={handleDownloadPdf} disabled={isGeneratingPdf}>
+            {isGeneratingPdf ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            PDF downloaden
           </Button>
           <Button variant="outline" onClick={handleOpenEmailDialog}>
             <Mail className="h-4 w-4 mr-2" />
@@ -248,7 +300,7 @@ export default function InvoiceDetail() {
 
       {/* Invoice Card - Professional Layout */}
       <Card className="print:shadow-none print:border-none">
-        <CardContent className="p-8 print:p-0">
+        <CardContent ref={invoiceRef} className="p-8 print:p-0 bg-white">
           {/* Company Header */}
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-primary mb-4">

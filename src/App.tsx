@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Calendar from "./pages/Calendar";
 import Invoices from "./pages/Invoices";
 import InvoiceNew from "./pages/InvoiceNew";
+import InvoiceEdit from "./pages/InvoiceEdit";
 import InvoiceDetail from "./pages/InvoiceDetail";
 import Clients from "./pages/Clients";
 import Expenses from "./pages/Expenses";
@@ -49,6 +50,7 @@ function AppContent() {
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/invoices/new" element={<InvoiceNew />} />
         <Route path="/invoices/:id" element={<InvoiceDetail />} />
+        <Route path="/invoices/:id/edit" element={<InvoiceEdit />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/expenses" element={<Expenses />} />
         <Route path="/reports" element={<Reports />} />

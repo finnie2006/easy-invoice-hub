@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { 
   Calendar as CalendarIcon, 
@@ -35,6 +37,9 @@ import {
   endOfWeek,
   isToday,
   parseISO,
+  parse,
+  setHours,
+  setMinutes,
 } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
@@ -54,7 +59,9 @@ export default function Calendar() {
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [feedDialogOpen, setFeedDialogOpen] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
-  
+  const [startDatePickerOpen, setStartDatePickerOpen] = useState(false);
+  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
+
 
   // Event form
   const [eventForm, setEventForm] = useState({
@@ -355,24 +362,118 @@ export default function Calendar() {
                 </div>
                 <div className="grid gap-4 grid-cols-2">
                   <div className="space-y-2">
-                    <UILabel htmlFor="start_time">Start *</UILabel>
-                    <Input
-                      id="start_time"
-                      type="datetime-local"
-                      value={eventForm.start_time}
-                      onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })}
-                      required
-                    />
+                    <UILabel>Start *</UILabel>
+                    <Popover open={startDatePickerOpen} onOpenChange={setStartDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !eventForm.start_time && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {eventForm.start_time 
+                            ? format(parse(eventForm.start_time, "yyyy-MM-dd'T'HH:mm", new Date()), "dd/MM/yyyy, HH:mm")
+                            : "Kies datum"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-popover" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={eventForm.start_time ? parse(eventForm.start_time, "yyyy-MM-dd'T'HH:mm", new Date()) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              const currentTime = eventForm.start_time 
+                                ? parse(eventForm.start_time, "yyyy-MM-dd'T'HH:mm", new Date())
+                                : setMinutes(setHours(new Date(), 9), 0);
+                              const newDate = setMinutes(setHours(date, currentTime.getHours()), currentTime.getMinutes());
+                              setEventForm({ ...eventForm, start_time: format(newDate, "yyyy-MM-dd'T'HH:mm") });
+                            }
+                          }}
+                          locale={nl}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        <div className="p-3 border-t flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={eventForm.start_time ? eventForm.start_time.split('T')[1] : '09:00'}
+                            onChange={(e) => {
+                              const datePart = eventForm.start_time ? eventForm.start_time.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              setEventForm({ ...eventForm, start_time: `${datePart}T${e.target.value}` });
+                            }}
+                            className="flex-1"
+                          />
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setEventForm({ ...eventForm, start_time: '' });
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div className="space-y-2">
-                    <UILabel htmlFor="end_time">Eind *</UILabel>
-                    <Input
-                      id="end_time"
-                      type="datetime-local"
-                      value={eventForm.end_time}
-                      onChange={(e) => setEventForm({ ...eventForm, end_time: e.target.value })}
-                      required
-                    />
+                    <UILabel>Eind *</UILabel>
+                    <Popover open={endDatePickerOpen} onOpenChange={setEndDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !eventForm.end_time && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {eventForm.end_time 
+                            ? format(parse(eventForm.end_time, "yyyy-MM-dd'T'HH:mm", new Date()), "dd/MM/yyyy, HH:mm")
+                            : "Kies datum"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-popover" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={eventForm.end_time ? parse(eventForm.end_time, "yyyy-MM-dd'T'HH:mm", new Date()) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              const currentTime = eventForm.end_time 
+                                ? parse(eventForm.end_time, "yyyy-MM-dd'T'HH:mm", new Date())
+                                : setMinutes(setHours(new Date(), 10), 0);
+                              const newDate = setMinutes(setHours(date, currentTime.getHours()), currentTime.getMinutes());
+                              setEventForm({ ...eventForm, end_time: format(newDate, "yyyy-MM-dd'T'HH:mm") });
+                            }
+                          }}
+                          locale={nl}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        <div className="p-3 border-t flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={eventForm.end_time ? eventForm.end_time.split('T')[1] : '10:00'}
+                            onChange={(e) => {
+                              const datePart = eventForm.end_time ? eventForm.end_time.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              setEventForm({ ...eventForm, end_time: `${datePart}T${e.target.value}` });
+                            }}
+                            className="flex-1"
+                          />
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => {
+                              setEventForm({ ...eventForm, end_time: '' });
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">

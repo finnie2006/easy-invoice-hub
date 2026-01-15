@@ -1,19 +1,42 @@
+import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useInvoice, useInvoices } from '@/hooks/useInvoices';
 import { useProfile } from '@/hooks/useProfile';
+import { useClients } from '@/hooks/useClients';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, Send, CheckCircle2, Printer, AlertTriangle, Pencil } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Loader2, ArrowLeft, Send, CheckCircle2, Printer, AlertTriangle, Pencil, Mail, Copy } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: invoice, isLoading } = useInvoice(id || '');
-  const { updateInvoiceStatus } = useInvoices();
+  const { updateInvoiceStatus, createInvoice } = useInvoices();
   const { profile } = useProfile();
+  const { clients } = useClients();
+  const { toast } = useToast();
+
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState('');
+  const [emailName, setEmailName] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
@@ -28,6 +51,106 @@ export default function InvoiceDetail() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleOpenEmailDialog = () => {
+    // Pre-fill email from client if available
+    if (invoice?.client_id) {
+      const client = clients.find(c => c.id === invoice.client_id);
+      if (client) {
+        setEmailTo(client.email || '');
+        setEmailName(client.contact_name || client.company_name);
+      }
+    } else {
+      setEmailTo('');
+      setEmailName(invoice?.client_contact_name || invoice?.client_company_name || '');
+    }
+    setEmailMessage('');
+    setEmailDialogOpen(true);
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailTo || !id) return;
+
+    setIsSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-invoice-email', {
+        body: {
+          invoiceId: id,
+          recipientEmail: emailTo,
+          recipientName: emailName || undefined,
+          customMessage: emailMessage || undefined,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'E-mail verzonden',
+        description: `Factuur is succesvol verzonden naar ${emailTo}`,
+      });
+
+      setEmailDialogOpen(false);
+
+      // Optionally mark as sent if it was a draft
+      if (invoice?.status === 'draft') {
+        updateInvoiceStatus({ id: invoice.id, status: 'sent' });
+      }
+    } catch (error: any) {
+      console.error('Error sending email:', error);
+      toast({
+        title: 'Fout bij verzenden',
+        description: error.message || 'Er is een fout opgetreden bij het verzenden van de e-mail',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!invoice) return;
+
+    try {
+      const newInvoice = await createInvoice({
+        invoice: {
+          invoice_number: '', // Will be auto-generated
+          invoice_date: format(new Date(), 'yyyy-MM-dd'),
+          due_date: format(new Date(Date.now() + (profile?.default_payment_terms || 14) * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+          client_id: invoice.client_id || undefined,
+          client_company_name: invoice.client_company_name || undefined,
+          client_contact_name: invoice.client_contact_name || undefined,
+          client_address: invoice.client_address || undefined,
+          client_postal_code: invoice.client_postal_code || undefined,
+          client_city: invoice.client_city || undefined,
+          client_country: invoice.client_country || undefined,
+          client_kvk_number: invoice.client_kvk_number || undefined,
+          client_btw_number: invoice.client_btw_number || undefined,
+          notes: invoice.notes || undefined,
+          status: 'draft',
+        },
+        items: invoice.items?.map(item => ({
+          description: item.description,
+          quantity: item.quantity,
+          unit: item.unit,
+          unit_price: item.unit_price,
+          btw_percentage: item.btw_percentage,
+        })) || [],
+      });
+
+      toast({
+        title: 'Factuur gedupliceerd',
+        description: 'Een nieuwe conceptfactuur is aangemaakt',
+      });
+
+      navigate(`/invoices/${newInvoice.id}/edit`);
+    } catch (error: any) {
+      toast({
+        title: 'Fout bij dupliceren',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   if (isLoading) {
@@ -83,14 +206,22 @@ export default function InvoiceDetail() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <Button variant="outline" onClick={() => navigate(`/invoices/${id}/edit`)}>
             <Pencil className="h-4 w-4 mr-2" />
             Bewerken
           </Button>
+          <Button variant="outline" onClick={handleDuplicate}>
+            <Copy className="h-4 w-4 mr-2" />
+            Dupliceren
+          </Button>
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
             Afdrukken
+          </Button>
+          <Button variant="outline" onClick={handleOpenEmailDialog}>
+            <Mail className="h-4 w-4 mr-2" />
+            E-mailen
           </Button>
           {invoice.status === 'draft' && (
             <Button
@@ -156,7 +287,7 @@ export default function InvoiceDetail() {
                   )}
                   <tr>
                     <td className="font-bold pr-4 py-1">Factuurdatum:</td>
-                    <td className="text-right">Datum: {format(new Date(invoice.invoice_date), 'd MMM yyyy', { locale: nl })}</td>
+                    <td className="text-right">{format(new Date(invoice.invoice_date), 'd MMM yyyy', { locale: nl })}</td>
                   </tr>
                 </tbody>
               </table>
@@ -227,7 +358,6 @@ export default function InvoiceDetail() {
               <h3 className="font-bold mb-4">{invoice.notes.split('\n')[0]?.includes(':') ? invoice.notes.split('\n')[0] : 'Opmerkingen'}</h3>
               <div className="whitespace-pre-wrap">
                 {invoice.notes.split('\n').slice(invoice.notes.split('\n')[0]?.includes(':') ? 0 : 0).map((line, i) => {
-                  // Check if line starts with bullet point format
                   if (line.trim().startsWith('•') || line.trim().startsWith('-')) {
                     const parts = line.replace(/^[•\-]\s*/, '').split(':');
                     if (parts.length > 1) {
@@ -257,6 +387,60 @@ export default function InvoiceDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Factuur verzenden per e-mail</DialogTitle>
+            <DialogDescription>
+              Verstuur factuur {invoice.invoice_number} naar de klant.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="email-to">E-mailadres *</Label>
+              <Input
+                id="email-to"
+                type="email"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="klant@bedrijf.nl"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-name">Naam ontvanger</Label>
+              <Input
+                id="email-name"
+                value={emailName}
+                onChange={(e) => setEmailName(e.target.value)}
+                placeholder="Naam van de ontvanger"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-message">Persoonlijk bericht (optioneel)</Label>
+              <Textarea
+                id="email-message"
+                value={emailMessage}
+                onChange={(e) => setEmailMessage(e.target.value)}
+                placeholder="Voeg een persoonlijk bericht toe aan de e-mail..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button onClick={handleSendEmail} disabled={!emailTo || isSendingEmail}>
+              {isSendingEmail && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Mail className="h-4 w-4 mr-2" />
+              Versturen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

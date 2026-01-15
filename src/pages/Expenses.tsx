@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useExpenses, ExpenseInsert, EXPENSE_CATEGORIES } from '@/hooks/useExpenses';
+import { useState, useRef } from 'react';
+import { useExpenses, Expense, ExpenseInsert, EXPENSE_CATEGORIES } from '@/hooks/useExpenses';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,13 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Receipt, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
 export default function Expenses() {
-  const { expenses, isLoading, createExpense, deleteExpense, isCreating } = useExpenses();
+  const { expenses, isLoading, createExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
+  const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [formData, setFormData] = useState<Partial<ExpenseInsert>>({
     vendor_name: '',
     description: '',
@@ -32,6 +37,13 @@ export default function Expenses() {
     }));
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -41,19 +53,23 @@ export default function Expenses() {
     const btwAmount = amountInclBtw - amountExclBtw;
 
     await createExpense({
-      vendor_name: formData.vendor_name || '',
-      description: formData.description || null,
-      category: formData.category || 'overig',
-      expense_date: formData.expense_date || format(new Date(), 'yyyy-MM-dd'),
-      amount_incl_btw: amountInclBtw,
-      amount_excl_btw: amountExclBtw,
-      btw_amount: btwAmount,
-      btw_percentage: btwPercentage,
-      receipt_url: null,
-      notes: null,
+      expense: {
+        vendor_name: formData.vendor_name || '',
+        description: formData.description || null,
+        category: formData.category || 'overig',
+        expense_date: formData.expense_date || format(new Date(), 'yyyy-MM-dd'),
+        amount_incl_btw: amountInclBtw,
+        amount_excl_btw: amountExclBtw,
+        btw_amount: btwAmount,
+        btw_percentage: btwPercentage,
+        receipt_url: null,
+        notes: null,
+      },
+      file: selectedFile || undefined,
     });
     
     setDialogOpen(false);
+    setSelectedFile(null);
     setFormData({
       vendor_name: '',
       description: '',
@@ -62,6 +78,27 @@ export default function Expenses() {
       amount_incl_btw: 0,
       btw_percentage: 21,
     });
+  };
+
+  const handleViewReceipt = async (receiptPath: string) => {
+    const signedUrl = await getSignedReceiptUrl(receiptPath);
+    if (signedUrl) {
+      setViewReceiptUrl(signedUrl);
+      setViewReceiptOpen(true);
+    }
+  };
+
+  const handleDownloadReceipt = async (receiptPath: string, vendorName: string) => {
+    const signedUrl = await getSignedReceiptUrl(receiptPath);
+    if (signedUrl) {
+      const link = document.createElement('a');
+      link.href = signedUrl;
+      link.download = `bon-${vendorName}-${Date.now()}.${receiptPath.split('.').pop()}`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -78,6 +115,7 @@ export default function Expenses() {
   // Calculate totals
   const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount_incl_btw), 0);
   const totalBtw = expenses.reduce((sum, exp) => sum + Number(exp.btw_amount || 0), 0);
+  const expensesWithReceipts = expenses.filter(exp => exp.receipt_url).length;
 
   if (isLoading) {
     return (
@@ -93,21 +131,26 @@ export default function Expenses() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Uitgaven</h1>
           <p className="text-muted-foreground">
-            Houd je zakelijke uitgaven bij
+            Houd je zakelijke uitgaven en bonnen bij
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) {
+            setSelectedFile(null);
+          }
+        }}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
               Nieuwe uitgave
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Nieuwe uitgave</DialogTitle>
               <DialogDescription>
-                Voeg een nieuwe zakelijke uitgave toe
+                Voeg een nieuwe zakelijke uitgave toe met bijbehorende bon
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">
@@ -200,6 +243,57 @@ export default function Expenses() {
                 </div>
               </div>
 
+              {/* File Upload */}
+              <div className="space-y-2">
+                <Label>Bon/Factuur uploaden</Label>
+                <div 
+                  className={`border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer hover:border-primary/50 ${
+                    selectedFile ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                  }`}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  {selectedFile ? (
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-8 w-8 text-primary" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{selectedFile.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {(selectedFile.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedFile(null);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        Klik om een bon of factuur te uploaden
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PDF of afbeelding (max 10MB)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2 pt-4">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Annuleren
@@ -215,7 +309,7 @@ export default function Expenses() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Totale uitgaven</CardTitle>
@@ -236,6 +330,16 @@ export default function Expenses() {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Bonnen geüpload</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {expensesWithReceipts} / {expenses.length}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -253,7 +357,7 @@ export default function Expenses() {
             <div className="text-center py-12 text-muted-foreground">
               <Receipt className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p>Nog geen uitgaven</p>
-              <p className="text-sm">Voeg je eerste uitgave toe</p>
+              <p className="text-sm">Voeg je eerste uitgave toe met bijbehorende bon</p>
             </div>
           ) : (
             <Table>
@@ -264,7 +368,7 @@ export default function Expenses() {
                   <TableHead>Omschrijving</TableHead>
                   <TableHead>Categorie</TableHead>
                   <TableHead className="text-right">Bedrag</TableHead>
-                  <TableHead className="text-right">BTW</TableHead>
+                  <TableHead className="text-center">Bon</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -275,17 +379,41 @@ export default function Expenses() {
                       {format(new Date(expense.expense_date), 'd MMM yyyy', { locale: nl })}
                     </TableCell>
                     <TableCell className="font-medium">{expense.vendor_name}</TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell className="text-muted-foreground max-w-[200px] truncate">
                       {expense.description || '-'}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(Number(expense.amount_incl_btw))}
+                      <div>{formatCurrency(Number(expense.amount_incl_btw))}</div>
+                      <div className="text-xs text-muted-foreground">
+                        BTW: {formatCurrency(Number(expense.btw_amount || 0))}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {formatCurrency(Number(expense.btw_amount || 0))}
+                    <TableCell className="text-center">
+                      {expense.receipt_url ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewReceipt(expense.receipt_url!)}
+                            title="Bekijk bon"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDownloadReceipt(expense.receipt_url!, expense.vendor_name)}
+                            title="Download bon"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -304,6 +432,32 @@ export default function Expenses() {
           )}
         </CardContent>
       </Card>
+
+      {/* Receipt Viewer Dialog */}
+      <Dialog open={viewReceiptOpen} onOpenChange={setViewReceiptOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Bon bekijken</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center p-4 bg-muted rounded-lg max-h-[70vh] overflow-auto">
+            {viewReceiptUrl && (
+              viewReceiptUrl.includes('.pdf') ? (
+                <iframe
+                  src={viewReceiptUrl}
+                  className="w-full h-[60vh]"
+                  title="Bon PDF"
+                />
+              ) : (
+                <img
+                  src={viewReceiptUrl}
+                  alt="Bon"
+                  className="max-w-full max-h-[60vh] object-contain"
+                />
+              )
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

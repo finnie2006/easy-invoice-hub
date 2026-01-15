@@ -55,13 +55,55 @@ export function useExpenses() {
     enabled: !!user,
   });
 
+  const uploadReceipt = async (file: File): Promise<string | null> => {
+    if (!user) throw new Error('Not authenticated');
+    
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('receipts')
+      .upload(fileName, file);
+    
+    if (uploadError) throw uploadError;
+    
+    const { data } = supabase.storage
+      .from('receipts')
+      .getPublicUrl(fileName);
+    
+    return data.publicUrl;
+  };
+
+  const getReceiptUrl = (path: string): string => {
+    const { data } = supabase.storage
+      .from('receipts')
+      .getPublicUrl(path);
+    return data.publicUrl;
+  };
+
   const createExpense = useMutation({
-    mutationFn: async (expense: ExpenseInsert) => {
+    mutationFn: async ({ expense, file }: { expense: ExpenseInsert; file?: File }) => {
       if (!user) throw new Error('Not authenticated');
+      
+      let receiptUrl = expense.receipt_url;
+      
+      if (file) {
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(filePath, file);
+        
+        if (uploadError) throw uploadError;
+        
+        // Store the path, not the full URL
+        receiptUrl = filePath;
+      }
       
       const { data, error } = await supabase
         .from('expenses')
-        .insert({ ...expense, user_id: user.id })
+        .insert({ ...expense, receipt_url: receiptUrl, user_id: user.id })
         .select()
         .single();
       
@@ -84,8 +126,58 @@ export function useExpenses() {
     },
   });
 
+  const updateExpense = useMutation({
+    mutationFn: async ({ id, updates, file }: { id: string; updates: Partial<Expense>; file?: File }) => {
+      if (!user) throw new Error('Not authenticated');
+      
+      let receiptUrl = updates.receipt_url;
+      
+      if (file) {
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(filePath, file);
+        
+        if (uploadError) throw uploadError;
+        
+        receiptUrl = filePath;
+      }
+      
+      const { error } = await supabase
+        .from('expenses')
+        .update({ ...updates, receipt_url: receiptUrl })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      toast({
+        title: 'Uitgave bijgewerkt',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fout bij bijwerken',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const deleteExpense = useMutation({
     mutationFn: async (id: string) => {
+      // First get the expense to delete the receipt if it exists
+      const expense = expenses.find(e => e.id === id);
+      
+      if (expense?.receipt_url) {
+        await supabase.storage
+          .from('receipts')
+          .remove([expense.receipt_url]);
+      }
+      
       const { error } = await supabase
         .from('expenses')
         .delete()
@@ -108,11 +200,23 @@ export function useExpenses() {
     },
   });
 
+  // Get signed URL for private receipt
+  const getSignedReceiptUrl = async (path: string): Promise<string | null> => {
+    const { data, error } = await supabase.storage
+      .from('receipts')
+      .createSignedUrl(path, 3600); // 1 hour expiry
+    
+    if (error) return null;
+    return data.signedUrl;
+  };
+
   return {
     expenses,
     isLoading,
     createExpense: createExpense.mutateAsync,
+    updateExpense: updateExpense.mutate,
     deleteExpense: deleteExpense.mutate,
     isCreating: createExpense.isPending,
+    getSignedReceiptUrl,
   };
 }

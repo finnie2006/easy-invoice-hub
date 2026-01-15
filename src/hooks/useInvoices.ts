@@ -172,6 +172,80 @@ export function useInvoices() {
     },
   });
 
+  const updateInvoice = useMutation({
+    mutationFn: async ({ 
+      id,
+      invoice, 
+      items 
+    }: { 
+      id: string;
+      invoice: Partial<InvoiceInsert>; 
+      items: InvoiceItemInsert[];
+    }) => {
+      if (!user) throw new Error('Not authenticated');
+      
+      // Calculate totals
+      const calculatedItems = items.map((item, index) => {
+        const subtotal = item.quantity * item.unit_price;
+        const btw_amount = subtotal * (item.btw_percentage / 100);
+        const total = subtotal + btw_amount;
+        return { ...item, subtotal, btw_amount, total, sort_order: index };
+      });
+
+      const subtotal = calculatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+      const total_btw = calculatedItems.reduce((sum, item) => sum + item.btw_amount, 0);
+      const total = subtotal + total_btw;
+
+      // Update invoice
+      const { error: invoiceError } = await supabase
+        .from('invoices')
+        .update({ 
+          ...invoice, 
+          subtotal,
+          total_btw,
+          total,
+        })
+        .eq('id', id);
+      
+      if (invoiceError) throw invoiceError;
+
+      // Delete existing items and insert new ones
+      const { error: deleteError } = await supabase
+        .from('invoice_items')
+        .delete()
+        .eq('invoice_id', id);
+      
+      if (deleteError) throw deleteError;
+
+      // Create new invoice items
+      if (calculatedItems.length > 0) {
+        const { error: itemsError } = await supabase
+          .from('invoice_items')
+          .insert(calculatedItems.map(item => ({
+            ...item,
+            invoice_id: id,
+          })));
+        
+        if (itemsError) throw itemsError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice'] });
+      toast({
+        title: 'Factuur bijgewerkt',
+        description: 'De wijzigingen zijn opgeslagen.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fout bij bijwerken factuur',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const updateInvoiceStatus = useMutation({
     mutationFn: async ({ id, status, paid_at }: { id: string; status: string; paid_at?: string }) => {
       const { error } = await supabase
@@ -233,9 +307,11 @@ export function useInvoices() {
     isLoading,
     getNextInvoiceNumber,
     createInvoice: createInvoice.mutateAsync,
+    updateInvoice: updateInvoice.mutateAsync,
     updateInvoiceStatus: updateInvoiceStatus.mutate,
     deleteInvoice: deleteInvoice.mutate,
     isCreating: createInvoice.isPending,
+    isUpdating: updateInvoice.isPending,
     overdueInvoices,
   };
 }

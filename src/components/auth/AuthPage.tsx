@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { FileText, Loader2 } from 'lucide-react';
+import { Briefcase, Loader2 } from 'lucide-react';
 
 export function AuthPage() {
   const [email, setEmail] = useState('');
@@ -55,16 +56,16 @@ export function AuthPage() {
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="p-2 bg-primary rounded-lg">
-            <FileText className="h-8 w-8 text-primary-foreground" />
+            <Briefcase className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">FactuurFlow</h1>
+          <h1 className="text-2xl font-bold text-foreground">MijnZaak</h1>
         </div>
 
         <Card>
           <CardHeader className="text-center">
             <CardTitle>Welkom</CardTitle>
             <CardDescription>
-              Log in of maak een account aan om te beginnen met factureren
+              Log in of maak een account aan om te beginnen
             </CardDescription>
           </CardHeader>
           <CardContent>

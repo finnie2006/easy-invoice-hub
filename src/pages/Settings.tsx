@@ -4,10 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Save, Building2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Loader2, Save, Building2, Palette } from 'lucide-react';
 
 export default function Settings() {
-  const { profile, isLoading, updateProfile, isUpdating } = useProfile();
+  const { profile, isLoading, updateProfile, isUpdating, appName } = useProfile();
   const [formData, setFormData] = useState<Partial<Profile>>({});
 
   // Merge profile with form data for display
@@ -22,6 +23,10 @@ export default function Settings() {
     e.preventDefault();
     updateProfile(formData);
     setFormData({});
+  };
+
+  const handleBrandingToggle = (checked: boolean) => {
+    setFormData(prev => ({ ...prev, use_company_branding: checked }));
   };
 
   if (isLoading) {
@@ -41,7 +46,46 @@ export default function Settings() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Branding Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              Branding
+            </CardTitle>
+            <CardDescription>
+              Kies hoe de app zich presenteert
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+              <div className="space-y-0.5">
+                <Label htmlFor="use_company_branding">Bedrijfsbranding gebruiken</Label>
+                <p className="text-sm text-muted-foreground">
+                  Toon je bedrijfsnaam in plaats van "MijnZaak"
+                </p>
+              </div>
+              <Switch
+                id="use_company_branding"
+                checked={displayData.use_company_branding || false}
+                onCheckedChange={handleBrandingToggle}
+                disabled={!displayData.company_name}
+              />
+            </div>
+            {!displayData.company_name && (
+              <p className="text-sm text-muted-foreground">
+                Vul eerst je bedrijfsnaam in om bedrijfsbranding te gebruiken.
+              </p>
+            )}
+            <div className="text-sm">
+              <span className="text-muted-foreground">Huidige weergave: </span>
+              <span className="font-medium">{appName}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Company Details */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

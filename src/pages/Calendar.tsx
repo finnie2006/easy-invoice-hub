@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useCalendarEvents, useLabels, useExternalFeeds, CalendarEventInsert, Label } from '@/hooks/useCalendar';
+import { useCalendarEvents, useLabels, useExternalFeeds } from '@/hooks/useCalendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,11 @@ import { Label as UILabel } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { 
   Calendar as CalendarIcon, 
   Plus, 
@@ -49,11 +51,12 @@ export default function Calendar() {
   const { feeds, createFeed, deleteFeed } = useExternalFeeds();
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [feedDialogOpen, setFeedDialogOpen] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // Event form
   const [eventForm, setEventForm] = useState({
@@ -103,6 +106,14 @@ export default function Calendar() {
       end_time: `${dateStr}T10:00`,
     });
     setEventDialogOpen(true);
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setCurrentMonth(date);
+      setSelectedDate(date);
+      setDatePickerOpen(false);
+    }
   };
 
   const handleCreateEvent = async (e: React.FormEvent) => {
@@ -177,7 +188,7 @@ export default function Calendar() {
                 Labels beheren
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="bg-card">
               <DialogHeader>
                 <DialogTitle>Labels beheren</DialogTitle>
                 <DialogDescription>Maak en beheer je agenda labels</DialogDescription>
@@ -228,7 +239,7 @@ export default function Calendar() {
                           style={{ backgroundColor: labelForm.color }}
                         />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-popover">
                         {LABEL_COLORS.map(color => (
                           <SelectItem key={color} value={color}>
                             <div className="flex items-center gap-2">
@@ -255,7 +266,7 @@ export default function Calendar() {
                 Externe feeds
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="bg-card">
               <DialogHeader>
                 <DialogTitle>Externe agenda feeds</DialogTitle>
                 <DialogDescription>Importeer agenda's van externe bronnen (iCal URL)</DialogDescription>
@@ -302,7 +313,7 @@ export default function Calendar() {
                     <SelectTrigger>
                       <SelectValue placeholder="Kies een label" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover">
                       {labels.map(label => (
                         <SelectItem key={label.id} value={label.id}>
                           <div className="flex items-center gap-2">
@@ -337,7 +348,7 @@ export default function Calendar() {
                 Nieuwe afspraak
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="bg-card">
               <DialogHeader>
                 <DialogTitle>Nieuwe afspraak</DialogTitle>
               </DialogHeader>
@@ -390,7 +401,7 @@ export default function Calendar() {
                     <SelectTrigger>
                       <SelectValue placeholder="Selecteer een label" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover">
                       {labels.map(label => (
                         <SelectItem key={label.id} value={label.id}>
                           <div className="flex items-center gap-2">
@@ -435,52 +446,111 @@ export default function Calendar() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {/* Sidebar with labels */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-base">Filter op label</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {labels.map(label => (
-              <button
-                key={label.id}
-                onClick={() => toggleLabelFilter(label.id)}
-                className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${
-                  selectedLabels.length === 0 || selectedLabels.includes(label.id)
-                    ? 'bg-muted/50'
-                    : 'opacity-40'
-                }`}
-              >
-                <div 
-                  className="w-3 h-3 rounded-full flex-shrink-0" 
-                  style={{ backgroundColor: label.color }}
-                />
-                <span className="text-sm">{label.name}</span>
-              </button>
-            ))}
-            {selectedLabels.length > 0 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="w-full mt-2"
-                onClick={() => setSelectedLabels([])}
-              >
-                Filters wissen
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        {/* Sidebar with date picker and labels */}
+        <div className="lg:col-span-1 space-y-4">
+          {/* Mini Calendar Date Picker */}
+          <Card>
+            <CardContent className="p-3">
+              <CalendarComponent
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleDateSelect}
+                month={currentMonth}
+                onMonthChange={setCurrentMonth}
+                locale={nl}
+                className={cn("rounded-md pointer-events-auto")}
+                modifiers={{
+                  hasEvents: (date) => getEventsForDay(date).length > 0,
+                }}
+                modifiersStyles={{
+                  hasEvents: {
+                    fontWeight: 'bold',
+                    textDecoration: 'underline',
+                    textDecorationColor: 'hsl(var(--primary))',
+                  },
+                }}
+              />
+            </CardContent>
+          </Card>
 
-        {/* Calendar */}
+          {/* Labels Filter */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Filter op label</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {labels.map(label => (
+                <button
+                  key={label.id}
+                  onClick={() => toggleLabelFilter(label.id)}
+                  className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-colors ${
+                    selectedLabels.length === 0 || selectedLabels.includes(label.id)
+                      ? 'bg-muted/50 hover:bg-muted'
+                      : 'opacity-40 hover:opacity-60'
+                  }`}
+                >
+                  <div 
+                    className="w-3 h-3 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: label.color }}
+                  />
+                  <span className="text-sm">{label.name}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {events.filter(e => e.label_id === label.id).length}
+                  </span>
+                </button>
+              ))}
+              {selectedLabels.length > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="w-full mt-2"
+                  onClick={() => setSelectedLabels([])}
+                >
+                  Filters wissen
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Calendar */}
         <Card className="lg:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-            <CardTitle className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5" />
-              {format(currentMonth, 'MMMM yyyy', { locale: nl })}
-            </CardTitle>
+            <div className="flex items-center gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5" />
+                {format(currentMonth, 'MMMM yyyy', { locale: nl })}
+              </CardTitle>
+              
+              {/* Jump to date picker */}
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8">
+                    Ga naar datum
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-popover" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={handleDateSelect}
+                    locale={nl}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
             <div className="flex gap-1">
               <Button variant="outline" size="icon" onClick={handlePrevMonth}>
                 <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setCurrentMonth(new Date())}
+              >
+                Vandaag
               </Button>
               <Button variant="outline" size="icon" onClick={handleNextMonth}>
                 <ChevronRight className="h-4 w-4" />
@@ -503,28 +573,33 @@ export default function Calendar() {
                 const dayEvents = getEventsForDay(day);
                 const isCurrentMonth = isSameMonth(day, currentMonth);
                 const isCurrentDay = isToday(day);
+                const isSelected = selectedDate && isSameDay(day, selectedDate);
 
                 return (
                   <button
                     key={day.toISOString()}
                     onClick={() => handleDayClick(day)}
-                    className={`
-                      min-h-[80px] p-1 rounded-lg text-left transition-colors
-                      ${isCurrentMonth ? 'bg-card hover:bg-muted/50' : 'bg-muted/30 text-muted-foreground'}
-                      ${isCurrentDay ? 'ring-2 ring-primary' : ''}
-                    `}
+                    className={cn(
+                      "min-h-[100px] p-1.5 rounded-lg text-left transition-all relative",
+                      isCurrentMonth ? 'bg-card hover:bg-muted/50' : 'bg-muted/30 text-muted-foreground',
+                      isCurrentDay && 'ring-2 ring-primary',
+                      isSelected && 'bg-primary/10'
+                    )}
                   >
-                    <div className={`text-sm font-medium mb-1 ${isCurrentDay ? 'text-primary' : ''}`}>
+                    <div className={cn(
+                      "text-sm font-medium mb-1 w-7 h-7 flex items-center justify-center rounded-full",
+                      isCurrentDay && 'bg-primary text-primary-foreground'
+                    )}>
                       {format(day, 'd')}
                     </div>
                     <div className="space-y-0.5">
                       {dayEvents.slice(0, 3).map(event => (
                         <div
                           key={event.id}
-                          className="text-xs px-1 py-0.5 rounded truncate"
+                          className="text-xs px-1.5 py-0.5 rounded truncate"
                           style={{ 
                             backgroundColor: event.label?.color ? `${event.label.color}20` : 'hsl(var(--muted))',
-                            borderLeft: `2px solid ${event.label?.color || 'hsl(var(--primary))'}`
+                            borderLeft: `3px solid ${event.label?.color || 'hsl(var(--primary))'}`
                           }}
                         >
                           {event.title}

@@ -1,5 +1,6 @@
 import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/hooks/useProfile';
 import {
   Sidebar,
   SidebarContent,
@@ -20,10 +21,13 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Calendar,
+  Briefcase,
 } from 'lucide-react';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+  { title: 'Agenda', url: '/calendar', icon: Calendar },
   { title: 'Facturen', url: '/invoices', icon: FileText },
   { title: 'Klanten', url: '/clients', icon: Users },
   { title: 'Uitgaven', url: '/expenses', icon: Receipt },
@@ -34,15 +38,16 @@ const menuItems = [
 export function AppSidebar() {
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const { appName } = useProfile();
 
   return (
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <Link to="/" className="flex items-center gap-2">
           <div className="p-1.5 bg-sidebar-primary rounded-lg">
-            <FileText className="h-5 w-5 text-sidebar-primary-foreground" />
+            <Briefcase className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
-          <span className="font-bold text-lg text-sidebar-foreground">FactuurFlow</span>
+          <span className="font-bold text-lg text-sidebar-foreground truncate">{appName}</span>
         </Link>
       </SidebarHeader>
 

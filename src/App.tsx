@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AuthPage } from "@/components/auth/AuthPage";
 import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
+import Calendar from "./pages/Calendar";
 import Invoices from "./pages/Invoices";
 import InvoiceNew from "./pages/InvoiceNew";
 import InvoiceDetail from "./pages/InvoiceDetail";
@@ -38,6 +39,7 @@ function AppContent() {
     <AppLayout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/calendar" element={<Calendar />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/invoices/new" element={<InvoiceNew />} />
         <Route path="/invoices/:id" element={<InvoiceDetail />} />

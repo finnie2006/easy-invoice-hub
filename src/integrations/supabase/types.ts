@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      calendar_events: {
+        Row: {
+          all_day: boolean | null
+          created_at: string
+          description: string | null
+          end_time: string
+          external_feed_id: string | null
+          external_id: string | null
+          id: string
+          label_id: string | null
+          location: string | null
+          start_time: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          all_day?: boolean | null
+          created_at?: string
+          description?: string | null
+          end_time: string
+          external_feed_id?: string | null
+          external_id?: string | null
+          id?: string
+          label_id?: string | null
+          location?: string | null
+          start_time: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          all_day?: boolean | null
+          created_at?: string
+          description?: string | null
+          end_time?: string
+          external_feed_id?: string | null
+          external_id?: string | null
+          id?: string
+          label_id?: string | null
+          location?: string | null
+          start_time?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_external_feed_id_fkey"
+            columns: ["external_feed_id"]
+            isOneToOne: false
+            referencedRelation: "external_feeds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "labels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null
@@ -121,6 +184,50 @@ export type Database = {
           vendor_name?: string
         }
         Relationships: []
+      }
+      external_feeds: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean | null
+          label_id: string | null
+          last_synced_at: string | null
+          name: string
+          updated_at: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          label_id?: string | null
+          last_synced_at?: string | null
+          name: string
+          updated_at?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          label_id?: string | null
+          last_synced_at?: string | null
+          name?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_feeds_label_id_fkey"
+            columns: ["label_id"]
+            isOneToOne: false
+            referencedRelation: "labels"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invoice_items: {
         Row: {
@@ -261,6 +368,33 @@ export type Database = {
           },
         ]
       }
+      labels: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_system: boolean | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_system?: boolean | null
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_system?: boolean | null
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           btw_number: string | null
@@ -277,6 +411,7 @@ export type Database = {
           kvk_number: string | null
           logo_url: string | null
           updated_at: string
+          use_company_branding: boolean | null
           user_id: string
         }
         Insert: {
@@ -294,6 +429,7 @@ export type Database = {
           kvk_number?: string | null
           logo_url?: string | null
           updated_at?: string
+          use_company_branding?: boolean | null
           user_id: string
         }
         Update: {
@@ -311,6 +447,7 @@ export type Database = {
           kvk_number?: string | null
           logo_url?: string | null
           updated_at?: string
+          use_company_branding?: boolean | null
           user_id?: string
         }
         Relationships: []

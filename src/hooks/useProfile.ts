@@ -17,6 +17,7 @@ export interface Profile {
   default_hourly_rate: number | null;
   default_payment_terms: number | null;
   logo_url: string | null;
+  use_company_branding: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,7 +58,7 @@ export function useProfile() {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       toast({
         title: 'Instellingen opgeslagen',
-        description: 'Je bedrijfsgegevens zijn bijgewerkt.',
+        description: 'Je gegevens zijn bijgewerkt.',
       });
     },
     onError: (error) => {
@@ -69,10 +70,19 @@ export function useProfile() {
     },
   });
 
+  // Get the app name based on branding preference
+  const getAppName = () => {
+    if (profile?.use_company_branding && profile?.company_name) {
+      return profile.company_name;
+    }
+    return 'MijnZaak';
+  };
+
   return {
     profile,
     isLoading,
     updateProfile: updateProfile.mutate,
     isUpdating: updateProfile.isPending,
+    appName: getAppName(),
   };
 }

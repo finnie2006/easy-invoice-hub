@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useProfile } from '@/hooks/useProfile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Briefcase, Loader2 } from 'lucide-react';
+import { Briefcase, Loader2, Shield } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export function AuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [authentikLoading, setAuthentikLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
 
@@ -51,6 +53,37 @@ export function AuthPage() {
     }
   };
 
+  const handleAuthentikLogin = async () => {
+    setAuthentikLoading(true);
+    try {
+      // Get the authorization URL from the edge function
+      const { data, error } = await supabase.functions.invoke('authentik-login');
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Store state in sessionStorage for CSRF verification
+      sessionStorage.setItem('authentik_state', data.state);
+      
+      // Redirect to Authentik
+      window.location.href = data.authUrl;
+    } catch (error: unknown) {
+      console.error('Authentik login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Kon niet verbinden met Authentik';
+      toast({
+        title: 'Authentik login mislukt',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      setAuthentikLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
@@ -68,7 +101,33 @@ export function AuthPage() {
               Log in of maak een account aan om te beginnen
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Authentik SSO Button */}
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={handleAuthentikLogin}
+              disabled={authentikLoading}
+            >
+              {authentikLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Shield className="mr-2 h-4 w-4" />
+              )}
+              Inloggen met Authentik
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator className="w-full" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  Of met e-mail
+                </span>
+              </div>
+            </div>
+
             <Tabs defaultValue="login">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Inloggen</TabsTrigger>

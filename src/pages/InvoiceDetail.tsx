@@ -194,24 +194,20 @@ export default function InvoiceDetail() {
 
           {/* Totals - Right Aligned */}
           <div className="flex justify-end mb-8">
-            <table className="text-sm">
-              <tbody>
-                <tr>
-                  <td className="text-right pr-8 py-1">Subtotaal</td>
-                  <td className="text-right">{formatCurrencyShort(Number(invoice.subtotal))},-</td>
-                </tr>
-                <tr>
-                  <td className="text-right pr-8 py-1">BTW</td>
-                  <td className="text-right">21%</td>
-                  <td className="text-right pl-4">{formatCurrencyShort(Number(invoice.total_btw))}</td>
-                </tr>
-                <tr className="font-bold text-lg">
-                  <td className="text-right pr-8 pt-2">Totaal incl. BTW</td>
-                  <td></td>
-                  <td className="text-right pl-4 pt-2">{formatCurrencyShort(Number(invoice.total))}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="w-64 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Subtotaal</span>
+                <span>{formatCurrencyShort(Number(invoice.subtotal))},-</span>
+              </div>
+              <div className="flex justify-between">
+                <span>BTW 21%</span>
+                <span>{formatCurrencyShort(Number(invoice.total_btw))}</span>
+              </div>
+              <div className="border-t pt-2 flex justify-between font-bold text-lg">
+                <span>Totaal incl. BTW</span>
+                <span>{formatCurrencyShort(Number(invoice.total))}</span>
+              </div>
+            </div>
           </div>
 
           {/* Payment Info */}

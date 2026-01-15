@@ -1,0 +1,287 @@
+import { useState } from 'react';
+import { useClients, Client, ClientInsert } from '@/hooks/useClients';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Loader2, Plus, Users, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+
+const emptyClient: ClientInsert = {
+  company_name: '',
+  contact_name: null,
+  email: null,
+  phone: null,
+  address: null,
+  postal_code: null,
+  city: null,
+  country: 'Nederland',
+  kvk_number: null,
+  btw_number: null,
+  notes: null,
+  is_saved: true,
+};
+
+export default function Clients() {
+  const { clients, isLoading, createClient, updateClient, deleteClient, isCreating } = useClients();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [formData, setFormData] = useState<ClientInsert>(emptyClient);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value || null }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingClient) {
+      updateClient({ id: editingClient.id, ...formData });
+    } else {
+      await createClient(formData);
+    }
+    
+    setDialogOpen(false);
+    setEditingClient(null);
+    setFormData(emptyClient);
+  };
+
+  const handleEdit = (client: Client) => {
+    setEditingClient(client);
+    setFormData({
+      company_name: client.company_name,
+      contact_name: client.contact_name,
+      email: client.email,
+      phone: client.phone,
+      address: client.address,
+      postal_code: client.postal_code,
+      city: client.city,
+      country: client.country || 'Nederland',
+      kvk_number: client.kvk_number,
+      btw_number: client.btw_number,
+      notes: client.notes,
+      is_saved: true,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleOpenChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingClient(null);
+      setFormData(emptyClient);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Klanten</h1>
+          <p className="text-muted-foreground">
+            Beheer je klantenbestand
+          </p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Nieuwe klant
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingClient ? 'Klant bewerken' : 'Nieuwe klant'}
+              </DialogTitle>
+              <DialogDescription>
+                Vul de gegevens van de klant in
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="company_name">Bedrijfsnaam *</Label>
+                  <Input
+                    id="company_name"
+                    name="company_name"
+                    value={formData.company_name}
+                    onChange={handleChange}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="contact_name">Contactpersoon</Label>
+                  <Input
+                    id="contact_name"
+                    name="contact_name"
+                    value={formData.contact_name || ''}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email || ''}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Telefoon</Label>
+                  <Input
+                    id="phone"
+                    name="phone"
+                    value={formData.phone || ''}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="kvk_number">KVK-nummer</Label>
+                  <Input
+                    id="kvk_number"
+                    name="kvk_number"
+                    value={formData.kvk_number || ''}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="btw_number">BTW-nummer</Label>
+                  <Input
+                    id="btw_number"
+                    name="btw_number"
+                    value={formData.btw_number || ''}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="address">Adres</Label>
+                  <Input
+                    id="address"
+                    name="address"
+                    value={formData.address || ''}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="postal_code">Postcode</Label>
+                  <Input
+                    id="postal_code"
+                    name="postal_code"
+                    value={formData.postal_code || ''}
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="city">Plaats</Label>
+                  <Input
+                    id="city"
+                    name="city"
+                    value={formData.city || ''}
+                    onChange={handleChange}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
+                  Annuleren
+                </Button>
+                <Button type="submit" disabled={isCreating}>
+                  {isCreating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingClient ? 'Opslaan' : 'Toevoegen'}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Klantenlijst
+          </CardTitle>
+          <CardDescription>
+            {clients.length} klant{clients.length !== 1 ? 'en' : ''} in je bestand
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {clients.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>Nog geen klanten</p>
+              <p className="text-sm">Voeg je eerste klant toe om te beginnen</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Bedrijf</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>E-mail</TableHead>
+                  <TableHead>Plaats</TableHead>
+                  <TableHead className="w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {clients.map((client) => (
+                  <TableRow key={client.id}>
+                    <TableCell className="font-medium">{client.company_name}</TableCell>
+                    <TableCell>{client.contact_name || '-'}</TableCell>
+                    <TableCell>{client.email || '-'}</TableCell>
+                    <TableCell>{client.city || '-'}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(client)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Bewerken
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => deleteClient(client.id)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Verwijderen
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

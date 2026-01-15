@@ -60,13 +60,35 @@ export default function InvoiceDetail() {
     try {
       const element = invoiceRef.current;
       
+      // A4 dimensions in pixels at 96 DPI: 794 x 1123
+      // We'll set the element to a fixed width that matches A4 proportions
+      const a4WidthPx = 794;
+      const a4HeightPx = 1123;
+      
+      // Store original styles
+      const originalWidth = element.style.width;
+      const originalMinHeight = element.style.minHeight;
+      const originalPadding = element.style.padding;
+      
+      // Temporarily set element to A4 proportions
+      element.style.width = `${a4WidthPx}px`;
+      element.style.minHeight = `${a4HeightPx}px`;
+      element.style.padding = '40px';
+      
       // Create canvas from the invoice element
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
+        width: a4WidthPx,
+        windowWidth: a4WidthPx,
       });
+      
+      // Restore original styles
+      element.style.width = originalWidth;
+      element.style.minHeight = originalMinHeight;
+      element.style.padding = originalPadding;
 
       const imgData = canvas.toDataURL('image/png');
       
@@ -80,11 +102,37 @@ export default function InvoiceDetail() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      const imgWidth = pdfWidth - 20; // 10mm margins on each side
+      // Calculate dimensions to fit the full page
+      const imgWidth = pdfWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      // Add image to PDF, centered with margins
-      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, Math.min(imgHeight, pdfHeight - 20));
+      // If content is taller than one page, we need to handle pagination
+      if (imgHeight > pdfHeight) {
+        let remainingHeight = canvas.height;
+        let position = 0;
+        const pageHeightPx = (pdfHeight * canvas.width) / pdfWidth;
+        
+        while (remainingHeight > 0) {
+          if (position > 0) {
+            pdf.addPage();
+          }
+          
+          pdf.addImage(
+            imgData,
+            'PNG',
+            0,
+            position > 0 ? -(position * pdfHeight) / pageHeightPx * (canvas.width / pdfWidth) : 0,
+            imgWidth,
+            imgHeight
+          );
+          
+          remainingHeight -= pageHeightPx;
+          position++;
+        }
+      } else {
+        // Content fits on one page
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      }
 
       // Download the PDF
       pdf.save(`Factuur-${invoice.invoice_number}.pdf`);

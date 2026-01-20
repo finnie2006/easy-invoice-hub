@@ -41,6 +41,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { TimeInput } from '@/components/ui/time-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -344,20 +345,18 @@ export default function ProjectDetail() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="startTime">Starttijd</Label>
-                        <Input
+                        <TimeInput
                           id="startTime"
-                          type="time"
                           value={startTime}
-                          onChange={(e) => setStartTime(e.target.value)}
+                          onChange={setStartTime}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="endTime">Eindtijd</Label>
-                        <Input
+                        <TimeInput
                           id="endTime"
-                          type="time"
                           value={endTime}
-                          onChange={(e) => setEndTime(e.target.value)}
+                          onChange={setEndTime}
                         />
                       </div>
                     </div>
@@ -506,20 +505,18 @@ export default function ProjectDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="editStartTime">Starttijd</Label>
-                    <Input
+                    <TimeInput
                       id="editStartTime"
-                      type="time"
                       value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
+                      onChange={setStartTime}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="editEndTime">Eindtijd</Label>
-                    <Input
+                    <TimeInput
                       id="editEndTime"
-                      type="time"
                       value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
+                      onChange={setEndTime}
                     />
                   </div>
                 </div>

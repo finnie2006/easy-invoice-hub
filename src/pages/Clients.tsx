@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useClients, Client, ClientInsert } from '@/hooks/useClients';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Loader2, Plus, Users, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Users, MoreHorizontal, Pencil, Trash2, Search, X, MapPin } from 'lucide-react';
 
 const emptyClient: ClientInsert = {
   company_name: '',
@@ -29,6 +30,51 @@ export default function Clients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState<ClientInsert>(emptyClient);
+
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [cityFilter, setCityFilter] = useState<string>('all');
+
+  // Get unique cities for filter dropdown
+  const cities = useMemo(() => {
+    const uniqueCities = new Set<string>();
+    clients.forEach(client => {
+      if (client.city) {
+        uniqueCities.add(client.city);
+      }
+    });
+    return Array.from(uniqueCities).sort();
+  }, [clients]);
+
+  // Filter clients
+  const filteredClients = useMemo(() => {
+    return clients.filter(client => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = 
+          client.company_name.toLowerCase().includes(query) ||
+          (client.contact_name?.toLowerCase().includes(query) ?? false) ||
+          (client.email?.toLowerCase().includes(query) ?? false) ||
+          (client.notes?.toLowerCase().includes(query) ?? false);
+        if (!matchesSearch) return false;
+      }
+
+      // City filter
+      if (cityFilter !== 'all' && client.city !== cityFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [clients, searchQuery, cityFilter]);
+
+  const hasActiveFilters = searchQuery || cityFilter !== 'all';
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setCityFilter('all');
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -225,21 +271,72 @@ export default function Clients() {
             Klantenlijst
           </CardTitle>
           <CardDescription>
-            {clients.length} klant{clients.length !== 1 ? 'en' : ''} in je bestand
+            {filteredClients.length} van {clients.length} klant{clients.length !== 1 ? 'en' : ''}
+            {hasActiveFilters && ' (gefilterd)'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {clients.length === 0 ? (
+        <CardContent className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col gap-3">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Zoek op naam, contact, e-mail of notities..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            
+            {/* Filter dropdowns */}
+            <div className="flex flex-wrap gap-2">
+              <Select value={cityFilter} onValueChange={setCityFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <MapPin className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Plaats" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle plaatsen</SelectItem>
+                  {cities.map(city => (
+                    <SelectItem key={city} value={city}>
+                      {city}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10">
+                  <X className="h-4 w-4 mr-1" />
+                  Wissen
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {filteredClients.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Nog geen klanten</p>
-              <p className="text-sm">Voeg je eerste klant toe om te beginnen</p>
+              {clients.length === 0 ? (
+                <>
+                  <p>Nog geen klanten</p>
+                  <p className="text-sm">Voeg je eerste klant toe om te beginnen</p>
+                </>
+              ) : (
+                <>
+                  <p>Geen klanten gevonden</p>
+                  <Button variant="link" onClick={clearFilters} className="mt-2">
+                    Filters wissen
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
             <>
               {/* Mobile card view */}
               <div className="block md:hidden space-y-3">
-                {clients.map((client) => (
+                {filteredClients.map((client) => (
                   <div key={client.id} className="p-4 rounded-lg bg-muted/50 space-y-2">
                     <div className="flex items-start justify-between">
                       <div>
@@ -289,7 +386,7 @@ export default function Clients() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {clients.map((client) => (
+                    {filteredClients.map((client) => (
                       <TableRow key={client.id}>
                         <TableCell className="font-medium">{client.company_name}</TableCell>
                         <TableCell>{client.contact_name || '-'}</TableCell>

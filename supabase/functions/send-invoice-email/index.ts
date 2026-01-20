@@ -14,6 +14,15 @@ interface SendInvoiceRequest {
   customMessage?: string;
 }
 
+interface SmtpSettings {
+  smtp_host: string;
+  smtp_port: string;
+  smtp_user: string;
+  smtp_password: string;
+  smtp_from_email: string;
+  smtp_from_name: string;
+}
+
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
@@ -21,36 +30,82 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+// Helper function to get SMTP settings from database or env vars
+async function getSmtpSettings(supabaseAdmin: any): Promise<SmtpSettings> {
+  // First try to get from database
+  const { data: dbSettings, error } = await supabaseAdmin
+    .from('app_settings')
+    .select('setting_key, setting_value')
+    .in('setting_key', ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_email', 'smtp_from_name']);
+
+  const settings: SmtpSettings = {
+    smtp_host: '',
+    smtp_port: '587',
+    smtp_user: '',
+    smtp_password: '',
+    smtp_from_email: '',
+    smtp_from_name: 'Facturatie',
+  };
+
+  if (dbSettings && dbSettings.length > 0) {
+    dbSettings.forEach((row: any) => {
+      const key = row.setting_key as keyof SmtpSettings;
+      if (key in settings) {
+        const value = row.setting_value;
+        settings[key] = typeof value === 'string' ? value.replace(/"/g, '') : String(value);
+      }
+    });
+  }
+
+  // Fall back to environment variables if database settings are empty
+  if (!settings.smtp_host) settings.smtp_host = Deno.env.get("SMTP_HOST") || '';
+  if (!settings.smtp_user) settings.smtp_user = Deno.env.get("SMTP_USER") || '';
+  if (!settings.smtp_password) settings.smtp_password = Deno.env.get("SMTP_PASS") || '';
+  if (!settings.smtp_from_email) settings.smtp_from_email = Deno.env.get("SMTP_FROM") || settings.smtp_user;
+  if (!settings.smtp_from_name || settings.smtp_from_name === 'Facturatie') {
+    settings.smtp_from_name = Deno.env.get("SMTP_FROM_NAME") || 'Facturatie';
+  }
+
+  return settings;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get SMTP settings from environment
-    const smtpHost = Deno.env.get("SMTP_HOST");
-    const smtpPort = parseInt(Deno.env.get("SMTP_PORT") || "587");
-    const smtpUser = Deno.env.get("SMTP_USER");
-    const smtpPass = Deno.env.get("SMTP_PASS");
-    const smtpFrom = Deno.env.get("SMTP_FROM") || smtpUser;
-    const smtpFromName = Deno.env.get("SMTP_FROM_NAME") || "Facturatie";
-
-    if (!smtpHost || !smtpUser || !smtpPass) {
-      throw new Error("SMTP configuratie ontbreekt. Stel SMTP_HOST, SMTP_USER en SMTP_PASS in.");
-    }
-
     // Get auth header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       throw new Error("Geen autorisatie header gevonden");
     }
 
-    // Initialize Supabase client
+    // Initialize Supabase clients
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // User client for fetching invoice data
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } }
     });
+
+    // Admin client for reading app_settings (which may have different RLS)
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get SMTP settings from database or environment
+    const smtpSettings = await getSmtpSettings(supabaseAdmin);
+    console.log("SMTP settings loaded:", { 
+      host: smtpSettings.smtp_host, 
+      port: smtpSettings.smtp_port,
+      user: smtpSettings.smtp_user ? '***' : 'not set',
+      from: smtpSettings.smtp_from_email 
+    });
+
+    if (!smtpSettings.smtp_host || !smtpSettings.smtp_user || !smtpSettings.smtp_password) {
+      throw new Error("SMTP configuratie ontbreekt. Stel de SMTP instellingen in via Instellingen > Systeeminstellingen.");
+    }
 
     // Get request body
     const { invoiceId, recipientEmail, recipientName, customMessage }: SendInvoiceRequest = await req.json();
@@ -194,20 +249,22 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     // Send email via SMTP
+    const smtpPort = parseInt(smtpSettings.smtp_port);
     const client = new SMTPClient({
       connection: {
-        hostname: smtpHost,
+        hostname: smtpSettings.smtp_host,
         port: smtpPort,
         tls: smtpPort === 465,
         auth: {
-          username: smtpUser,
-          password: smtpPass,
+          username: smtpSettings.smtp_user,
+          password: smtpSettings.smtp_password,
         },
       },
     });
 
+    const fromEmail = smtpSettings.smtp_from_email || smtpSettings.smtp_user;
     await client.send({
-      from: `${smtpFromName} <${smtpFrom}>`,
+      from: `${smtpSettings.smtp_from_name} <${fromEmail}>`,
       to: recipientEmail,
       subject: `Factuur ${invoice.invoice_number} - ${profile?.company_name || 'Factuur'}`,
       html: emailHtml,

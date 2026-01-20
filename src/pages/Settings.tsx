@@ -5,7 +5,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Save, Building2, Palette } from 'lucide-react';
+import { Loader2, Save, Building2, Palette, FileText, PanelLeft } from 'lucide-react';
+
+const invoiceColorThemes = [
+  { id: 'gray', name: 'Grijs', colors: ['#374151', '#6B7280', '#9CA3AF'] },
+  { id: 'blue', name: 'Blauw', colors: ['#1E40AF', '#3B82F6', '#60A5FA'] },
+  { id: 'emerald', name: 'Groen', colors: ['#047857', '#10B981', '#34D399'] },
+  { id: 'amber', name: 'Amber', colors: ['#B45309', '#F59E0B', '#FBBF24'] },
+  { id: 'rose', name: 'Roze', colors: ['#BE123C', '#F43F5E', '#FB7185'] },
+  { id: 'purple', name: 'Paars', colors: ['#7C3AED', '#8B5CF6', '#A78BFA'] },
+];
+
+const panelColorThemes = [
+  { id: 'default', name: 'Donker', preview: 'bg-slate-900' },
+  { id: 'slate', name: 'Leisteen', preview: 'bg-slate-800' },
+  { id: 'zinc', name: 'Zink', preview: 'bg-zinc-800' },
+  { id: 'neutral', name: 'Neutraal', preview: 'bg-neutral-800' },
+  { id: 'blue', name: 'Blauw', preview: 'bg-blue-900' },
+  { id: 'indigo', name: 'Indigo', preview: 'bg-indigo-900' },
+];
 
 export default function Settings() {
   const { profile, isLoading, updateProfile, isUpdating, appName } = useProfile();
@@ -29,6 +47,14 @@ export default function Settings() {
     setFormData(prev => ({ ...prev, use_company_branding: checked }));
   };
 
+  const handleInvoiceColorChange = (themeId: string) => {
+    setFormData(prev => ({ ...prev, invoice_color_theme: themeId }));
+  };
+
+  const handlePanelColorChange = (themeId: string) => {
+    setFormData(prev => ({ ...prev, panel_color_theme: themeId }));
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -36,6 +62,9 @@ export default function Settings() {
       </div>
     );
   }
+
+  const currentInvoiceTheme = displayData.invoice_color_theme || 'gray';
+  const currentPanelTheme = displayData.panel_color_theme || 'default';
 
   return (
     <div className="space-y-6">
@@ -81,6 +110,92 @@ export default function Settings() {
             <div className="text-sm">
               <span className="text-muted-foreground">Huidige weergave: </span>
               <span className="font-medium">{appName}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Panel Color Theme */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <PanelLeft className="h-5 w-5" />
+              Paneel Kleurthema
+            </CardTitle>
+            <CardDescription>
+              Pas de kleur van het zijpaneel aan
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+              {panelColorThemes.map((theme) => (
+                <button
+                  key={theme.id}
+                  type="button"
+                  onClick={() => handlePanelColorChange(theme.id)}
+                  className={`group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                    currentPanelTheme === theme.id
+                      ? 'border-primary ring-2 ring-primary/20'
+                      : 'border-transparent hover:border-muted-foreground/30'
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-lg ${theme.preview} shadow-md`} />
+                  <span className="text-xs font-medium">{theme.name}</span>
+                  {currentPanelTheme === theme.id && (
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+                      <svg className="w-2.5 h-2.5 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Invoice Color Theme */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Factuur Kleurthema
+            </CardTitle>
+            <CardDescription>
+              Kies het kleurthema voor je facturen
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {invoiceColorThemes.map((theme) => (
+                <button
+                  key={theme.id}
+                  type="button"
+                  onClick={() => handleInvoiceColorChange(theme.id)}
+                  className={`group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                    currentInvoiceTheme === theme.id
+                      ? 'border-primary ring-2 ring-primary/20'
+                      : 'border-transparent hover:border-muted-foreground/30'
+                  }`}
+                >
+                  <div className="flex gap-0.5">
+                    {theme.colors.map((color, i) => (
+                      <div
+                        key={i}
+                        className="w-4 h-8 first:rounded-l last:rounded-r"
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs font-medium">{theme.name}</span>
+                  {currentInvoiceTheme === theme.id && (
+                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full flex items-center justify-center">
+                      <svg className="w-2.5 h-2.5 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>

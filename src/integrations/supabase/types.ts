@@ -411,8 +411,10 @@ export type Database = {
           default_payment_terms: number | null
           iban: string | null
           id: string
+          invoice_color_theme: string | null
           kvk_number: string | null
           logo_url: string | null
+          panel_color_theme: string | null
           updated_at: string
           use_company_branding: boolean | null
           user_id: string
@@ -429,8 +431,10 @@ export type Database = {
           default_payment_terms?: number | null
           iban?: string | null
           id?: string
+          invoice_color_theme?: string | null
           kvk_number?: string | null
           logo_url?: string | null
+          panel_color_theme?: string | null
           updated_at?: string
           use_company_branding?: boolean | null
           user_id: string
@@ -447,8 +451,10 @@ export type Database = {
           default_payment_terms?: number | null
           iban?: string | null
           id?: string
+          invoice_color_theme?: string | null
           kvk_number?: string | null
           logo_url?: string | null
+          panel_color_theme?: string | null
           updated_at?: string
           use_company_branding?: boolean | null
           user_id?: string

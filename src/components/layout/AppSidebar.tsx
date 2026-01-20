@@ -23,11 +23,13 @@ import {
   LogOut,
   Calendar,
   Briefcase,
+  FolderKanban,
 } from 'lucide-react';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Agenda', url: '/calendar', icon: Calendar },
+  { title: 'Projecten', url: '/projects', icon: FolderKanban },
   { title: 'Facturen', url: '/invoices', icon: FileText },
   { title: 'Klanten', url: '/clients', icon: Users },
   { title: 'Uitgaven', url: '/expenses', icon: Receipt },

@@ -16,6 +16,8 @@ import Clients from "./pages/Clients";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Projects from "./pages/Projects";
+import ProjectDetail from "./pages/ProjectDetail";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
@@ -52,6 +54,8 @@ function AppContent() {
         <Route path="/invoices/:id" element={<InvoiceDetail />} />
         <Route path="/invoices/:id/edit" element={<InvoiceEdit />} />
         <Route path="/clients" element={<Clients />} />
+        <Route path="/projects" element={<Projects />} />
+        <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/expenses" element={<Expenses />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />

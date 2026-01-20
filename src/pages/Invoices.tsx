@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useInvoices } from '@/hooks/useInvoices';
+import { useInvoices, Invoice } from '@/hooks/useInvoices';
 import { useClients } from '@/hooks/useClients';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ExternalInvoiceDialog } from '@/components/invoices/ExternalInvoiceDialog';
 import { 
   Loader2, 
@@ -34,12 +44,27 @@ export default function Invoices() {
   const { invoices, isLoading, updateInvoiceStatus, deleteInvoice } = useInvoices();
   const { clients } = useClients();
   const [externalDialogOpen, setExternalDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+
+  const handleDeleteClick = (invoice: Invoice) => {
+    setInvoiceToDelete(invoice);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (invoiceToDelete) {
+      deleteInvoice(invoiceToDelete.id);
+      setDeleteDialogOpen(false);
+      setInvoiceToDelete(null);
+    }
+  };
 
   // Get unique clients from invoices for filter dropdown
   const invoiceClients = useMemo(() => {
@@ -319,7 +344,7 @@ export default function Invoices() {
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => deleteInvoice(invoice.id)} className="text-destructive">
+                            <DropdownMenuItem onClick={() => handleDeleteClick(invoice)} className="text-destructive">
                               <Trash2 className="h-4 w-4 mr-2" />
                               Verwijderen
                             </DropdownMenuItem>
@@ -417,7 +442,7 @@ export default function Invoices() {
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => deleteInvoice(invoice.id)} className="text-destructive">
+                                <DropdownMenuItem onClick={() => handleDeleteClick(invoice)} className="text-destructive">
                                   <Trash2 className="h-4 w-4 mr-2" />
                                   Verwijderen
                                 </DropdownMenuItem>
@@ -439,6 +464,29 @@ export default function Invoices() {
         open={externalDialogOpen} 
         onOpenChange={setExternalDialogOpen} 
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Factuur verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je factuur {invoiceToDelete?.invoice_number} wilt verwijderen?
+              {invoiceToDelete?.client_company_name && (
+                <> ({invoiceToDelete.client_company_name})</>
+              )}
+              <br /><br />
+              <strong>Let op:</strong> Deze actie kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

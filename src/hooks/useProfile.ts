@@ -18,6 +18,8 @@ export interface Profile {
   default_payment_terms: number | null;
   logo_url: string | null;
   use_company_branding: boolean | null;
+  invoice_color_theme: string | null;
+  panel_color_theme: string | null;
   created_at: string;
   updated_at: string;
 }

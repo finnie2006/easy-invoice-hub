@@ -29,6 +29,7 @@ export interface InvoiceData {
   total_btw: number;
   total: number;
   notes: string | null;
+  notes_title: string | null;
   items: InvoiceItem[];
 }
 

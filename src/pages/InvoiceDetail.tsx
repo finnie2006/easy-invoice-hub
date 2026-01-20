@@ -318,6 +318,7 @@ export default function InvoiceDetail() {
     total_btw: Number(invoice.total_btw),
     total: Number(invoice.total),
     notes: invoice.notes,
+    notes_title: invoice.notes_title || 'Opmerkingen',
     items: invoice.items?.map(item => ({
       id: item.id,
       description: item.description,

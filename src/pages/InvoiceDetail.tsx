@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useInvoice, useInvoices } from '@/hooks/useInvoices';
 import { useProfile } from '@/hooks/useProfile';
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -17,13 +18,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, ArrowLeft, Send, CheckCircle2, Download, AlertTriangle, Pencil, Mail, Copy } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, CheckCircle2, Download, AlertTriangle, Pencil, Mail, Copy, Palette } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import {
+  ClassicTemplate,
+  ModernTemplate,
+  MinimalTemplate,
+  BoldTemplate,
+  INVOICE_DESIGNS,
+  type InvoiceDesign,
+  type InvoiceData,
+} from '@/components/invoices/templates';
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -41,16 +51,20 @@ export default function InvoiceDetail() {
   const [emailMessage, setEmailMessage] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [selectedDesign, setSelectedDesign] = useState<InvoiceDesign>(() => {
+    const saved = localStorage.getItem('invoice-design');
+    return (saved as InvoiceDesign) || 'classic';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('invoice-design', selectedDesign);
+  }, [selectedDesign]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
       style: 'currency',
       currency: 'EUR',
     }).format(amount);
-  };
-
-  const formatCurrencyShort = (amount: number) => {
-    return `€${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const handleDownloadPdf = async () => {
@@ -60,22 +74,30 @@ export default function InvoiceDetail() {
     try {
       const element = invoiceRef.current;
       
-      // A4 dimensions in pixels at 96 DPI: 794 x 1123
-      // We'll set the element to a fixed width that matches A4 proportions
+      // A4 dimensions at 96 DPI
       const a4WidthPx = 794;
       const a4HeightPx = 1123;
       
       // Store original styles
-      const originalWidth = element.style.width;
-      const originalMinHeight = element.style.minHeight;
-      const originalPadding = element.style.padding;
+      const originalStyles = {
+        width: element.style.width,
+        minHeight: element.style.minHeight,
+        height: element.style.height,
+        position: element.style.position,
+        overflow: element.style.overflow,
+      };
       
-      // Temporarily set element to A4 proportions
+      // Set element to exact A4 proportions for capture
       element.style.width = `${a4WidthPx}px`;
       element.style.minHeight = `${a4HeightPx}px`;
-      element.style.padding = '40px';
+      element.style.height = 'auto';
+      element.style.position = 'relative';
+      element.style.overflow = 'visible';
       
-      // Create canvas from the invoice element
+      // Wait for styles to apply
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Create canvas with high quality
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
@@ -83,58 +105,70 @@ export default function InvoiceDetail() {
         backgroundColor: '#ffffff',
         width: a4WidthPx,
         windowWidth: a4WidthPx,
+        height: Math.max(element.scrollHeight, a4HeightPx),
       });
       
       // Restore original styles
-      element.style.width = originalWidth;
-      element.style.minHeight = originalMinHeight;
-      element.style.padding = originalPadding;
+      Object.assign(element.style, originalStyles);
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/png', 1.0);
       
-      // Create PDF with A4 dimensions
+      // Create PDF with A4 dimensions (210 x 297 mm)
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
       });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const pdfWidth = 210;
+      const pdfHeight = 297;
       
-      // Calculate dimensions to fit the full page
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      // If content is taller than one page, we need to handle pagination
-      if (imgHeight > pdfHeight) {
-        let remainingHeight = canvas.height;
-        let position = 0;
-        const pageHeightPx = (pdfHeight * canvas.width) / pdfWidth;
+      // Calculate image dimensions to fill the page properly
+      const canvasAspect = canvas.width / canvas.height;
+      const pageAspect = pdfWidth / pdfHeight;
+      
+      let imgWidth = pdfWidth;
+      let imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      // Handle multi-page content
+      const totalPages = Math.ceil(imgHeight / pdfHeight);
+      
+      if (totalPages === 1) {
+        // Single page - fit content to page, filling width
+        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, Math.min(imgHeight, pdfHeight));
+      } else {
+        // Multi-page handling
+        const pageHeightInCanvas = (pdfHeight / pdfWidth) * canvas.width;
         
-        while (remainingHeight > 0) {
-          if (position > 0) {
+        for (let page = 0; page < totalPages; page++) {
+          if (page > 0) {
             pdf.addPage();
           }
           
-          pdf.addImage(
-            imgData,
-            'PNG',
-            0,
-            position > 0 ? -(position * pdfHeight) / pageHeightPx * (canvas.width / pdfWidth) : 0,
-            imgWidth,
-            imgHeight
-          );
+          // Create a temporary canvas for this page section
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = Math.min(pageHeightInCanvas, canvas.height - page * pageHeightInCanvas);
           
-          remainingHeight -= pageHeightPx;
-          position++;
+          const ctx = pageCanvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+            ctx.drawImage(
+              canvas,
+              0, page * pageHeightInCanvas,
+              canvas.width, pageCanvas.height,
+              0, 0,
+              canvas.width, pageCanvas.height
+            );
+            
+            const pageImgData = pageCanvas.toDataURL('image/png', 1.0);
+            const pageImgHeight = (pageCanvas.height * pdfWidth) / pageCanvas.width;
+            pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, pageImgHeight);
+          }
         }
-      } else {
-        // Content fits on one page
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
       }
 
-      // Download the PDF
       pdf.save(`Factuur-${invoice.invoice_number}.pdf`);
 
       toast({
@@ -154,7 +188,6 @@ export default function InvoiceDetail() {
   };
 
   const handleOpenEmailDialog = () => {
-    // Pre-fill email from client if available
     if (invoice?.client_id) {
       const client = clients.find(c => c.id === invoice.client_id);
       if (client) {
@@ -192,7 +225,6 @@ export default function InvoiceDetail() {
 
       setEmailDialogOpen(false);
 
-      // Optionally mark as sent if it was a draft
       if (invoice?.status === 'draft') {
         updateInvoiceStatus({ id: invoice.id, status: 'sent' });
       }
@@ -214,7 +246,7 @@ export default function InvoiceDetail() {
     try {
       const newInvoice = await createInvoice({
         invoice: {
-          invoice_number: '', // Will be auto-generated
+          invoice_number: '',
           invoice_date: format(new Date(), 'yyyy-MM-dd'),
           due_date: format(new Date(Date.now() + (profile?.default_payment_terms || 14) * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
           client_id: invoice.client_id || undefined,
@@ -277,9 +309,54 @@ export default function InvoiceDetail() {
     invoice.status !== 'cancelled' && 
     new Date(invoice.due_date) < new Date();
 
+  // Prepare invoice data for templates
+  const invoiceData: InvoiceData = {
+    id: invoice.id,
+    invoice_number: invoice.invoice_number,
+    invoice_date: invoice.invoice_date,
+    due_date: invoice.due_date,
+    client_company_name: invoice.client_company_name,
+    client_contact_name: invoice.client_contact_name,
+    client_address: invoice.client_address,
+    client_postal_code: invoice.client_postal_code,
+    client_city: invoice.client_city,
+    client_country: invoice.client_country,
+    client_kvk_number: invoice.client_kvk_number,
+    client_btw_number: invoice.client_btw_number,
+    subtotal: Number(invoice.subtotal),
+    total_btw: Number(invoice.total_btw),
+    total: Number(invoice.total),
+    notes: invoice.notes,
+    items: invoice.items?.map(item => ({
+      id: item.id,
+      description: item.description,
+      quantity: item.quantity,
+      unit: item.unit,
+      unit_price: item.unit_price,
+      btw_percentage: item.btw_percentage,
+      subtotal: Number(item.subtotal),
+      btw_amount: Number(item.btw_amount),
+      total: Number(item.total),
+    })) || [],
+  };
+
+  const renderTemplate = () => {
+    switch (selectedDesign) {
+      case 'modern':
+        return <ModernTemplate invoice={invoiceData} profile={profile} />;
+      case 'minimal':
+        return <MinimalTemplate invoice={invoiceData} profile={profile} />;
+      case 'bold':
+        return <BoldTemplate invoice={invoiceData} profile={profile} />;
+      case 'classic':
+      default:
+        return <ClassicTemplate invoice={invoiceData} profile={profile} />;
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header - hide on print */}
+      {/* Header */}
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/invoices')}>
@@ -307,6 +384,24 @@ export default function InvoiceDetail() {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
+          {/* Design Selector */}
+          <Select value={selectedDesign} onValueChange={(v) => setSelectedDesign(v as InvoiceDesign)}>
+            <SelectTrigger className="w-44">
+              <Palette className="h-4 w-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {INVOICE_DESIGNS.map((design) => (
+                <SelectItem key={design.id} value={design.id}>
+                  <div>
+                    <p className="font-medium">{design.name}</p>
+                    <p className="text-xs text-muted-foreground">{design.description}</p>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
           <Button variant="outline" onClick={() => navigate(`/invoices/${id}/edit`)}>
             <Pencil className="h-4 w-4 mr-2" />
             Bewerken
@@ -324,21 +419,17 @@ export default function InvoiceDetail() {
             E-mailen
           </Button>
           {invoice.status === 'draft' && (
-            <Button
-              onClick={() => updateInvoiceStatus({ id: invoice.id, status: 'sent' })}
-            >
+            <Button onClick={() => updateInvoiceStatus({ id: invoice.id, status: 'sent' })}>
               <Send className="h-4 w-4 mr-2" />
               Markeer als verzonden
             </Button>
           )}
           {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
-            <Button
-              onClick={() => updateInvoiceStatus({ 
-                id: invoice.id, 
-                status: 'paid',
-                paid_at: new Date().toISOString(),
-              })}
-            >
+            <Button onClick={() => updateInvoiceStatus({ 
+              id: invoice.id, 
+              status: 'paid',
+              paid_at: new Date().toISOString(),
+            })}>
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Markeer als betaald
             </Button>
@@ -346,144 +437,11 @@ export default function InvoiceDetail() {
         </div>
       </div>
 
-      {/* Invoice Card - Professional Layout */}
-      <Card className="print:shadow-none print:border-none">
-        <CardContent ref={invoiceRef} className="p-8 print:p-0 bg-white">
-          {/* Company Header */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-primary mb-4">
-              {profile?.company_name || 'Uw Bedrijf'}
-            </h2>
-            <p className="text-sm text-muted-foreground border-b pb-2">
-              {profile?.company_name} · {profile?.company_address} · {profile?.company_postal_code} {profile?.company_city}
-            </p>
-          </div>
-
-          {/* Two Column Header: Client Left, Invoice Info Right */}
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            {/* Client Info - Left Side */}
-            <div>
-              <p className="font-bold">{invoice.client_company_name}</p>
-              {invoice.client_address && <p>{invoice.client_address}</p>}
-              {(invoice.client_postal_code || invoice.client_city) && (
-                <p>{invoice.client_postal_code} {invoice.client_city}</p>
-              )}
-              {invoice.client_country && <p>{invoice.client_country}</p>}
-            </div>
-
-            {/* Invoice Details - Right Side */}
-            <div className="text-right">
-              <table className="ml-auto text-sm">
-                <tbody>
-                  <tr>
-                    <td className="font-bold pr-4 py-1">Factuurnummer #:</td>
-                    <td className="text-right">{invoice.invoice_number}</td>
-                  </tr>
-                  {invoice.client_kvk_number && (
-                    <tr>
-                      <td className="font-bold pr-4 py-1">Klantnummer #:</td>
-                      <td className="text-right">{invoice.client_kvk_number}</td>
-                    </tr>
-                  )}
-                  <tr>
-                    <td className="font-bold pr-4 py-1">Factuurdatum:</td>
-                    <td className="text-right">{format(new Date(invoice.invoice_date), 'd MMM yyyy', { locale: nl })}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Description Line */}
-          <div className="mb-6">
-            <p className="text-sm">Betreft de volgende geleverde diensten / werkzaamheden</p>
-          </div>
-
-          {/* Invoice Items Table */}
-          <table className="w-full mb-6 text-sm">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left py-2 font-medium w-12">Nr.</th>
-                <th className="text-left py-2 font-medium">Omschrijving</th>
-                <th className="text-right py-2 font-medium w-20">Uren</th>
-                <th className="text-right py-2 font-medium w-16">BTW</th>
-                <th className="text-right py-2 font-medium w-24">Totaal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.items?.map((item, index) => (
-                <tr key={item.id} className="border-b">
-                  <td className="py-3">{index + 1}</td>
-                  <td className="py-3">{item.description}</td>
-                  <td className="text-right py-3">{item.quantity}</td>
-                  <td className="text-right py-3">{item.btw_percentage}%</td>
-                  <td className="text-right py-3">{formatCurrencyShort(Number(item.subtotal))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {/* Totals - Right Aligned */}
-          <div className="flex justify-end mb-8">
-            <div className="w-64 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Subtotaal</span>
-                <span>{formatCurrencyShort(Number(invoice.subtotal))},-</span>
-              </div>
-              <div className="flex justify-between">
-                <span>BTW 21%</span>
-                <span>{formatCurrencyShort(Number(invoice.total_btw))}</span>
-              </div>
-              <div className="border-t pt-2 flex justify-between font-bold text-lg">
-                <span>Totaal incl. BTW</span>
-                <span>{formatCurrencyShort(Number(invoice.total))}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Info */}
-          <div className="mb-8 text-sm">
-            <p>
-              Betaling gelieve voor {format(new Date(invoice.due_date), 'd/MM/yyyy', { locale: nl })} overmaken naar:
-            </p>
-            <div className="mt-2">
-              {profile?.company_name && <p>{profile.company_name}</p>}
-              {profile?.iban && <p>IBAN: {profile.iban}</p>}
-            </div>
-          </div>
-
-          {/* Notes / Changelog Section */}
-          {invoice.notes && (
-            <div className="border-t pt-6 text-sm">
-              <h3 className="font-bold mb-4">{invoice.notes.split('\n')[0]?.includes(':') ? invoice.notes.split('\n')[0] : 'Opmerkingen'}</h3>
-              <div className="whitespace-pre-wrap">
-                {invoice.notes.split('\n').slice(invoice.notes.split('\n')[0]?.includes(':') ? 0 : 0).map((line, i) => {
-                  if (line.trim().startsWith('•') || line.trim().startsWith('-')) {
-                    const parts = line.replace(/^[•\-]\s*/, '').split(':');
-                    if (parts.length > 1) {
-                      return (
-                        <p key={i} className="ml-4 mb-2">
-                          • <strong>{parts[0]}:</strong>{parts.slice(1).join(':')}
-                        </p>
-                      );
-                    }
-                    return <p key={i} className="ml-4 mb-2">• {line.replace(/^[•\-]\s*/, '')}</p>;
-                  }
-                  return <p key={i} className="mb-2">{line}</p>;
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Footer */}
-          <div className="mt-8 pt-4 border-t text-xs text-muted-foreground flex justify-between">
-            <div>
-              {profile?.iban && <p>IBAN: {profile.iban}</p>}
-            </div>
-            <div className="text-right">
-              {profile?.btw_number && <span>BTW Nummer: {profile.btw_number}</span>}
-              {profile?.kvk_number && <span className="ml-4">· KVK {profile.kvk_number}</span>}
-            </div>
+      {/* Invoice Preview */}
+      <Card className="print:shadow-none print:border-none overflow-hidden">
+        <CardContent className="p-0">
+          <div ref={invoiceRef}>
+            {renderTemplate()}
           </div>
         </CardContent>
       </Card>

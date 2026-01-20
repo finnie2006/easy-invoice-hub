@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useInvoices } from '@/hooks/useInvoices';
+import { useClients } from '@/hooks/useClients';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ExternalInvoiceDialog } from '@/components/invoices/ExternalInvoiceDialog';
@@ -18,13 +21,106 @@ import {
   Trash2,
   AlertTriangle,
   Upload,
+  Search,
+  X,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths, isWithinInterval } from 'date-fns';
 import { nl } from 'date-fns/locale';
+
+type StatusFilter = 'all' | 'draft' | 'sent' | 'paid' | 'overdue';
+type PeriodFilter = 'all' | 'this-month' | 'last-month' | 'this-year';
 
 export default function Invoices() {
   const { invoices, isLoading, updateInvoiceStatus, deleteInvoice } = useInvoices();
+  const { clients } = useClients();
   const [externalDialogOpen, setExternalDialogOpen] = useState(false);
+  
+  // Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [clientFilter, setClientFilter] = useState<string>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+
+  // Get unique clients from invoices for filter dropdown
+  const invoiceClients = useMemo(() => {
+    const uniqueClients = new Map<string, string>();
+    invoices.forEach(inv => {
+      if (inv.client_id && inv.client_company_name) {
+        uniqueClients.set(inv.client_id, inv.client_company_name);
+      }
+    });
+    return Array.from(uniqueClients.entries()).map(([id, name]) => ({ id, name }));
+  }, [invoices]);
+
+  // Filter invoices
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter(invoice => {
+      // Check if overdue
+      const isOverdue = 
+        invoice.status !== 'paid' && 
+        invoice.status !== 'cancelled' && 
+        new Date(invoice.due_date) < new Date();
+      const effectiveStatus = isOverdue ? 'overdue' : invoice.status;
+
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = 
+          invoice.invoice_number.toLowerCase().includes(query) ||
+          (invoice.client_company_name?.toLowerCase().includes(query) ?? false);
+        if (!matchesSearch) return false;
+      }
+
+      // Status filter
+      if (statusFilter !== 'all' && effectiveStatus !== statusFilter) {
+        return false;
+      }
+
+      // Client filter
+      if (clientFilter !== 'all' && invoice.client_id !== clientFilter) {
+        return false;
+      }
+
+      // Period filter
+      if (periodFilter !== 'all') {
+        const invoiceDate = new Date(invoice.invoice_date);
+        const now = new Date();
+        let start: Date, end: Date;
+
+        switch (periodFilter) {
+          case 'this-month':
+            start = startOfMonth(now);
+            end = endOfMonth(now);
+            break;
+          case 'last-month':
+            start = startOfMonth(subMonths(now, 1));
+            end = endOfMonth(subMonths(now, 1));
+            break;
+          case 'this-year':
+            start = startOfYear(now);
+            end = endOfYear(now);
+            break;
+          default:
+            return true;
+        }
+
+        if (!isWithinInterval(invoiceDate, { start, end })) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [invoices, searchQuery, statusFilter, clientFilter, periodFilter]);
+
+  const hasActiveFilters = searchQuery || statusFilter !== 'all' || clientFilter !== 'all' || periodFilter !== 'all';
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('all');
+    setClientFilter('all');
+    setPeriodFilter('all');
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
@@ -88,23 +184,98 @@ export default function Invoices() {
             Factuuroverzicht
           </CardTitle>
           <CardDescription>
-            {invoices.length} factuu{invoices.length !== 1 ? 'r' : 'ren'} in totaal
+            {filteredInvoices.length} van {invoices.length} factuu{invoices.length !== 1 ? 'r' : 'ren'}
+            {hasActiveFilters && ' (gefilterd)'}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {invoices.length === 0 ? (
+        <CardContent className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col gap-3">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Zoek op factuurnummer of klant..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            
+            {/* Filter dropdowns */}
+            <div className="flex flex-wrap gap-2">
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle statussen</SelectItem>
+                  <SelectItem value="draft">Concept</SelectItem>
+                  <SelectItem value="sent">Verzonden</SelectItem>
+                  <SelectItem value="paid">Betaald</SelectItem>
+                  <SelectItem value="overdue">Verlopen</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Klant" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle klanten</SelectItem>
+                  {invoiceClients.map(client => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={periodFilter} onValueChange={(v) => setPeriodFilter(v as PeriodFilter)}>
+                <SelectTrigger className="w-full sm:w-[150px]">
+                  <SelectValue placeholder="Periode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle periodes</SelectItem>
+                  <SelectItem value="this-month">Deze maand</SelectItem>
+                  <SelectItem value="last-month">Vorige maand</SelectItem>
+                  <SelectItem value="this-year">Dit jaar</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10">
+                  <X className="h-4 w-4 mr-1" />
+                  Wissen
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {filteredInvoices.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Nog geen facturen</p>
-              <Button variant="link" asChild className="mt-2">
-                <Link to="/invoices/new">Maak je eerste factuur</Link>
-              </Button>
+              {invoices.length === 0 ? (
+                <>
+                  <p>Nog geen facturen</p>
+                  <Button variant="link" asChild className="mt-2">
+                    <Link to="/invoices/new">Maak je eerste factuur</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p>Geen facturen gevonden</p>
+                  <Button variant="link" onClick={clearFilters} className="mt-2">
+                    Filters wissen
+                  </Button>
+                </>
+              )}
             </div>
           ) : (
             <>
               {/* Mobile card view */}
               <div className="block md:hidden space-y-3">
-                {invoices.map((invoice) => {
+                {filteredInvoices.map((invoice) => {
                   const isOverdue = 
                     invoice.status !== 'paid' && 
                     invoice.status !== 'cancelled' && 
@@ -189,7 +360,7 @@ export default function Invoices() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {invoices.map((invoice) => {
+                    {filteredInvoices.map((invoice) => {
                       const isOverdue = 
                         invoice.status !== 'paid' && 
                         invoice.status !== 'cancelled' && 

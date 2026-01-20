@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -28,11 +29,12 @@ export default function Expenses() {
   const [amountInputMode, setAmountInputMode] = useState<'incl' | 'excl'>('incl');
   const [amountInput, setAmountInput] = useState<string>('');
   
+  const [expenseDate, setExpenseDate] = useState<Date>(new Date());
+  
   const [formData, setFormData] = useState<Partial<ExpenseInsert>>({
     vendor_name: '',
     description: '',
     category: 'overig',
-    expense_date: format(new Date(), 'yyyy-MM-dd'),
     amount_incl_btw: 0,
     btw_percentage: 21,
   });
@@ -116,7 +118,7 @@ export default function Expenses() {
         vendor_name: formData.vendor_name || '',
         description: formData.description || null,
         category: formData.category || 'overig',
-        expense_date: formData.expense_date || format(new Date(), 'yyyy-MM-dd'),
+        expense_date: format(expenseDate, 'yyyy-MM-dd'),
         amount_incl_btw: amountInclBtw,
         amount_excl_btw: amountExclBtw,
         btw_amount: btwAmount,
@@ -131,11 +133,11 @@ export default function Expenses() {
     setSelectedFile(null);
     setAmountInput('');
     setAmountInputMode('incl');
+    setExpenseDate(new Date());
     setFormData({
       vendor_name: '',
       description: '',
       category: 'overig',
-      expense_date: format(new Date(), 'yyyy-MM-dd'),
       amount_incl_btw: 0,
       btw_percentage: 21,
     });
@@ -241,13 +243,11 @@ export default function Expenses() {
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="expense_date">Datum</Label>
-                  <Input
+                  <DatePicker
                     id="expense_date"
-                    name="expense_date"
-                    type="date"
-                    value={formData.expense_date}
-                    onChange={handleChange}
-                    required
+                    value={expenseDate}
+                    onChange={(date) => date && setExpenseDate(date)}
+                    showClearButton={false}
                   />
                 </div>
 

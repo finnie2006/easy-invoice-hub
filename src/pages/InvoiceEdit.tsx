@@ -10,8 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Loader2, Plus, Trash2, FileText, ArrowLeft } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 interface InvoiceItemForm extends InvoiceItemInsert {
   id: string;
@@ -26,8 +27,8 @@ export default function InvoiceEdit() {
   const { profile } = useProfile();
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState<Date | undefined>(undefined);
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
@@ -49,8 +50,8 @@ export default function InvoiceEdit() {
   useEffect(() => {
     if (invoice) {
       setInvoiceNumber(invoice.invoice_number);
-      setInvoiceDate(format(new Date(invoice.invoice_date), 'yyyy-MM-dd'));
-      setDueDate(format(new Date(invoice.due_date), 'yyyy-MM-dd'));
+      setInvoiceDate(parseISO(invoice.invoice_date));
+      setDueDate(parseISO(invoice.due_date));
       setSelectedClientId(invoice.client_id || 'new');
       setNotes(invoice.notes || '');
       setPaymentReference(invoice.payment_reference || '');
@@ -150,7 +151,7 @@ export default function InvoiceEdit() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!clientData.company_name || !id) {
+    if (!clientData.company_name || !id || !invoiceDate || !dueDate) {
       return;
     }
 
@@ -163,8 +164,8 @@ export default function InvoiceEdit() {
         id,
         invoice: {
           invoice_number: invoiceNumber,
-          invoice_date: invoiceDate,
-          due_date: dueDate,
+          invoice_date: format(invoiceDate, 'yyyy-MM-dd'),
+          due_date: format(dueDate, 'yyyy-MM-dd'),
           client_id: selectedClientId && selectedClientId !== 'new' ? selectedClientId : null,
           client_company_name: clientData.company_name,
           client_contact_name: clientData.contact_name || null,
@@ -249,23 +250,21 @@ export default function InvoiceEdit() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="invoice_date">Factuurdatum</Label>
-                  <Input
+                  <Label htmlFor="invoice_date">Factuurdatum *</Label>
+                  <DatePicker
                     id="invoice_date"
-                    type="date"
                     value={invoiceDate}
-                    onChange={(e) => setInvoiceDate(e.target.value)}
-                    required
+                    onChange={(date) => date && setInvoiceDate(date)}
+                    showClearButton={false}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="due_date">Vervaldatum</Label>
-                  <Input
+                  <Label htmlFor="due_date">Vervaldatum *</Label>
+                  <DatePicker
                     id="due_date"
-                    type="date"
                     value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    required
+                    onChange={(date) => date && setDueDate(date)}
+                    showClearButton={false}
                   />
                 </div>
               </div>

@@ -24,6 +24,10 @@ export default function Expenses() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   
+  // Form state
+  const [amountInputMode, setAmountInputMode] = useState<'incl' | 'excl'>('incl');
+  const [amountInput, setAmountInput] = useState<string>('');
+  
   const [formData, setFormData] = useState<Partial<ExpenseInsert>>({
     vendor_name: '',
     description: '',
@@ -80,13 +84,32 @@ export default function Expenses() {
     }
   };
 
+  // Calculate amounts based on input mode
+  const calculateAmounts = () => {
+    const inputAmount = parseFloat(amountInput) || 0;
+    const btwPercentage = formData.btw_percentage || 21;
+    
+    let amountInclBtw: number;
+    let amountExclBtw: number;
+    let btwAmount: number;
+    
+    if (amountInputMode === 'incl') {
+      amountInclBtw = inputAmount;
+      amountExclBtw = inputAmount / (1 + btwPercentage / 100);
+      btwAmount = amountInclBtw - amountExclBtw;
+    } else {
+      amountExclBtw = inputAmount;
+      btwAmount = amountExclBtw * (btwPercentage / 100);
+      amountInclBtw = amountExclBtw + btwAmount;
+    }
+    
+    return { amountInclBtw, amountExclBtw, btwAmount };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const amountInclBtw = formData.amount_incl_btw || 0;
-    const btwPercentage = formData.btw_percentage || 21;
-    const amountExclBtw = amountInclBtw / (1 + btwPercentage / 100);
-    const btwAmount = amountInclBtw - amountExclBtw;
+    const { amountInclBtw, amountExclBtw, btwAmount } = calculateAmounts();
 
     await createExpense({
       expense: {
@@ -97,7 +120,7 @@ export default function Expenses() {
         amount_incl_btw: amountInclBtw,
         amount_excl_btw: amountExclBtw,
         btw_amount: btwAmount,
-        btw_percentage: btwPercentage,
+        btw_percentage: formData.btw_percentage || 21,
         receipt_url: null,
         notes: null,
       },
@@ -106,6 +129,8 @@ export default function Expenses() {
     
     setDialogOpen(false);
     setSelectedFile(null);
+    setAmountInput('');
+    setAmountInputMode('incl');
     setFormData({
       vendor_name: '',
       description: '',
@@ -248,17 +273,37 @@ export default function Expenses() {
 
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="amount_incl_btw">Bedrag incl. BTW (€) *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="amount">
+                      Bedrag {amountInputMode === 'incl' ? 'incl.' : 'excl.'} BTW (€) *
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => setAmountInputMode(prev => prev === 'incl' ? 'excl' : 'incl')}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Wissel naar {amountInputMode === 'incl' ? 'excl.' : 'incl.'} BTW
+                    </button>
+                  </div>
                   <Input
-                    id="amount_incl_btw"
-                    name="amount_incl_btw"
+                    id="amount"
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.amount_incl_btw || ''}
-                    onChange={handleChange}
+                    value={amountInput}
+                    onChange={(e) => setAmountInput(e.target.value)}
+                    placeholder="0,00"
                     required
                   />
+                  {amountInput && (
+                    <p className="text-xs text-muted-foreground">
+                      {amountInputMode === 'incl' 
+                        ? `Excl. BTW: ${formatCurrency(calculateAmounts().amountExclBtw)}`
+                        : `Incl. BTW: ${formatCurrency(calculateAmounts().amountInclBtw)}`
+                      }
+                      {' · '}BTW: {formatCurrency(calculateAmounts().btwAmount)}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">

@@ -136,6 +136,15 @@ export default function InvoiceDetail() {
           const yOffset = page * pageHeightInPx;
           const remainingHeight = Math.min(pageHeightInPx, canvas.height - yOffset);
           
+          // Skip if remaining height is too small (less than 50px = essentially empty)
+          if (remainingHeight < 50) {
+            if (page > 0) {
+              // Remove the empty page we just added
+              pdf.deletePage(pdf.getNumberOfPages());
+            }
+            continue;
+          }
+          
           // Create page canvas
           const pageCanvas = document.createElement('canvas');
           pageCanvas.width = canvas.width;

@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      btw_periods: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          id: string
+          is_closed: boolean | null
+          notes: string | null
+          period: string
+          quarter: number
+          submitted_at: string | null
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          is_closed?: boolean | null
+          notes?: string | null
+          period: string
+          quarter: number
+          submitted_at?: string | null
+          updated_at?: string
+          user_id: string
+          year: number
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          is_closed?: boolean | null
+          notes?: string | null
+          period?: string
+          quarter?: number
+          submitted_at?: string | null
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
       calendar_events: {
         Row: {
           all_day: boolean | null
@@ -140,6 +182,7 @@ export type Database = {
           amount_incl_btw: number
           btw_amount: number | null
           btw_percentage: number | null
+          btw_period: string | null
           category: string
           created_at: string
           description: string | null
@@ -156,6 +199,7 @@ export type Database = {
           amount_incl_btw: number
           btw_amount?: number | null
           btw_percentage?: number | null
+          btw_period?: string | null
           category?: string
           created_at?: string
           description?: string | null
@@ -172,6 +216,7 @@ export type Database = {
           amount_incl_btw?: number
           btw_amount?: number | null
           btw_percentage?: number | null
+          btw_period?: string | null
           category?: string
           created_at?: string
           description?: string | null

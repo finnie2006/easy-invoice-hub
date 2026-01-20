@@ -86,16 +86,16 @@ export default function Clients() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Klanten</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Klanten</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Beheer je klantenbestand
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Nieuwe klant
             </Button>
@@ -236,24 +236,18 @@ export default function Clients() {
               <p className="text-sm">Voeg je eerste klant toe om te beginnen</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Bedrijf</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>E-mail</TableHead>
-                  <TableHead>Plaats</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile card view */}
+              <div className="block md:hidden space-y-3">
                 {clients.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell className="font-medium">{client.company_name}</TableCell>
-                    <TableCell>{client.contact_name || '-'}</TableCell>
-                    <TableCell>{client.email || '-'}</TableCell>
-                    <TableCell>{client.city || '-'}</TableCell>
-                    <TableCell>
+                  <div key={client.id} className="p-4 rounded-lg bg-muted/50 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">{client.company_name}</p>
+                        {client.contact_name && (
+                          <p className="text-sm text-muted-foreground">{client.contact_name}</p>
+                        )}
+                      </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon">
@@ -265,20 +259,67 @@ export default function Clients() {
                             <Pencil className="h-4 w-4 mr-2" />
                             Bewerken
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => deleteClient(client.id)}
-                            className="text-destructive"
-                          >
+                          <DropdownMenuItem onClick={() => deleteClient(client.id)} className="text-destructive">
                             <Trash2 className="h-4 w-4 mr-2" />
                             Verwijderen
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
+                    </div>
+                    {(client.email || client.city) && (
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        {client.email && <p>{client.email}</p>}
+                        {client.city && <p>{client.city}</p>}
+                      </div>
+                    )}
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bedrijf</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>E-mail</TableHead>
+                      <TableHead>Plaats</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clients.map((client) => (
+                      <TableRow key={client.id}>
+                        <TableCell className="font-medium">{client.company_name}</TableCell>
+                        <TableCell>{client.contact_name || '-'}</TableCell>
+                        <TableCell>{client.email || '-'}</TableCell>
+                        <TableCell>{client.city || '-'}</TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleEdit(client)}>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Bewerken
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => deleteClient(client.id)} className="text-destructive">
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Verwijderen
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

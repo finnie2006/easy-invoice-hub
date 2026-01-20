@@ -9,45 +9,49 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
   return (
     <div className="bg-white text-black min-h-[1123px]" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
-      {/* Header with accent color */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-10 pb-16">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold">
-              {profile?.company_name || 'Uw Bedrijf'}
-            </h1>
-            <p className="text-blue-100 mt-2 text-sm">
-              {profile?.company_address}<br />
-              {profile?.company_postal_code} {profile?.company_city}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-4xl font-light">FACTUUR</p>
-            <p className="text-xl mt-2">#{invoice.invoice_number}</p>
+      {/* Header with accent sidebar */}
+      <div className="flex">
+        <div className="w-2 bg-emerald-500"></div>
+        <div className="flex-1 p-10 pb-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {profile?.company_name || 'Uw Bedrijf'}
+              </h1>
+              <p className="text-gray-500 mt-1 text-sm">
+                {profile?.company_address}<br />
+                {profile?.company_postal_code} {profile?.company_city}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-3xl font-light text-gray-300">FACTUUR</p>
+              <p className="text-lg font-semibold text-gray-900 mt-1">#{invoice.invoice_number}</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="px-10 -mt-8">
-        {/* Info Cards */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow-lg p-5">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Factuur aan</p>
-            <p className="font-bold text-lg mt-1">{invoice.client_company_name}</p>
-            {invoice.client_address && <p className="text-sm text-gray-600">{invoice.client_address}</p>}
-            <p className="text-sm text-gray-600">{invoice.client_postal_code} {invoice.client_city}</p>
+      <div className="px-10">
+        {/* Two Column Info */}
+        <div className="flex justify-between mb-10 pb-6 border-b border-gray-200">
+          <div>
+            <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-2">Factuur aan</p>
+            <p className="font-semibold text-lg text-gray-900">{invoice.client_company_name}</p>
+            {invoice.client_address && <p className="text-gray-600 text-sm">{invoice.client_address}</p>}
+            <p className="text-gray-600 text-sm">{invoice.client_postal_code} {invoice.client_city}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-lg p-5">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">Factuurdatum</p>
-            <p className="font-bold text-lg mt-1">{format(new Date(invoice.invoice_date), 'd MMM yyyy', { locale: nl })}</p>
-            <p className="text-xs text-gray-400 uppercase tracking-wide mt-3">Vervaldatum</p>
-            <p className="font-bold mt-1">{format(new Date(invoice.due_date), 'd MMM yyyy', { locale: nl })}</p>
-          </div>
-          <div className="bg-blue-600 rounded-lg shadow-lg p-5 text-white">
-            <p className="text-xs text-blue-100 uppercase tracking-wide">Totaalbedrag</p>
-            <p className="font-bold text-2xl mt-1">{formatCurrency(Number(invoice.total))}</p>
-            <p className="text-blue-100 text-sm mt-2">Incl. {formatCurrency(Number(invoice.total_btw))} BTW</p>
+          <div className="text-right">
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wider">Factuurdatum</p>
+                <p className="font-semibold text-gray-900">{format(new Date(invoice.invoice_date), 'd MMM yyyy', { locale: nl })}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wider">Vervaldatum</p>
+                <p className="font-semibold text-gray-900">{format(new Date(invoice.due_date), 'd MMM yyyy', { locale: nl })}</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -66,11 +70,11 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
             <tbody>
               {invoice.items?.map((item) => (
                 <tr key={item.id} className="border-b border-gray-100">
-                  <td className="py-4">{item.description}</td>
+                  <td className="py-4 text-gray-800">{item.description}</td>
                   <td className="text-right py-4 text-gray-600">{item.quantity} {item.unit || ''}</td>
                   <td className="text-right py-4 text-gray-600">{formatCurrency(item.unit_price)}</td>
                   <td className="text-right py-4 text-gray-600">{item.btw_percentage}%</td>
-                  <td className="text-right py-4 font-medium">{formatCurrency(Number(item.subtotal))}</td>
+                  <td className="text-right py-4 font-medium text-gray-900">{formatCurrency(Number(item.subtotal))}</td>
                 </tr>
               ))}
             </tbody>
@@ -88,36 +92,36 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
               <span>BTW</span>
               <span>{formatCurrency(Number(invoice.total_btw))}</span>
             </div>
-            <div className="flex justify-between py-3 mt-2 border-t-2 border-blue-600 font-bold text-lg">
-              <span>Totaal</span>
-              <span className="text-blue-600">{formatCurrency(Number(invoice.total))}</span>
+            <div className="flex justify-between py-3 mt-2 border-t-2 border-emerald-500">
+              <span className="font-bold text-gray-900">Totaal</span>
+              <span className="font-bold text-lg text-emerald-600">{formatCurrency(Number(invoice.total))}</span>
             </div>
           </div>
         </div>
 
         {/* Payment Info */}
-        <div className="bg-gray-50 rounded-lg p-6 mb-6">
+        <div className="bg-gray-50 border-l-4 border-emerald-500 p-6 mb-6">
           <div className="flex justify-between items-start">
             <div>
-              <p className="font-semibold text-gray-800">Betalingsinformatie</p>
-              <div className="mt-2 text-sm text-gray-600">
+              <p className="font-semibold text-gray-900 mb-2">Betalingsinformatie</p>
+              <div className="text-sm text-gray-600 space-y-1">
                 {profile?.company_name && <p>T.n.v.: {profile.company_name}</p>}
-                {profile?.iban && <p>IBAN: {profile.iban}</p>}
+                {profile?.iban && <p>IBAN: <span className="font-mono">{profile.iban}</span></p>}
                 <p>Referentie: {invoice.invoice_number}</p>
               </div>
             </div>
-            <div className="text-right text-sm text-gray-600">
-              <p>Gelieve te betalen voor</p>
-              <p className="font-bold text-gray-800">{format(new Date(invoice.due_date), 'd MMMM yyyy', { locale: nl })}</p>
+            <div className="text-right text-sm">
+              <p className="text-gray-500">Betalen voor</p>
+              <p className="font-bold text-gray-900">{format(new Date(invoice.due_date), 'd MMMM yyyy', { locale: nl })}</p>
             </div>
           </div>
         </div>
 
         {/* Notes */}
         {invoice.notes && (
-          <div className="mb-6 text-sm text-gray-600">
-            <p className="font-semibold text-gray-800 mb-2">Opmerkingen</p>
-            <p className="whitespace-pre-wrap">{invoice.notes}</p>
+          <div className="mb-6 text-sm">
+            <p className="font-semibold text-gray-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
+            <p className="text-gray-600 whitespace-pre-wrap">{invoice.notes}</p>
           </div>
         )}
 
@@ -126,9 +130,9 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
           <div>
             {profile?.company_name}
           </div>
-          <div className="text-right">
+          <div className="space-x-4">
             {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}
-            {profile?.btw_number && <span className="ml-4">BTW: {profile.btw_number}</span>}
+            {profile?.btw_number && <span>BTW: {profile.btw_number}</span>}
           </div>
         </div>
       </div>

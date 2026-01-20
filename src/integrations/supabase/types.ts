@@ -458,6 +458,7 @@ export type Database = {
       projects: {
         Row: {
           client_id: string | null
+          client_name: string | null
           created_at: string
           description: string | null
           end_date: string | null
@@ -471,6 +472,7 @@ export type Database = {
         }
         Insert: {
           client_id?: string | null
+          client_name?: string | null
           created_at?: string
           description?: string | null
           end_date?: string | null
@@ -484,6 +486,7 @@ export type Database = {
         }
         Update: {
           client_id?: string | null
+          client_name?: string | null
           created_at?: string
           description?: string | null
           end_date?: string | null

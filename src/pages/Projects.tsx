@@ -57,6 +57,7 @@ export default function Projects() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [clientId, setClientId] = useState('');
+  const [clientName, setClientName] = useState('');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [hourlyRate, setHourlyRate] = useState(profile?.default_hourly_rate?.toString() || '');
 
@@ -67,6 +68,7 @@ export default function Projects() {
       name: name.trim(),
       description: description.trim() || undefined,
       client_id: clientId || undefined,
+      client_name: clientId ? undefined : (clientName.trim() || undefined),
       start_date: startDate,
       hourly_rate: hourlyRate ? parseFloat(hourlyRate) : undefined,
     };
@@ -80,6 +82,7 @@ export default function Projects() {
     setName('');
     setDescription('');
     setClientId('');
+    setClientName('');
     setStartDate(format(new Date(), 'yyyy-MM-dd'));
     setHourlyRate(profile?.default_hourly_rate?.toString() || '');
   };
@@ -149,18 +152,39 @@ export default function Projects() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="client">Klant</Label>
-                <Select value={clientId} onValueChange={setClientId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecteer een klant (optioneel)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.company_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={clientId} onValueChange={(value) => {
+                    setClientId(value);
+                    if (value) setClientName('');
+                  }}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Selecteer opgeslagen klant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.company_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">of</span>
+                  </div>
+                </div>
+                <Input
+                  placeholder="Vul klantnaam handmatig in"
+                  value={clientName}
+                  onChange={(e) => {
+                    setClientName(e.target.value);
+                    if (e.target.value) setClientId('');
+                  }}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -234,9 +258,9 @@ export default function Projects() {
                 <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                   <div className="space-y-1">
                     <CardTitle className="text-lg">{project.name}</CardTitle>
-                    {project.client?.company_name && (
+                    {(project.client?.company_name || project.client_name) && (
                       <p className="text-sm text-muted-foreground">
-                        {project.client.company_name}
+                        {project.client?.company_name || project.client_name}
                       </p>
                     )}
                   </div>

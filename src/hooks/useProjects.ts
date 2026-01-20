@@ -7,6 +7,7 @@ export interface Project {
   id: string;
   user_id: string;
   client_id: string | null;
+  client_name: string | null;
   name: string;
   description: string | null;
   start_date: string;
@@ -35,6 +36,7 @@ export interface CreateProjectData {
   name: string;
   description?: string;
   client_id?: string;
+  client_name?: string;
   start_date: string;
   end_date?: string;
   hourly_rate?: number;
@@ -78,6 +80,7 @@ export function useProjects() {
           name: projectData.name,
           description: projectData.description || null,
           client_id: projectData.client_id || null,
+          client_name: projectData.client_name || null,
           start_date: projectData.start_date,
           end_date: projectData.end_date || null,
           hourly_rate: projectData.hourly_rate || null,

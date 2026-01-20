@@ -114,9 +114,9 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
       {/* Notes / Changelog Section */}
       {invoice.notes && (
-        <div className="border-t pt-6 text-sm">
-          <h3 className="font-bold mb-4">{invoice.notes.split('\n')[0]?.includes(':') ? invoice.notes.split('\n')[0] : 'Opmerkingen'}</h3>
-          <div className="whitespace-pre-wrap text-gray-600">
+        <div className="border-t pt-4 text-sm">
+          <h3 className="font-bold mb-2">Opmerkingen</h3>
+          <div className="border-t pt-2 whitespace-pre-wrap text-gray-600">
             {invoice.notes}
           </div>
         </div>

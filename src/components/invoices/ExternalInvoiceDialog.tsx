@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus, ChevronLeft } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
 interface ExternalInvoiceDialogProps {
@@ -30,11 +30,13 @@ interface ExternalInvoiceDialogProps {
 
 export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDialogProps) {
   const { createExternalInvoice, isCreatingExternal } = useInvoices();
-  const { clients } = useClients();
+  const { clients, createClient, isCreating: isCreatingClient } = useClients();
   
   const today = format(new Date(), 'yyyy-MM-dd');
   const defaultDueDate = format(addDays(new Date(), 14), 'yyyy-MM-dd');
 
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  
   const [formData, setFormData] = useState({
     invoice_number: '',
     invoice_date: today,
@@ -48,6 +50,15 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
     notes: '',
   });
 
+  const [newClientData, setNewClientData] = useState({
+    company_name: '',
+    contact_name: '',
+    email: '',
+    address: '',
+    postal_code: '',
+    city: '',
+  });
+
   const handleClientChange = (clientId: string) => {
     if (clientId === 'manual') {
       setFormData(prev => ({
@@ -55,6 +66,11 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
         client_id: '',
         client_company_name: '',
       }));
+      return;
+    }
+
+    if (clientId === 'new') {
+      setShowNewClientForm(true);
       return;
     }
 
@@ -66,6 +82,43 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
         client_company_name: client.company_name,
       }));
     }
+  };
+
+  const handleCreateClient = async () => {
+    if (!newClientData.company_name.trim()) return;
+    
+    const newClient = await createClient({
+      company_name: newClientData.company_name,
+      contact_name: newClientData.contact_name || null,
+      email: newClientData.email || null,
+      address: newClientData.address || null,
+      postal_code: newClientData.postal_code || null,
+      city: newClientData.city || null,
+      country: 'Nederland',
+      phone: null,
+      kvk_number: null,
+      btw_number: null,
+      notes: null,
+      is_saved: true,
+    });
+
+    // Select the new client
+    setFormData(prev => ({
+      ...prev,
+      client_id: newClient.id,
+      client_company_name: newClient.company_name,
+    }));
+
+    // Reset and close new client form
+    setNewClientData({
+      company_name: '',
+      contact_name: '',
+      email: '',
+      address: '',
+      postal_code: '',
+      city: '',
+    });
+    setShowNewClientForm(false);
   };
 
   const handleAmountChange = (field: 'subtotal' | 'total_btw' | 'total', value: string) => {
@@ -97,7 +150,6 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
       total: parseFloat(formData.total) || 0,
     });
 
-    // Reset form
     setFormData({
       invoice_number: '',
       invoice_date: today,
@@ -110,9 +162,117 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
       status: 'sent',
       notes: '',
     });
+    setShowNewClientForm(false);
     
     onOpenChange(false);
   };
+
+  // New Client Form view
+  if (showNewClientForm) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="icon" 
+                className="h-6 w-6"
+                onClick={() => setShowNewClientForm(false)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              Nieuwe klant aanmaken
+            </DialogTitle>
+            <DialogDescription>
+              Maak een nieuwe klant aan en gebruik deze direct voor je factuur.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new_company_name">Bedrijfsnaam *</Label>
+              <Input
+                id="new_company_name"
+                value={newClientData.company_name}
+                onChange={(e) => setNewClientData(prev => ({ ...prev, company_name: e.target.value }))}
+                placeholder="Naam van het bedrijf"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="new_contact_name">Contactpersoon</Label>
+                <Input
+                  id="new_contact_name"
+                  value={newClientData.contact_name}
+                  onChange={(e) => setNewClientData(prev => ({ ...prev, contact_name: e.target.value }))}
+                  placeholder="Naam contactpersoon"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new_email">E-mailadres</Label>
+                <Input
+                  id="new_email"
+                  type="email"
+                  value={newClientData.email}
+                  onChange={(e) => setNewClientData(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="email@bedrijf.nl"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new_address">Adres</Label>
+              <Input
+                id="new_address"
+                value={newClientData.address}
+                onChange={(e) => setNewClientData(prev => ({ ...prev, address: e.target.value }))}
+                placeholder="Straat en huisnummer"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="new_postal_code">Postcode</Label>
+                <Input
+                  id="new_postal_code"
+                  value={newClientData.postal_code}
+                  onChange={(e) => setNewClientData(prev => ({ ...prev, postal_code: e.target.value }))}
+                  placeholder="1234 AB"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new_city">Plaats</Label>
+                <Input
+                  id="new_city"
+                  value={newClientData.city}
+                  onChange={(e) => setNewClientData(prev => ({ ...prev, city: e.target.value }))}
+                  placeholder="Amsterdam"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowNewClientForm(false)}>
+              Annuleren
+            </Button>
+            <Button 
+              type="button" 
+              onClick={handleCreateClient}
+              disabled={isCreatingClient || !newClientData.company_name.trim()}
+            >
+              {isCreatingClient && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Aanmaken & selecteren
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -189,6 +349,12 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
                 <SelectValue placeholder="Selecteer klant of voer handmatig in" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="new">
+                  <span className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Nieuwe klant aanmaken
+                  </span>
+                </SelectItem>
                 <SelectItem value="manual">Handmatig invoeren</SelectItem>
                 {clients?.map((client) => (
                   <SelectItem key={client.id} value={client.id}>

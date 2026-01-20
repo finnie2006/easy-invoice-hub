@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useExpenses, EXPENSE_CATEGORIES } from '@/hooks/useExpenses';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,8 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, BarChart3, TrendingUp, TrendingDown, FileText, AlertCircle } from 'lucide-react';
-import { startOfYear, endOfYear, startOfQuarter, endOfQuarter, isAfter, isBefore, format, differenceInDays } from 'date-fns';
+import { startOfYear, endOfYear, startOfQuarter, endOfQuarter, isAfter, isBefore, format, differenceInDays, startOfMonth, endOfMonth } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 type Period = 'year' | 'q1' | 'q2' | 'q3' | 'q4';
 
@@ -78,6 +79,37 @@ export default function Reports() {
       currency: 'EUR',
     }).format(amount);
   };
+
+  // Monthly revenue data for chart
+  const monthlyRevenueData = useMemo(() => {
+    const months = period === 'year' 
+      ? Array.from({ length: 12 }, (_, i) => i)
+      : Array.from({ length: 3 }, (_, i) => (parseInt(period.slice(1)) - 1) * 3 + i);
+    
+    return months.map(monthIndex => {
+      const monthStart = startOfMonth(new Date(selectedYear, monthIndex, 1));
+      const monthEnd = endOfMonth(new Date(selectedYear, monthIndex, 1));
+      
+      const monthInvoices = paidInvoices.filter(inv => {
+        const date = new Date(inv.invoice_date);
+        return isAfter(date, monthStart) && isBefore(date, monthEnd);
+      });
+      
+      const monthExpenses = periodExpenses.filter(exp => {
+        const date = new Date(exp.expense_date);
+        return isAfter(date, monthStart) && isBefore(date, monthEnd);
+      });
+      
+      const revenue = monthInvoices.reduce((sum, inv) => sum + Number(inv.subtotal), 0);
+      const expenses = monthExpenses.reduce((sum, exp) => sum + Number(exp.amount_excl_btw || 0), 0);
+      
+      return {
+        month: format(monthStart, 'MMM', { locale: nl }),
+        omzet: revenue,
+        kosten: expenses,
+      };
+    });
+  }, [paidInvoices, periodExpenses, selectedYear, period]);
 
   const isLoading = loadingInvoices || loadingExpenses;
 
@@ -193,6 +225,60 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Revenue Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Omzet & Kosten per maand
+          </CardTitle>
+          <CardDescription>
+            Maandelijks overzicht (excl. BTW)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyRevenueData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis 
+                  dataKey="month" 
+                  className="text-xs fill-muted-foreground"
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                />
+                <YAxis 
+                  className="text-xs fill-muted-foreground"
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`}
+                />
+                <Tooltip 
+                  formatter={(value: number) => formatCurrency(value)}
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                  }}
+                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Legend />
+                <Bar 
+                  dataKey="omzet" 
+                  name="Omzet" 
+                  fill="hsl(var(--success))" 
+                  radius={[4, 4, 0, 0]}
+                />
+                <Bar 
+                  dataKey="kosten" 
+                  name="Kosten" 
+                  fill="hsl(var(--destructive))" 
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* BTW Overview */}

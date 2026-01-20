@@ -55,7 +55,23 @@ export default function Reports() {
     return isAfter(date, start) && isBefore(date, end);
   });
 
+  // Filter expenses by btw_period if available, otherwise by expense_date
   const periodExpenses = expenses.filter((exp) => {
+    // If expense has a btw_period assigned, use that for filtering
+    if (exp.btw_period) {
+      const [yearStr, quarterStr] = exp.btw_period.split('-Q');
+      const expYear = parseInt(yearStr);
+      const expQuarter = parseInt(quarterStr);
+      
+      if (period === 'year') {
+        return expYear === selectedYear;
+      } else {
+        const selectedQuarter = parseInt(period.slice(1));
+        return expYear === selectedYear && expQuarter === selectedQuarter;
+      }
+    }
+    
+    // Fallback to expense_date for expenses without btw_period
     const date = new Date(exp.expense_date);
     return isAfter(date, start) && isBefore(date, end);
   });

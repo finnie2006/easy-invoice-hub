@@ -4,8 +4,10 @@ import { useExpenses, EXPENSE_CATEGORIES } from '@/hooks/useExpenses';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, BarChart3, TrendingUp, TrendingDown, FileText } from 'lucide-react';
-import { startOfYear, endOfYear, startOfQuarter, endOfQuarter, isAfter, isBefore, format, getQuarter } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, BarChart3, TrendingUp, TrendingDown, FileText, AlertCircle } from 'lucide-react';
+import { startOfYear, endOfYear, startOfQuarter, endOfQuarter, isAfter, isBefore, format, differenceInDays } from 'date-fns';
+import { nl } from 'date-fns/locale';
 
 type Period = 'year' | 'q1' | 'q2' | 'q3' | 'q4';
 
@@ -48,9 +50,11 @@ export default function Reports() {
 
   // Calculate invoice stats
   const paidInvoices = periodInvoices.filter(inv => inv.status === 'paid');
+  const unpaidInvoices = periodInvoices.filter(inv => inv.status !== 'paid' && inv.status !== 'draft');
   const totalRevenue = paidInvoices.reduce((sum, inv) => sum + Number(inv.total), 0);
   const totalRevenueExclBtw = paidInvoices.reduce((sum, inv) => sum + Number(inv.subtotal), 0);
   const totalRevenueVat = paidInvoices.reduce((sum, inv) => sum + Number(inv.total_btw), 0);
+  const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.total), 0);
 
   // Calculate expense stats
   const totalExpenses = periodExpenses.reduce((sum, exp) => sum + Number(exp.amount_incl_btw), 0);
@@ -276,6 +280,71 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Unpaid Invoices */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            Onbetaalde facturen
+          </CardTitle>
+          <CardDescription>
+            Openstaande facturen in deze periode ({unpaidInvoices.length} facturen, totaal {formatCurrency(totalUnpaid)})
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {unpaidInvoices.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">
+              Geen onbetaalde facturen in deze periode
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Factuurnummer</TableHead>
+                  <TableHead>Klant</TableHead>
+                  <TableHead>Factuurdatum</TableHead>
+                  <TableHead>Vervaldatum</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Bedrag</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {unpaidInvoices.map((invoice) => {
+                  const dueDate = new Date(invoice.due_date);
+                  const today = new Date();
+                  const daysOverdue = differenceInDays(today, dueDate);
+                  const isOverdue = daysOverdue > 0;
+                  
+                  return (
+                    <TableRow key={invoice.id}>
+                      <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                      <TableCell>{invoice.client_company_name || '-'}</TableCell>
+                      <TableCell>{format(new Date(invoice.invoice_date), 'd MMM yyyy', { locale: nl })}</TableCell>
+                      <TableCell className={isOverdue ? 'text-destructive' : ''}>
+                        {format(dueDate, 'd MMM yyyy', { locale: nl })}
+                        {isOverdue && (
+                          <span className="text-xs ml-1">({daysOverdue} dagen te laat)</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={isOverdue ? 'destructive' : 'secondary'}>
+                          {isOverdue ? 'Vervallen' : 'Openstaand'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{formatCurrency(Number(invoice.total))}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                <TableRow className="border-t-2 font-bold">
+                  <TableCell colSpan={5}>Totaal openstaand</TableCell>
+                  <TableCell className="text-right">{formatCurrency(totalUnpaid)}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

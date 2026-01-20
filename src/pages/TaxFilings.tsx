@@ -72,13 +72,19 @@ export default function TaxFilings() {
   const getQuarterStats = (year: number, quarter: number) => {
     const quarterStart = startOfQuarter(new Date(year, (quarter - 1) * 3, 1));
     const quarterEnd = endOfQuarter(new Date(year, (quarter - 1) * 3, 1));
+    const periodString = `${year}-Q${quarter}`;
 
     const periodInvoices = invoices.filter((inv) => {
       const date = new Date(inv.invoice_date);
       return inv.status === 'paid' && isAfter(date, quarterStart) && isBefore(date, quarterEnd);
     });
 
+    // Filter expenses by btw_period if available, otherwise by expense_date
     const periodExpenses = expenses.filter((exp) => {
+      if (exp.btw_period) {
+        return exp.btw_period === periodString;
+      }
+      // Fallback for expenses without btw_period
       const date = new Date(exp.expense_date);
       return isAfter(date, quarterStart) && isBefore(date, quarterEnd);
     });

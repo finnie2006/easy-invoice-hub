@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCalendarEvents, useLabels, useExternalFeeds } from '@/hooks/useCalendar';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { 
   Calendar as CalendarIcon, 
   Plus, 
@@ -23,6 +25,8 @@ import {
   Rss,
   Clock,
   MapPin,
+  Download,
+  Copy,
 } from 'lucide-react';
 import { 
   format, 
@@ -49,6 +53,7 @@ const LABEL_COLORS = [
 ];
 
 export default function Calendar() {
+  const { user } = useAuth();
   const { events, isLoading: loadingEvents, createEvent, deleteEvent } = useCalendarEvents();
   const { labels, isLoading: loadingLabels, createLabel, deleteLabel } = useLabels();
   const { feeds, createFeed, deleteFeed } = useExternalFeeds();
@@ -159,6 +164,26 @@ export default function Calendar() {
     );
   };
 
+  const getICalUrl = () => {
+    if (!user) return '';
+    return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calendar-ical?user_id=${user.id}`;
+  };
+
+  const handleCopyICalUrl = async () => {
+    const url = getICalUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('iCal URL gekopieerd naar klembord');
+    } catch (err) {
+      toast.error('Kon URL niet kopiëren');
+    }
+  };
+
+  const handleDownloadICal = () => {
+    const url = getICalUrl();
+    window.open(url, '_blank');
+  };
+
   const isLoading = loadingEvents || loadingLabels;
 
   if (isLoading) {
@@ -178,7 +203,51 @@ export default function Calendar() {
             Beheer je afspraken en taken
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                iCal exporteren
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 bg-popover" align="end">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium mb-1">Agenda exporteren</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Gebruik deze iCal URL om je agenda te abonneren in andere apps zoals Google Agenda of Outlook.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Input 
+                    value={getICalUrl()} 
+                    readOnly 
+                    className="text-xs"
+                  />
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={handleCopyICalUrl}
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Kopieer URL
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={handleDownloadICal}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           <Dialog open={labelDialogOpen} onOpenChange={setLabelDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">

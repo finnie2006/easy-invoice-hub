@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useClients } from '@/hooks/useClients';
 import {
@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Plus, ChevronLeft } from 'lucide-react';
+import { Loader2, Plus, ChevronLeft, Upload, FileText, X } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
 interface ExternalInvoiceDialogProps {
@@ -36,6 +36,8 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
   const defaultDueDate = format(addDays(new Date(), 14), 'yyyy-MM-dd');
 
   const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     invoice_number: '',
@@ -138,16 +140,19 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
     e.preventDefault();
     
     await createExternalInvoice({
-      invoice_number: formData.invoice_number,
-      invoice_date: formData.invoice_date,
-      due_date: formData.due_date,
-      client_id: formData.client_id || null,
-      client_company_name: formData.client_company_name,
-      status: formData.status,
-      notes: formData.notes,
-      subtotal: parseFloat(formData.subtotal) || 0,
-      total_btw: parseFloat(formData.total_btw) || 0,
-      total: parseFloat(formData.total) || 0,
+      invoice: {
+        invoice_number: formData.invoice_number,
+        invoice_date: formData.invoice_date,
+        due_date: formData.due_date,
+        client_id: formData.client_id || null,
+        client_company_name: formData.client_company_name,
+        status: formData.status,
+        notes: formData.notes,
+        subtotal: parseFloat(formData.subtotal) || 0,
+        total_btw: parseFloat(formData.total_btw) || 0,
+        total: parseFloat(formData.total) || 0,
+      },
+      file: selectedFile || undefined,
     });
 
     setFormData({
@@ -162,6 +167,7 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
       status: 'sent',
       notes: '',
     });
+    setSelectedFile(null);
     setShowNewClientForm(false);
     
     onOpenChange(false);
@@ -413,6 +419,60 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
                 placeholder="0,00"
                 required
               />
+            </div>
+          </div>
+
+          {/* File Upload */}
+          <div className="space-y-2">
+            <Label>Factuur PDF uploaden</Label>
+            <div 
+              className={`border-2 border-dashed rounded-lg p-4 transition-colors cursor-pointer hover:border-primary/50 ${
+                selectedFile ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+              }`}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setSelectedFile(file);
+                }}
+                className="hidden"
+              />
+              {selectedFile ? (
+                <div className="flex items-center gap-3">
+                  <FileText className="h-8 w-8 text-primary" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{selectedFile.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {(selectedFile.size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedFile(null);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    Klik om de originele factuur te uploaden
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    PDF of afbeelding (max 10MB)
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

@@ -31,6 +31,7 @@ export default function InvoiceNew() {
   const [dueDate, setDueDate] = useState(format(addDays(today, defaultPaymentTerms), 'yyyy-MM-dd'));
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [notes, setNotes] = useState('');
+  const [notesTitle, setNotesTitle] = useState('Opmerkingen');
   const [paymentReference, setPaymentReference] = useState('');
 
   // Client data (for when no saved client is selected)
@@ -168,6 +169,7 @@ export default function InvoiceNew() {
           client_kvk_number: clientData.kvk_number || null,
           client_btw_number: clientData.btw_number || null,
           notes: notes || null,
+          notes_title: notesTitle || 'Opmerkingen',
           payment_reference: paymentReference || invoiceNumber,
           status: 'draft',
         },
@@ -244,6 +246,15 @@ export default function InvoiceNew() {
                     required
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes_title">Titel opmerkingen</Label>
+                <Input
+                  id="notes_title"
+                  value={notesTitle}
+                  onChange={(e) => setNotesTitle(e.target.value)}
+                  placeholder="Opmerkingen"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">Opmerkingen</Label>

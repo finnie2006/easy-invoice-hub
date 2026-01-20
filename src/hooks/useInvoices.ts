@@ -30,6 +30,7 @@ export interface Invoice {
   total_btw: number;
   total: number;
   notes: string | null;
+  notes_title: string | null;
   payment_reference: string | null;
   client_company_name: string | null;
   client_contact_name: string | null;
@@ -52,6 +53,7 @@ export interface InvoiceInsert {
   due_date: string;
   status?: string;
   notes?: string;
+  notes_title?: string;
   payment_reference?: string;
   client_company_name?: string;
   client_contact_name?: string;

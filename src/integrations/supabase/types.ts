@@ -299,6 +299,7 @@ export type Database = {
           invoice_date: string
           invoice_number: string
           notes: string | null
+          notes_title: string | null
           paid_at: string | null
           payment_reference: string | null
           status: string
@@ -324,6 +325,7 @@ export type Database = {
           invoice_date?: string
           invoice_number: string
           notes?: string | null
+          notes_title?: string | null
           paid_at?: string | null
           payment_reference?: string | null
           status?: string
@@ -349,6 +351,7 @@ export type Database = {
           invoice_date?: string
           invoice_number?: string
           notes?: string | null
+          notes_title?: string | null
           paid_at?: string | null
           payment_reference?: string | null
           status?: string

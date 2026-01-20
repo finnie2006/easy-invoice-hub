@@ -308,9 +308,8 @@ export default function SystemSettings() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            <strong>Let op:</strong> Bij self-hosting moeten deze instellingen ook als omgevingsvariabelen 
-            worden geconfigureerd in je serveromgeving. Deze waarden worden opgeslagen in de database 
-            maar moeten ook beschikbaar zijn voor de Edge Functions.
+            De instellingen worden opgeslagen in de database en direct gebruikt door de backend functies.
+            Bij self-hosting is het niet nodig om aparte omgevingsvariabelen te configureren.
           </AlertDescription>
         </Alert>
 

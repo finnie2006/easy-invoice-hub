@@ -6,30 +6,84 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface AuthentikSettings {
+  authentik_url: string;
+  authentik_client_id: string;
+  authentik_client_secret: string;
+}
+
+// Helper function to get Authentik settings from database or env vars
+async function getAuthentikSettings(supabaseAdmin: any): Promise<AuthentikSettings> {
+  // First try to get from database
+  const { data: dbSettings } = await supabaseAdmin
+    .from('app_settings')
+    .select('setting_key, setting_value')
+    .in('setting_key', ['authentik_url', 'authentik_client_id', 'authentik_client_secret']);
+
+  const settings: AuthentikSettings = {
+    authentik_url: '',
+    authentik_client_id: '',
+    authentik_client_secret: '',
+  };
+
+  if (dbSettings && dbSettings.length > 0) {
+    dbSettings.forEach((row: any) => {
+      const key = row.setting_key as keyof AuthentikSettings;
+      if (key in settings) {
+        const value = row.setting_value;
+        settings[key] = typeof value === 'string' ? value.replace(/"/g, '') : String(value);
+      }
+    });
+  }
+
+  // Fall back to environment variables if database settings are empty
+  if (!settings.authentik_url) settings.authentik_url = Deno.env.get("AUTHENTIK_ISSUER") || '';
+  if (!settings.authentik_client_id) settings.authentik_client_id = Deno.env.get("AUTHENTIK_CLIENT_ID") || '';
+  if (!settings.authentik_client_secret) settings.authentik_client_secret = Deno.env.get("AUTHENTIK_CLIENT_SECRET") || '';
+
+  return settings;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { code, state } = await req.json();
+    const { code, state, redirect_uri } = await req.json();
 
-    const AUTHENTIK_ISSUER = Deno.env.get("AUTHENTIK_ISSUER");
-    const AUTHENTIK_CLIENT_ID = Deno.env.get("AUTHENTIK_CLIENT_ID");
-    const AUTHENTIK_CLIENT_SECRET = Deno.env.get("AUTHENTIK_CLIENT_SECRET");
-    const REDIRECT_URI = Deno.env.get("AUTHENTIK_REDIRECT_URI");
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    if (!AUTHENTIK_ISSUER || !AUTHENTIK_CLIENT_ID || !AUTHENTIK_CLIENT_SECRET || !REDIRECT_URI) {
+    // Initialize Supabase admin client
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Get Authentik settings from database or environment
+    const authentikSettings = await getAuthentikSettings(supabaseAdmin);
+    const redirectUri = redirect_uri || Deno.env.get("AUTHENTIK_REDIRECT_URI");
+
+    console.log("Authentik callback - settings loaded:", { 
+      url: authentikSettings.authentik_url, 
+      clientId: authentikSettings.authentik_client_id ? '***' : 'not set',
+      hasSecret: !!authentikSettings.authentik_client_secret
+    });
+
+    if (!authentikSettings.authentik_url || !authentikSettings.authentik_client_id || !authentikSettings.authentik_client_secret) {
       return new Response(
-        JSON.stringify({ error: "Authentik niet geconfigureerd" }),
+        JSON.stringify({ error: "Authentik niet volledig geconfigureerd. Stel alle Authentik instellingen in via Instellingen > Systeeminstellingen." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!redirectUri) {
+      return new Response(
+        JSON.stringify({ error: "Redirect URI niet geconfigureerd" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Exchange authorization code for tokens
-    const tokenResponse = await fetch(`${AUTHENTIK_ISSUER}/application/o/token/`, {
+    const tokenResponse = await fetch(`${authentikSettings.authentik_url}/application/o/token/`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -37,9 +91,9 @@ serve(async (req) => {
       body: new URLSearchParams({
         grant_type: "authorization_code",
         code,
-        redirect_uri: REDIRECT_URI,
-        client_id: AUTHENTIK_CLIENT_ID,
-        client_secret: AUTHENTIK_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        client_id: authentikSettings.authentik_client_id,
+        client_secret: authentikSettings.authentik_client_secret,
       }),
     });
 
@@ -55,7 +109,7 @@ serve(async (req) => {
     const tokens = await tokenResponse.json();
 
     // Get user info from Authentik
-    const userInfoResponse = await fetch(`${AUTHENTIK_ISSUER}/application/o/userinfo/`, {
+    const userInfoResponse = await fetch(`${authentikSettings.authentik_url}/application/o/userinfo/`, {
       headers: {
         Authorization: `Bearer ${tokens.access_token}`,
       },
@@ -70,9 +124,6 @@ serve(async (req) => {
 
     const userInfo = await userInfoResponse.json();
     console.log("User info from Authentik:", userInfo);
-
-    // Create Supabase admin client
-    const supabaseAdmin = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Check if user exists by email
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
@@ -114,7 +165,6 @@ serve(async (req) => {
     }
 
     // Generate a session for the user using a magic link approach
-    // We'll generate a one-time token that the client can use
     const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
       email: userInfo.email,

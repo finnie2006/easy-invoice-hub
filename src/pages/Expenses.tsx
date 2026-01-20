@@ -1,5 +1,6 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useExpenses, Expense, ExpenseInsert, EXPENSE_CATEGORIES } from '@/hooks/useExpenses';
+import { useBtwPeriods } from '@/hooks/useBtwPeriods';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,11 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { DatePicker } from '@/components/ui/date-picker';
-import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search, AlertTriangle } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
 export default function Expenses() {
   const { expenses, isLoading, createExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
+  const { isPeriodClosed, getBtwPeriodForDate, getNextAvailablePeriod } = useBtwPeriods();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
   const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
@@ -30,6 +33,8 @@ export default function Expenses() {
   const [amountInput, setAmountInput] = useState<string>('');
   
   const [expenseDate, setExpenseDate] = useState<Date>(new Date());
+  const [selectedBtwPeriod, setSelectedBtwPeriod] = useState<string>('');
+  const [periodWarning, setPeriodWarning] = useState<{ isClosedPeriod: boolean; suggestedPeriod: string } | null>(null);
   
   const [formData, setFormData] = useState<Partial<ExpenseInsert>>({
     vendor_name: '',
@@ -38,6 +43,26 @@ export default function Expenses() {
     amount_incl_btw: 0,
     btw_percentage: 21,
   });
+
+  // Check if selected date falls in a closed BTW period
+  useEffect(() => {
+    const period = getBtwPeriodForDate(expenseDate);
+    const [yearStr, quarterStr] = period.split('-Q');
+    const year = parseInt(yearStr);
+    const quarter = parseInt(quarterStr);
+    
+    if (isPeriodClosed(year, quarter)) {
+      const nextAvailable = getNextAvailablePeriod(expenseDate);
+      setPeriodWarning({
+        isClosedPeriod: true,
+        suggestedPeriod: nextAvailable.period,
+      });
+      setSelectedBtwPeriod(nextAvailable.period);
+    } else {
+      setPeriodWarning(null);
+      setSelectedBtwPeriod(period);
+    }
+  }, [expenseDate, isPeriodClosed, getBtwPeriodForDate, getNextAvailablePeriod]);
 
   // Filter expenses
   const filteredExpenses = useMemo(() => {
@@ -123,6 +148,7 @@ export default function Expenses() {
         amount_excl_btw: amountExclBtw,
         btw_amount: btwAmount,
         btw_percentage: formData.btw_percentage || 21,
+        btw_period: selectedBtwPeriod || null,
         receipt_url: null,
         notes: null,
       },
@@ -134,6 +160,8 @@ export default function Expenses() {
     setAmountInput('');
     setAmountInputMode('incl');
     setExpenseDate(new Date());
+    setPeriodWarning(null);
+    setSelectedBtwPeriod('');
     setFormData({
       vendor_name: '',
       description: '',
@@ -270,6 +298,17 @@ export default function Expenses() {
                   </Select>
                 </div>
               </div>
+
+              {/* BTW Period Warning */}
+              {periodWarning?.isClosedPeriod && (
+                <Alert className="border-warning bg-warning/10">
+                  <AlertTriangle className="h-4 w-4 text-warning" />
+                  <AlertDescription className="text-foreground">
+                    <strong>Let op:</strong> De gekozen datum valt in een afgesloten BTW-kwartaal ({getBtwPeriodForDate(expenseDate)}). 
+                    De uitgave wordt automatisch geboekt in <strong>{periodWarning.suggestedPeriod}</strong>.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">

@@ -14,6 +14,7 @@ export interface Expense {
   btw_amount: number | null;
   amount_incl_btw: number;
   btw_percentage: number | null;
+  btw_period: string | null;
   receipt_url: string | null;
   notes: string | null;
   created_at: string;

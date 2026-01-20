@@ -75,7 +75,7 @@ export default function InvoiceDetail() {
     try {
       const element = invoiceRef.current;
       
-      // A4 dimensions at 96 DPI: width 794px, height 1123px
+      // A4 dimensions at 96 DPI: width 794px
       const a4WidthPx = 794;
       
       // Clone element for PDF generation to avoid visual flickering
@@ -88,7 +88,7 @@ export default function InvoiceDetail() {
       document.body.appendChild(clone);
       
       // Wait for styles to apply
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       // Create canvas with high quality
       const canvas = await html2canvas(clone, {
@@ -103,7 +103,8 @@ export default function InvoiceDetail() {
       // Remove clone
       document.body.removeChild(clone);
 
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      // Use JPEG format to avoid PNG signature issues
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       
       // Create PDF with A4 dimensions (210 x 297 mm)
       const pdf = new jsPDF({
@@ -120,8 +121,8 @@ export default function InvoiceDetail() {
       
       // Handle multi-page content
       if (imgHeight <= pdfHeight) {
-        // Single page
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
+        // Single page - add image directly
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, imgHeight);
       } else {
         // Multi-page: split canvas into pages
         const pageHeightInPx = (pdfHeight / pdfWidth) * canvas.width;
@@ -152,9 +153,9 @@ export default function InvoiceDetail() {
               canvas.width, remainingHeight
             );
             
-            const pageImgData = pageCanvas.toDataURL('image/png', 1.0);
+            const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
             const pageImgHeight = (remainingHeight * pdfWidth) / canvas.width;
-            pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, pageImgHeight);
+            pdf.addImage(pageImgData, 'JPEG', 0, 0, pdfWidth, pageImgHeight);
           }
         }
       }

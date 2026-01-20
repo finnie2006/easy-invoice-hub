@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Save, Building2, Palette } from 'lucide-react';
-import { BtwPeriodsSettings } from '@/components/settings/BtwPeriodsSettings';
 
 export default function Settings() {
   const { profile, isLoading, updateProfile, isUpdating, appName } = useProfile();
@@ -240,9 +239,6 @@ export default function Settings() {
           </CardContent>
         </Card>
       </form>
-
-      {/* BTW Periods Management - outside form */}
-      <BtwPeriodsSettings />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import InvoiceDetail from "./pages/InvoiceDetail";
 import Clients from "./pages/Clients";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
+import TaxFilings from "./pages/TaxFilings";
 import Settings from "./pages/Settings";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
@@ -58,6 +59,7 @@ function AppContent() {
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/expenses" element={<Expenses />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/tax-filings" element={<TaxFilings />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="*" element={<NotFound />} />

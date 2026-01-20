@@ -24,6 +24,7 @@ import {
   Calendar,
   Briefcase,
   FolderKanban,
+  FileCheck,
 } from 'lucide-react';
 
 const menuItems = [
@@ -34,6 +35,7 @@ const menuItems = [
   { title: 'Klanten', url: '/clients', icon: Users },
   { title: 'Uitgaven', url: '/expenses', icon: Receipt },
   { title: 'Rapporten', url: '/reports', icon: BarChart3 },
+  { title: 'Aangiftes', url: '/tax-filings', icon: FileCheck },
   { title: 'Instellingen', url: '/settings', icon: Settings },
 ];
 

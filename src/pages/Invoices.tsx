@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useInvoices } from '@/hooks/useInvoices';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -5,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { ExternalInvoiceDialog } from '@/components/invoices/ExternalInvoiceDialog';
 import { 
   Loader2, 
   Plus, 
@@ -15,12 +17,14 @@ import {
   Send,
   Trash2,
   AlertTriangle,
+  Upload,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 
 export default function Invoices() {
   const { invoices, isLoading, updateInvoiceStatus, deleteInvoice } = useInvoices();
+  const [externalDialogOpen, setExternalDialogOpen] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
@@ -63,12 +67,18 @@ export default function Invoices() {
             Beheer en maak nieuwe facturen
           </p>
         </div>
-        <Button asChild>
-          <Link to="/invoices/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Nieuwe factuur
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setExternalDialogOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Externe factuur
+          </Button>
+          <Button asChild>
+            <Link to="/invoices/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Nieuwe factuur
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -186,6 +196,11 @@ export default function Invoices() {
           )}
         </CardContent>
       </Card>
+
+      <ExternalInvoiceDialog 
+        open={externalDialogOpen} 
+        onOpenChange={setExternalDialogOpen} 
+      />
     </div>
   );
 }

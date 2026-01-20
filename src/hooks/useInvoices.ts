@@ -172,6 +172,43 @@ export function useInvoices() {
     },
   });
 
+  // Create external invoice (without items, just totals)
+  const createExternalInvoice = useMutation({
+    mutationFn: async (invoice: InvoiceInsert & { 
+      subtotal: number; 
+      total_btw: number; 
+      total: number;
+    }) => {
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: invoiceData, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert({ 
+          ...invoice, 
+          user_id: user.id,
+        })
+        .select()
+        .single();
+      
+      if (invoiceError) throw invoiceError;
+      return invoiceData as Invoice;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      toast({
+        title: 'Externe factuur geregistreerd',
+        description: 'De factuur is succesvol toegevoegd.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fout bij registreren factuur',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const updateInvoice = useMutation({
     mutationFn: async ({ 
       id,
@@ -307,10 +344,12 @@ export function useInvoices() {
     isLoading,
     getNextInvoiceNumber,
     createInvoice: createInvoice.mutateAsync,
+    createExternalInvoice: createExternalInvoice.mutateAsync,
     updateInvoice: updateInvoice.mutateAsync,
     updateInvoiceStatus: updateInvoiceStatus.mutate,
     deleteInvoice: deleteInvoice.mutate,
     isCreating: createInvoice.isPending,
+    isCreatingExternal: createExternalInvoice.isPending,
     isUpdating: updateInvoice.isPending,
     overdueInvoices,
   };

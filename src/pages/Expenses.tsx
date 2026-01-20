@@ -190,10 +190,10 @@ export default function Expenses() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Uitgaven</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Uitgaven</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             Houd je zakelijke uitgaven en bonnen bij
           </p>
         </div>
@@ -204,12 +204,12 @@ export default function Expenses() {
           }
         }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Nieuwe uitgave
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nieuwe uitgave</DialogTitle>
               <DialogDescription>
@@ -390,7 +390,7 @@ export default function Expenses() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Totale uitgaven</CardTitle>
@@ -498,75 +498,130 @@ export default function Expenses() {
               <p className="text-sm">Pas je filters aan om uitgaven te zien</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Leverancier</TableHead>
-                  <TableHead>Omschrijving</TableHead>
-                  <TableHead>Categorie</TableHead>
-                  <TableHead className="text-right">Bedrag</TableHead>
-                  <TableHead className="text-center">Bon</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile card view */}
+              <div className="block md:hidden space-y-3">
                 {filteredExpenses.map((expense) => (
-                  <TableRow key={expense.id}>
-                    <TableCell>
-                      {format(new Date(expense.expense_date), 'd MMM yyyy', { locale: nl })}
-                    </TableCell>
-                    <TableCell className="font-medium">{expense.vendor_name}</TableCell>
-                    <TableCell className="text-muted-foreground max-w-[200px] truncate">
-                      {expense.description || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div>{formatCurrency(Number(expense.amount_incl_btw))}</div>
-                      <div className="text-xs text-muted-foreground">
-                        BTW: {formatCurrency(Number(expense.btw_amount || 0))}
+                  <div key={expense.id} className="p-4 rounded-lg bg-muted/50 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium">{expense.vendor_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {format(new Date(expense.expense_date), 'd MMM yyyy', { locale: nl })}
+                        </p>
                       </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {expense.receipt_url ? (
-                        <div className="flex items-center justify-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleViewReceipt(expense.receipt_url!)}
-                            title="Bekijk bon"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDownloadReceipt(expense.receipt_url!, expense.vendor_name)}
-                            title="Download bon"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
+                      <div className="flex items-center gap-1">
+                        {expense.receipt_url && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleViewReceipt(expense.receipt_url!)}
+                              title="Bekijk bon"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteExpense(expense.id)}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    {expense.description && (
+                      <p className="text-sm text-muted-foreground">{expense.description}</p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
+                      <div className="text-right">
+                        <div className="font-bold">{formatCurrency(Number(expense.amount_incl_btw))}</div>
+                        <div className="text-xs text-muted-foreground">
+                          BTW: {formatCurrency(Number(expense.btw_amount || 0))}
                         </div>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteExpense(expense.id)}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop table view */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Datum</TableHead>
+                      <TableHead>Leverancier</TableHead>
+                      <TableHead>Omschrijving</TableHead>
+                      <TableHead>Categorie</TableHead>
+                      <TableHead className="text-right">Bedrag</TableHead>
+                      <TableHead className="text-center">Bon</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredExpenses.map((expense) => (
+                      <TableRow key={expense.id}>
+                        <TableCell>
+                          {format(new Date(expense.expense_date), 'd MMM yyyy', { locale: nl })}
+                        </TableCell>
+                        <TableCell className="font-medium">{expense.vendor_name}</TableCell>
+                        <TableCell className="text-muted-foreground max-w-[200px] truncate">
+                          {expense.description || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div>{formatCurrency(Number(expense.amount_incl_btw))}</div>
+                          <div className="text-xs text-muted-foreground">
+                            BTW: {formatCurrency(Number(expense.btw_amount || 0))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {expense.receipt_url ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleViewReceipt(expense.receipt_url!)}
+                                title="Bekijk bon"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDownloadReceipt(expense.receipt_url!, expense.vendor_name)}
+                                title="Download bon"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => deleteExpense(expense.id)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

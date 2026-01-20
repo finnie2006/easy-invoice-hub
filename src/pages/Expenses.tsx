@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useExpenses, Expense, ExpenseInsert, EXPENSE_CATEGORIES } from '@/hooks/useExpenses';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,10 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X } from 'lucide-react';
-import { format } from 'date-fns';
+import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search } from 'lucide-react';
+import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
-
 export default function Expenses() {
   const { expenses, isLoading, createExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -19,6 +18,11 @@ export default function Expenses() {
   const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('all');
   
   const [formData, setFormData] = useState<Partial<ExpenseInsert>>({
     vendor_name: '',
@@ -28,6 +32,38 @@ export default function Expenses() {
     amount_incl_btw: 0,
     btw_percentage: 21,
   });
+
+  // Filter expenses
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((expense) => {
+      // Search filter
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || 
+        expense.vendor_name.toLowerCase().includes(searchLower) ||
+        (expense.description?.toLowerCase().includes(searchLower));
+      
+      // Category filter
+      const matchesCategory = categoryFilter === 'all' || expense.category === categoryFilter;
+      
+      // Date filter
+      let matchesDate = true;
+      if (dateFilter !== 'all') {
+        const expenseDate = parseISO(expense.expense_date);
+        const now = new Date();
+        
+        if (dateFilter === 'this_month') {
+          matchesDate = expenseDate >= startOfMonth(now) && expenseDate <= endOfMonth(now);
+        } else if (dateFilter === 'last_month') {
+          const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          matchesDate = expenseDate >= startOfMonth(lastMonth) && expenseDate <= endOfMonth(lastMonth);
+        } else if (dateFilter === 'this_year') {
+          matchesDate = expenseDate >= startOfYear(now) && expenseDate <= endOfYear(now);
+        }
+      }
+      
+      return matchesSearch && matchesCategory && matchesDate;
+    });
+  }, [expenses, searchQuery, categoryFilter, dateFilter]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type } = e.target;
@@ -349,15 +385,72 @@ export default function Expenses() {
             Uitgavenoverzicht
           </CardTitle>
           <CardDescription>
-            {expenses.length} uitgave{expenses.length !== 1 ? 'n' : ''} geregistreerd
+            {filteredExpenses.length} van {expenses.length} uitgave{expenses.length !== 1 ? 'n' : ''}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Zoek op leverancier of omschrijving..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Categorie" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle categorieën</SelectItem>
+                {EXPENSE_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={dateFilter} onValueChange={setDateFilter}>
+              <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectValue placeholder="Periode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle periodes</SelectItem>
+                <SelectItem value="this_month">Deze maand</SelectItem>
+                <SelectItem value="last_month">Vorige maand</SelectItem>
+                <SelectItem value="this_year">Dit jaar</SelectItem>
+              </SelectContent>
+            </Select>
+            {(searchQuery || categoryFilter !== 'all' || dateFilter !== 'all') && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setSearchQuery('');
+                  setCategoryFilter('all');
+                  setDateFilter('all');
+                }}
+                title="Filters wissen"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
           {expenses.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Receipt className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p>Nog geen uitgaven</p>
               <p className="text-sm">Voeg je eerste uitgave toe met bijbehorende bon</p>
+            </div>
+          ) : filteredExpenses.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>Geen resultaten gevonden</p>
+              <p className="text-sm">Pas je filters aan om uitgaven te zien</p>
             </div>
           ) : (
             <Table>
@@ -373,7 +466,7 @@ export default function Expenses() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map((expense) => (
+                {filteredExpenses.map((expense) => (
                   <TableRow key={expense.id}>
                     <TableCell>
                       {format(new Date(expense.expense_date), 'd MMM yyyy', { locale: nl })}

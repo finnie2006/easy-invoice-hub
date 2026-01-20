@@ -455,6 +455,97 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          hourly_rate: number | null
+          id: string
+          name: string
+          start_date: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          hourly_rate?: number | null
+          id?: string
+          name: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          hourly_rate?: number | null
+          id?: string
+          name?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_entries: {
+        Row: {
+          created_at: string
+          description: string | null
+          hours: number
+          id: string
+          project_id: string
+          updated_at: string
+          user_id: string
+          work_date: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          hours: number
+          id?: string
+          project_id: string
+          updated_at?: string
+          user_id: string
+          work_date?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          hours?: number
+          id?: string
+          project_id?: string
+          updated_at?: string
+          user_id?: string
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

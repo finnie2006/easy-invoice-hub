@@ -87,7 +87,7 @@ export function useInvoices() {
         .from('invoices')
         .select('*')
         .eq('user_id', user.id)
-        .order('invoice_number', { ascending: true });
+        .order('invoice_number', { ascending: false });
       
       if (error) throw error;
       return data as Invoice[];

@@ -41,6 +41,7 @@ export interface Invoice {
   client_kvk_number: string | null;
   client_btw_number: string | null;
   paid_at: string | null;
+  attachment_url: string | null;
   created_at: string;
   updated_at: string;
   items?: InvoiceItem[];
@@ -174,20 +175,55 @@ export function useInvoices() {
     },
   });
 
+  // Upload attachment for external invoice
+  const uploadAttachment = async (file: File, userId: string): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}/${Date.now()}.${fileExt}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('invoice-attachments')
+      .upload(fileName, file);
+    
+    if (uploadError) throw uploadError;
+    return fileName;
+  };
+
+  // Get signed URL for attachment
+  const getAttachmentUrl = async (path: string): Promise<string | null> => {
+    const { data, error } = await supabase.storage
+      .from('invoice-attachments')
+      .createSignedUrl(path, 3600); // 1 hour expiry
+    
+    if (error) return null;
+    return data.signedUrl;
+  };
+
   // Create external invoice (without items, just totals)
   const createExternalInvoice = useMutation({
-    mutationFn: async (invoice: InvoiceInsert & { 
-      subtotal: number; 
-      total_btw: number; 
-      total: number;
+    mutationFn: async ({ 
+      invoice, 
+      file 
+    }: { 
+      invoice: InvoiceInsert & { 
+        subtotal: number; 
+        total_btw: number; 
+        total: number;
+      };
+      file?: File;
     }) => {
       if (!user) throw new Error('Not authenticated');
+
+      let attachmentUrl: string | null = null;
+      if (file) {
+        attachmentUrl = await uploadAttachment(file, user.id);
+      }
 
       const { data: invoiceData, error: invoiceError } = await supabase
         .from('invoices')
         .insert({ 
           ...invoice, 
           user_id: user.id,
+          attachment_url: attachmentUrl,
         })
         .select()
         .single();
@@ -350,6 +386,7 @@ export function useInvoices() {
     updateInvoice: updateInvoice.mutateAsync,
     updateInvoiceStatus: updateInvoiceStatus.mutate,
     deleteInvoice: deleteInvoice.mutate,
+    getAttachmentUrl,
     isCreating: createInvoice.isPending,
     isCreatingExternal: createExternalInvoice.isPending,
     isUpdating: updateInvoice.isPending,

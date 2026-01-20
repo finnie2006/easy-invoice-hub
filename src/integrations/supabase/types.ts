@@ -284,6 +284,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          attachment_url: string | null
           client_address: string | null
           client_btw_number: string | null
           client_city: string | null
@@ -310,6 +311,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          attachment_url?: string | null
           client_address?: string | null
           client_btw_number?: string | null
           client_city?: string | null
@@ -336,6 +338,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          attachment_url?: string | null
           client_address?: string | null
           client_btw_number?: string | null
           client_city?: string | null

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Save, Building2, Palette } from 'lucide-react';
-
+import AdminSettings from '@/components/settings/AdminSettings';
 export default function Settings() {
   const { profile, isLoading, updateProfile, isUpdating, appName } = useProfile();
   const [formData, setFormData] = useState<Partial<Profile>>({});
@@ -239,6 +239,9 @@ export default function Settings() {
           </CardContent>
         </Card>
       </form>
+
+      {/* Admin Settings */}
+      <AdminSettings />
     </div>
   );
 }

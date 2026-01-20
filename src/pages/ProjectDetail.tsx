@@ -169,8 +169,8 @@ export default function ProjectDetail() {
             <h1 className="text-3xl font-bold">{project.name}</h1>
             {getStatusBadge(project.status)}
           </div>
-          {project.client?.company_name && (
-            <p className="text-muted-foreground">{project.client.company_name}</p>
+          {(project.client?.company_name || project.client_name) && (
+            <p className="text-muted-foreground">{project.client?.company_name || project.client_name}</p>
           )}
         </div>
         <div className="flex gap-2">
@@ -337,8 +337,8 @@ export default function ProjectDetail() {
           
           <div className="mb-6">
             <h2 className="text-xl font-semibold mb-2">{project.name}</h2>
-            {project.client?.company_name && (
-              <p className="text-gray-600">Klant: {project.client.company_name}</p>
+            {(project.client?.company_name || project.client_name) && (
+              <p className="text-gray-600">Klant: {project.client?.company_name || project.client_name}</p>
             )}
             <p className="text-gray-600">
               Periode: {format(new Date(project.start_date), 'd MMM yyyy', { locale: nl })} - {format(new Date(), 'd MMM yyyy', { locale: nl })}

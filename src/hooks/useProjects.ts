@@ -27,6 +27,9 @@ export interface TimeEntry {
   project_id: string;
   work_date: string;
   hours: number;
+  start_time: string | null;
+  end_time: string | null;
+  is_overnight: boolean;
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -46,6 +49,9 @@ export interface CreateTimeEntryData {
   project_id: string;
   work_date: string;
   hours: number;
+  start_time?: string;
+  end_time?: string;
+  is_overnight?: boolean;
   description?: string;
 }
 
@@ -185,6 +191,9 @@ export function useTimeEntries(projectId?: string) {
           project_id: entryData.project_id,
           work_date: entryData.work_date,
           hours: entryData.hours,
+          start_time: entryData.start_time || null,
+          end_time: entryData.end_time || null,
+          is_overnight: entryData.is_overnight || false,
           description: entryData.description || null,
         })
         .select()

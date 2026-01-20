@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import { ArrowLeft, Plus, Clock, Trash2, Pencil, Download, Printer } from 'lucide-react';
+import { ArrowLeft, Plus, Clock, Trash2, Pencil, Download } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useProjects, useTimeEntries, CreateTimeEntryData } from '@/hooks/useProjects';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useProjects, useTimeEntries, CreateTimeEntryData, TimeEntry } from '@/hooks/useProjects';
 import { useProfile } from '@/hooks/useProfile';
 import { toast } from 'sonner';
 
@@ -53,18 +54,24 @@ export default function ProjectDetail() {
   const printRef = useRef<HTMLDivElement>(null);
   
   const { projects, updateProject } = useProjects();
-  const { timeEntries, createTimeEntry, deleteTimeEntry } = useTimeEntries(id);
+  const { timeEntries, createTimeEntry, updateTimeEntry, deleteTimeEntry } = useTimeEntries(id);
   const { profile } = useProfile();
   
   const project = projects.find(p => p.id === id);
   
   const [isAddEntryDialogOpen, setIsAddEntryDialogOpen] = useState(false);
+  const [isEditEntryDialogOpen, setIsEditEntryDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [deleteEntryId, setDeleteEntryId] = useState<string | null>(null);
   
   // Time entry form
   const [workDate, setWorkDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [hours, setHours] = useState('');
   const [entryDescription, setEntryDescription] = useState('');
+  const [useTimeRange, setUseTimeRange] = useState(false);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [isOvernight, setIsOvernight] = useState(false);
 
   if (!project) {
     return (
@@ -82,13 +89,40 @@ export default function ProjectDetail() {
   const hourlyRate = project.hourly_rate || profile?.default_hourly_rate || 0;
   const totalAmount = totalHours * hourlyRate;
 
+  // Calculate hours from time range
+  const calculateHoursFromTimeRange = (start: string, end: string, overnight: boolean): number => {
+    if (!start || !end) return 0;
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+    
+    let startMinutes = startH * 60 + startM;
+    let endMinutes = endH * 60 + endM;
+    
+    if (overnight || endMinutes < startMinutes) {
+      endMinutes += 24 * 60; // Add 24 hours
+    }
+    
+    return (endMinutes - startMinutes) / 60;
+  };
+
+  const getEffectiveHours = (): number => {
+    if (useTimeRange && startTime && endTime) {
+      return calculateHoursFromTimeRange(startTime, endTime, isOvernight);
+    }
+    return parseFloat(hours) || 0;
+  };
+
   const handleAddTimeEntry = async () => {
-    if (!hours || parseFloat(hours) <= 0) return;
+    const effectiveHours = getEffectiveHours();
+    if (effectiveHours <= 0) return;
     
     const entryData: CreateTimeEntryData = {
       project_id: project.id,
       work_date: workDate,
-      hours: parseFloat(hours),
+      hours: effectiveHours,
+      start_time: useTimeRange ? startTime : undefined,
+      end_time: useTimeRange ? endTime : undefined,
+      is_overnight: useTimeRange ? isOvernight : undefined,
       description: entryDescription.trim() || undefined,
     };
     
@@ -97,10 +131,56 @@ export default function ProjectDetail() {
     resetEntryForm();
   };
 
+  const handleEditTimeEntry = async () => {
+    if (!editingEntry) return;
+    const effectiveHours = getEffectiveHours();
+    if (effectiveHours <= 0) return;
+    
+    await updateTimeEntry.mutateAsync({
+      id: editingEntry.id,
+      work_date: workDate,
+      hours: effectiveHours,
+      start_time: useTimeRange ? startTime : null,
+      end_time: useTimeRange ? endTime : null,
+      is_overnight: useTimeRange ? isOvernight : false,
+      description: entryDescription.trim() || null,
+    });
+    
+    setIsEditEntryDialogOpen(false);
+    setEditingEntry(null);
+    resetEntryForm();
+  };
+
+  const openEditDialog = (entry: TimeEntry) => {
+    setEditingEntry(entry);
+    setWorkDate(entry.work_date);
+    setEntryDescription(entry.description || '');
+    
+    if (entry.start_time && entry.end_time) {
+      setUseTimeRange(true);
+      setStartTime(entry.start_time.slice(0, 5)); // Remove seconds
+      setEndTime(entry.end_time.slice(0, 5));
+      setIsOvernight(entry.is_overnight || false);
+      setHours('');
+    } else {
+      setUseTimeRange(false);
+      setHours(entry.hours.toString());
+      setStartTime('');
+      setEndTime('');
+      setIsOvernight(false);
+    }
+    
+    setIsEditEntryDialogOpen(true);
+  };
+
   const resetEntryForm = () => {
     setWorkDate(format(new Date(), 'yyyy-MM-dd'));
     setHours('');
     setEntryDescription('');
+    setUseTimeRange(false);
+    setStartTime('');
+    setEndTime('');
+    setIsOvernight(false);
   };
 
   const handleDeleteEntry = async () => {
@@ -238,16 +318,66 @@ export default function ProjectDetail() {
                 <DialogTitle>Uren registreren</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="workDate">Datum</Label>
-                    <Input
-                      id="workDate"
-                      type="date"
-                      value={workDate}
-                      onChange={(e) => setWorkDate(e.target.value)}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="workDate">Datum</Label>
+                  <Input
+                    id="workDate"
+                    type="date"
+                    value={workDate}
+                    onChange={(e) => setWorkDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="useTimeRange"
+                    checked={useTimeRange}
+                    onCheckedChange={(checked) => setUseTimeRange(checked === true)}
+                  />
+                  <Label htmlFor="useTimeRange" className="text-sm font-normal cursor-pointer">
+                    Start- en eindtijd invoeren
+                  </Label>
+                </div>
+
+                {useTimeRange ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="startTime">Starttijd</Label>
+                        <Input
+                          id="startTime"
+                          type="time"
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="endTime">Eindtijd</Label>
+                        <Input
+                          id="endTime"
+                          type="time"
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="isOvernight"
+                        checked={isOvernight}
+                        onCheckedChange={(checked) => setIsOvernight(checked === true)}
+                      />
+                      <Label htmlFor="isOvernight" className="text-sm font-normal cursor-pointer">
+                        Eindtijd is de volgende dag (nachtwerk)
+                      </Label>
+                    </div>
+                    {startTime && endTime && (
+                      <p className="text-sm text-muted-foreground">
+                        Berekend: <span className="font-medium">{getEffectiveHours().toFixed(2)} uur</span>
+                      </p>
+                    )}
+                  </>
+                ) : (
                   <div className="space-y-2">
                     <Label htmlFor="hours">Aantal uren *</Label>
                     <Input
@@ -260,7 +390,8 @@ export default function ProjectDetail() {
                       placeholder="0"
                     />
                   </div>
-                </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="entryDescription">Omschrijving</Label>
                   <Textarea
@@ -272,10 +403,10 @@ export default function ProjectDetail() {
                   />
                 </div>
                 <div className="flex justify-end gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setIsAddEntryDialogOpen(false)}>
+                  <Button variant="outline" onClick={() => { setIsAddEntryDialogOpen(false); resetEntryForm(); }}>
                     Annuleren
                   </Button>
-                  <Button onClick={handleAddTimeEntry} disabled={!hours || parseFloat(hours) <= 0}>
+                  <Button onClick={handleAddTimeEntry} disabled={getEffectiveHours() <= 0}>
                     Toevoegen
                   </Button>
                 </div>
@@ -294,28 +425,45 @@ export default function ProjectDetail() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Datum</TableHead>
+                  <TableHead>Tijd</TableHead>
                   <TableHead>Omschrijving</TableHead>
                   <TableHead className="text-right">Uren</TableHead>
                   <TableHead className="text-right">Bedrag</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {timeEntries.map((entry) => (
                   <TableRow key={entry.id}>
                     <TableCell>{format(new Date(entry.work_date), 'd MMM yyyy', { locale: nl })}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {entry.start_time && entry.end_time 
+                        ? `${entry.start_time.slice(0, 5)} - ${entry.end_time.slice(0, 5)}${entry.is_overnight ? ' (+1)' : ''}`
+                        : '-'
+                      }
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{entry.description || '-'}</TableCell>
                     <TableCell className="text-right font-medium">{Number(entry.hours).toFixed(2)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(Number(entry.hours) * hourlyRate)}</TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteEntryId(entry.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEditDialog(entry)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteEntryId(entry.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -324,6 +472,109 @@ export default function ProjectDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Entry Dialog */}
+      <Dialog open={isEditEntryDialogOpen} onOpenChange={(open) => { if (!open) { setIsEditEntryDialogOpen(false); setEditingEntry(null); resetEntryForm(); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Uren bewerken</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editWorkDate">Datum</Label>
+              <Input
+                id="editWorkDate"
+                type="date"
+                value={workDate}
+                onChange={(e) => setWorkDate(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="editUseTimeRange"
+                checked={useTimeRange}
+                onCheckedChange={(checked) => setUseTimeRange(checked === true)}
+              />
+              <Label htmlFor="editUseTimeRange" className="text-sm font-normal cursor-pointer">
+                Start- en eindtijd invoeren
+              </Label>
+            </div>
+
+            {useTimeRange ? (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="editStartTime">Starttijd</Label>
+                    <Input
+                      id="editStartTime"
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editEndTime">Eindtijd</Label>
+                    <Input
+                      id="editEndTime"
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="editIsOvernight"
+                    checked={isOvernight}
+                    onCheckedChange={(checked) => setIsOvernight(checked === true)}
+                  />
+                  <Label htmlFor="editIsOvernight" className="text-sm font-normal cursor-pointer">
+                    Eindtijd is de volgende dag (nachtwerk)
+                  </Label>
+                </div>
+                {startTime && endTime && (
+                  <p className="text-sm text-muted-foreground">
+                    Berekend: <span className="font-medium">{getEffectiveHours().toFixed(2)} uur</span>
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="editHours">Aantal uren *</Label>
+                <Input
+                  id="editHours"
+                  type="number"
+                  step="0.25"
+                  min="0"
+                  value={hours}
+                  onChange={(e) => setHours(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="editEntryDescription">Omschrijving</Label>
+              <Textarea
+                id="editEntryDescription"
+                value={entryDescription}
+                onChange={(e) => setEntryDescription(e.target.value)}
+                placeholder="Wat heb je gedaan?"
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => { setIsEditEntryDialogOpen(false); setEditingEntry(null); resetEntryForm(); }}>
+                Annuleren
+              </Button>
+              <Button onClick={handleEditTimeEntry} disabled={getEffectiveHours() <= 0}>
+                Opslaan
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Print/Export View (hidden) */}
       <div className="fixed left-[-9999px]">

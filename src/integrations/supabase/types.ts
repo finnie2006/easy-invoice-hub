@@ -512,9 +512,12 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          end_time: string | null
           hours: number
           id: string
+          is_overnight: boolean | null
           project_id: string
+          start_time: string | null
           updated_at: string
           user_id: string
           work_date: string
@@ -522,9 +525,12 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          end_time?: string | null
           hours: number
           id?: string
+          is_overnight?: boolean | null
           project_id: string
+          start_time?: string | null
           updated_at?: string
           user_id: string
           work_date?: string
@@ -532,9 +538,12 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          end_time?: string | null
           hours?: number
           id?: string
+          is_overnight?: boolean | null
           project_id?: string
+          start_time?: string | null
           updated_at?: string
           user_id?: string
           work_date?: string

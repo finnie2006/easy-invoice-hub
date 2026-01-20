@@ -37,9 +37,10 @@ export interface InvoiceTemplateProps {
   profile: Profile | null;
 }
 
-export type InvoiceDesign = 'classic' | 'modern' | 'minimal' | 'bold';
+export type InvoiceDesign = 'original' | 'classic' | 'modern' | 'minimal' | 'bold';
 
 export const INVOICE_DESIGNS: { id: InvoiceDesign; name: string; description: string }[] = [
+  { id: 'original', name: 'Origineel', description: 'Uw huidige factuurstijl' },
   { id: 'classic', name: 'Klassiek', description: 'Professionele traditionele stijl' },
   { id: 'modern', name: 'Modern', description: 'Strak en eigentijds design' },
   { id: 'minimal', name: 'Minimalistisch', description: 'Rustig en overzichtelijk' },

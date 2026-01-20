@@ -26,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import {
+  OriginalTemplate,
   ClassicTemplate,
   ModernTemplate,
   MinimalTemplate,
@@ -53,7 +54,7 @@ export default function InvoiceDetail() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [selectedDesign, setSelectedDesign] = useState<InvoiceDesign>(() => {
     const saved = localStorage.getItem('invoice-design');
-    return (saved as InvoiceDesign) || 'classic';
+    return (saved as InvoiceDesign) || 'original';
   });
 
   useEffect(() => {
@@ -74,42 +75,33 @@ export default function InvoiceDetail() {
     try {
       const element = invoiceRef.current;
       
-      // A4 dimensions at 96 DPI
+      // A4 dimensions at 96 DPI: width 794px, height 1123px
       const a4WidthPx = 794;
-      const a4HeightPx = 1123;
       
-      // Store original styles
-      const originalStyles = {
-        width: element.style.width,
-        minHeight: element.style.minHeight,
-        height: element.style.height,
-        position: element.style.position,
-        overflow: element.style.overflow,
-      };
-      
-      // Set element to exact A4 proportions for capture
-      element.style.width = `${a4WidthPx}px`;
-      element.style.minHeight = `${a4HeightPx}px`;
-      element.style.height = 'auto';
-      element.style.position = 'relative';
-      element.style.overflow = 'visible';
+      // Clone element for PDF generation to avoid visual flickering
+      const clone = element.cloneNode(true) as HTMLElement;
+      clone.style.width = `${a4WidthPx}px`;
+      clone.style.position = 'absolute';
+      clone.style.left = '-9999px';
+      clone.style.top = '0';
+      clone.style.backgroundColor = '#ffffff';
+      document.body.appendChild(clone);
       
       // Wait for styles to apply
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 150));
       
       // Create canvas with high quality
-      const canvas = await html2canvas(element, {
+      const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
         width: a4WidthPx,
         windowWidth: a4WidthPx,
-        height: Math.max(element.scrollHeight, a4HeightPx),
       });
       
-      // Restore original styles
-      Object.assign(element.style, originalStyles);
+      // Remove clone
+      document.body.removeChild(clone);
 
       const imgData = canvas.toDataURL('image/png', 1.0);
       
@@ -123,32 +115,30 @@ export default function InvoiceDetail() {
       const pdfWidth = 210;
       const pdfHeight = 297;
       
-      // Calculate image dimensions to fill the page properly
-      const canvasAspect = canvas.width / canvas.height;
-      const pageAspect = pdfWidth / pdfHeight;
-      
-      let imgWidth = pdfWidth;
-      let imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      // Calculate image dimensions
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
       
       // Handle multi-page content
-      const totalPages = Math.ceil(imgHeight / pdfHeight);
-      
-      if (totalPages === 1) {
-        // Single page - fit content to page, filling width
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, Math.min(imgHeight, pdfHeight));
+      if (imgHeight <= pdfHeight) {
+        // Single page
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
       } else {
-        // Multi-page handling
-        const pageHeightInCanvas = (pdfHeight / pdfWidth) * canvas.width;
+        // Multi-page: split canvas into pages
+        const pageHeightInPx = (pdfHeight / pdfWidth) * canvas.width;
+        const totalPages = Math.ceil(canvas.height / pageHeightInPx);
         
         for (let page = 0; page < totalPages; page++) {
           if (page > 0) {
             pdf.addPage();
           }
           
-          // Create a temporary canvas for this page section
+          const yOffset = page * pageHeightInPx;
+          const remainingHeight = Math.min(pageHeightInPx, canvas.height - yOffset);
+          
+          // Create page canvas
           const pageCanvas = document.createElement('canvas');
           pageCanvas.width = canvas.width;
-          pageCanvas.height = Math.min(pageHeightInCanvas, canvas.height - page * pageHeightInCanvas);
+          pageCanvas.height = remainingHeight;
           
           const ctx = pageCanvas.getContext('2d');
           if (ctx) {
@@ -156,14 +146,14 @@ export default function InvoiceDetail() {
             ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
             ctx.drawImage(
               canvas,
-              0, page * pageHeightInCanvas,
-              canvas.width, pageCanvas.height,
+              0, yOffset,
+              canvas.width, remainingHeight,
               0, 0,
-              canvas.width, pageCanvas.height
+              canvas.width, remainingHeight
             );
             
             const pageImgData = pageCanvas.toDataURL('image/png', 1.0);
-            const pageImgHeight = (pageCanvas.height * pdfWidth) / pageCanvas.width;
+            const pageImgHeight = (remainingHeight * pdfWidth) / canvas.width;
             pdf.addImage(pageImgData, 'PNG', 0, 0, pdfWidth, pageImgHeight);
           }
         }
@@ -342,6 +332,8 @@ export default function InvoiceDetail() {
 
   const renderTemplate = () => {
     switch (selectedDesign) {
+      case 'original':
+        return <OriginalTemplate invoice={invoiceData} profile={profile} />;
       case 'modern':
         return <ModernTemplate invoice={invoiceData} profile={profile} />;
       case 'minimal':

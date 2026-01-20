@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvoices, InvoiceItemInsert } from '@/hooks/useInvoices';
-import { useClients, Client } from '@/hooks/useClients';
+import { useClients } from '@/hooks/useClients';
 import { useProfile } from '@/hooks/useProfile';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Loader2, Plus, Trash2, FileText, ArrowLeft } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
@@ -27,8 +28,16 @@ export default function InvoiceNew() {
   const defaultPaymentTerms = profile?.default_payment_terms || 14;
 
   const [invoiceNumber] = useState(getNextInvoiceNumber());
-  const [invoiceDate, setInvoiceDate] = useState(format(today, 'yyyy-MM-dd'));
-  const [dueDate, setDueDate] = useState(format(addDays(today, defaultPaymentTerms), 'yyyy-MM-dd'));
+  const [invoiceDate, setInvoiceDate] = useState<Date>(today);
+  const [dueDate, setDueDate] = useState<Date>(addDays(today, defaultPaymentTerms));
+
+  // Auto-update due date when invoice date or payment terms change
+  useEffect(() => {
+    if (invoiceDate) {
+      const terms = profile?.default_payment_terms || 14;
+      setDueDate(addDays(invoiceDate, terms));
+    }
+  }, [invoiceDate, profile?.default_payment_terms]);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [notesTitle, setNotesTitle] = useState('Opmerkingen');
@@ -157,8 +166,8 @@ export default function InvoiceNew() {
       await createInvoice({
         invoice: {
           invoice_number: invoiceNumber,
-          invoice_date: invoiceDate,
-          due_date: dueDate,
+          invoice_date: format(invoiceDate, 'yyyy-MM-dd'),
+          due_date: format(dueDate, 'yyyy-MM-dd'),
           client_id: selectedClientId && selectedClientId !== 'new' ? selectedClientId : null,
           client_company_name: clientData.company_name,
           client_contact_name: clientData.contact_name || null,
@@ -227,23 +236,21 @@ export default function InvoiceNew() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="invoice_date">Factuurdatum</Label>
-                  <Input
+                  <Label htmlFor="invoice_date">Factuurdatum *</Label>
+                  <DatePicker
                     id="invoice_date"
-                    type="date"
                     value={invoiceDate}
-                    onChange={(e) => setInvoiceDate(e.target.value)}
-                    required
+                    onChange={(date) => date && setInvoiceDate(date)}
+                    showClearButton={false}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="due_date">Vervaldatum</Label>
-                  <Input
+                  <Label htmlFor="due_date">Vervaldatum *</Label>
+                  <DatePicker
                     id="due_date"
-                    type="date"
                     value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    required
+                    onChange={(date) => date && setDueDate(date)}
+                    showClearButton={false}
                   />
                 </div>
               </div>

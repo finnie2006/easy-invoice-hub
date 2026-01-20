@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useClients } from '@/hooks/useClients';
+import { useProfile } from '@/hooks/useProfile';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Loader2, Plus, ChevronLeft, Upload, FileText, X } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
@@ -31,18 +33,27 @@ interface ExternalInvoiceDialogProps {
 export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDialogProps) {
   const { createExternalInvoice, isCreatingExternal } = useInvoices();
   const { clients, createClient, isCreating: isCreatingClient } = useClients();
+  const { profile } = useProfile();
   
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const defaultDueDate = format(addDays(new Date(), 14), 'yyyy-MM-dd');
+  const defaultPaymentTerms = profile?.default_payment_terms || 14;
 
   const [showNewClientForm, setShowNewClientForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
+  const [dueDate, setDueDate] = useState<Date>(addDays(new Date(), defaultPaymentTerms));
+  
+  // Auto-update due date when invoice date changes
+  useEffect(() => {
+    if (invoiceDate) {
+      const terms = profile?.default_payment_terms || 14;
+      setDueDate(addDays(invoiceDate, terms));
+    }
+  }, [invoiceDate, profile?.default_payment_terms]);
+  
   const [formData, setFormData] = useState({
     invoice_number: '',
-    invoice_date: today,
-    due_date: defaultDueDate,
     client_id: '',
     client_company_name: '',
     subtotal: '',
@@ -142,8 +153,8 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
     await createExternalInvoice({
       invoice: {
         invoice_number: formData.invoice_number,
-        invoice_date: formData.invoice_date,
-        due_date: formData.due_date,
+        invoice_date: format(invoiceDate, 'yyyy-MM-dd'),
+        due_date: format(dueDate, 'yyyy-MM-dd'),
         client_id: formData.client_id || null,
         client_company_name: formData.client_company_name,
         status: formData.status,
@@ -157,8 +168,6 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
 
     setFormData({
       invoice_number: '',
-      invoice_date: today,
-      due_date: defaultDueDate,
       client_id: '',
       client_company_name: '',
       subtotal: '',
@@ -167,6 +176,8 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
       status: 'sent',
       notes: '',
     });
+    setInvoiceDate(new Date());
+    setDueDate(addDays(new Date(), defaultPaymentTerms));
     setSelectedFile(null);
     setShowNewClientForm(false);
     
@@ -324,23 +335,21 @@ export function ExternalInvoiceDialog({ open, onOpenChange }: ExternalInvoiceDia
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="invoice_date">Factuurdatum *</Label>
-              <Input
+              <DatePicker
                 id="invoice_date"
-                type="date"
-                value={formData.invoice_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, invoice_date: e.target.value }))}
-                required
+                value={invoiceDate}
+                onChange={(date) => date && setInvoiceDate(date)}
+                showClearButton={false}
               />
             </div>
             
             <div className="space-y-2">
               <Label htmlFor="due_date">Vervaldatum *</Label>
-              <Input
+              <DatePicker
                 id="due_date"
-                type="date"
-                value={formData.due_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                required
+                value={dueDate}
+                onChange={(date) => date && setDueDate(date)}
+                showClearButton={false}
               />
             </div>
           </div>

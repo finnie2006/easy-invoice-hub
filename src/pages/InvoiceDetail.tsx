@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, ArrowLeft, Send, CheckCircle2, Download, AlertTriangle, Pencil, Mail, Copy, Palette, FileText, ExternalLink } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, CheckCircle2, Download, AlertTriangle, Pencil, Mail, Copy, Palette, FileText, ExternalLink, Upload, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -40,18 +40,20 @@ export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: invoice, isLoading } = useInvoice(id || '');
-  const { updateInvoiceStatus, createInvoice } = useInvoices();
+  const { updateInvoiceStatus, createInvoice, updateAttachment, isUpdatingAttachment } = useInvoices();
   const { profile } = useProfile();
   const { clients } = useClients();
   const { toast } = useToast();
 
   const invoiceRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailTo, setEmailTo] = useState('');
   const [emailName, setEmailName] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedDesign, setSelectedDesign] = useState<InvoiceDesign>(() => {
     const saved = localStorage.getItem('invoice-design');
     return (saved as InvoiceDesign) || 'original';
@@ -444,53 +446,103 @@ export default function InvoiceDetail() {
       </div>
 
       {/* External Invoice Attachment */}
-      {invoice.attachment_url && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-lg bg-primary/10">
-                  <FileText className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-medium">Externe factuur</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Dit is een extern aangemaakte factuur met bijlage
-                  </p>
-                </div>
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-lg bg-primary/10">
+                <FileText className="h-6 w-6 text-primary" />
               </div>
-              <Button asChild>
-                <a href={invoice.attachment_url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Bekijk origineel
-                </a>
-              </Button>
+              <div>
+                <h3 className="font-medium">
+                  {invoice.attachment_url ? 'Externe factuur bijlage' : 'Factuur bijlage toevoegen'}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {invoice.attachment_url 
+                    ? 'Dit is een extern aangemaakte factuur met bijlage' 
+                    : 'Upload de originele factuur (PDF of afbeelding)'}
+                </p>
+              </div>
             </div>
-            
-            {/* Preview for images */}
-            {invoice.attachment_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) && (
-              <div className="mt-4 border rounded-lg overflow-hidden">
-                <img 
-                  src={invoice.attachment_url} 
-                  alt="Factuur bijlage" 
-                  className="max-w-full h-auto"
-                />
-              </div>
-            )}
-            
-            {/* Preview for PDFs */}
-            {invoice.attachment_url.match(/\.pdf$/i) && (
-              <div className="mt-4 border rounded-lg overflow-hidden">
-                <iframe 
-                  src={invoice.attachment_url} 
-                  className="w-full h-[600px]"
-                  title="Factuur PDF"
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+            <div className="flex items-center gap-2">
+              {invoice.attachment_url && (
+                <Button variant="outline" asChild>
+                  <a href={invoice.attachment_url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Bekijk origineel
+                  </a>
+                </Button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file && id) {
+                    setSelectedFile(file);
+                    await updateAttachment({ invoiceId: id, file });
+                    setSelectedFile(null);
+                  }
+                }}
+                className="hidden"
+              />
+              <Button 
+                variant={invoice.attachment_url ? "outline" : "default"}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUpdatingAttachment}
+              >
+                {isUpdatingAttachment ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                {invoice.attachment_url ? 'Vervangen' : 'Uploaden'}
+              </Button>
+              {invoice.attachment_url && (
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={async () => {
+                    if (id) {
+                      await updateAttachment({ invoiceId: id, file: null });
+                    }
+                  }}
+                  disabled={isUpdatingAttachment}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+          
+          {invoice.attachment_url && (
+            <>
+              {/* Preview for images */}
+              {invoice.attachment_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) && (
+                <div className="mt-4 border rounded-lg overflow-hidden">
+                  <img 
+                    src={invoice.attachment_url} 
+                    alt="Factuur bijlage" 
+                    className="max-w-full h-auto"
+                  />
+                </div>
+              )}
+              
+              {/* Preview for PDFs */}
+              {invoice.attachment_url.match(/\.pdf$/i) && (
+                <div className="mt-4 border rounded-lg overflow-hidden">
+                  <iframe 
+                    src={invoice.attachment_url} 
+                    className="w-full h-[600px]"
+                    title="Factuur PDF"
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Invoice Preview - only show for non-external invoices */}
       {!invoice.attachment_url && (

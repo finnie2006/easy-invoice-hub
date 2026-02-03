@@ -243,6 +243,64 @@ export function useInvoices() {
     },
   });
 
+  // Update attachment for existing invoice
+  const updateAttachment = useMutation({
+    mutationFn: async ({ 
+      invoiceId, 
+      file 
+    }: { 
+      invoiceId: string;
+      file: File | null;
+    }) => {
+      if (!user) throw new Error('Not authenticated');
+
+      let attachmentUrl: string | null = null;
+      
+      if (file) {
+        // Upload new file
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('invoice-attachments')
+          .upload(fileName, file);
+        
+        if (uploadError) throw uploadError;
+        
+        // Get public URL
+        const { data } = supabase.storage
+          .from('invoice-attachments')
+          .getPublicUrl(fileName);
+        
+        attachmentUrl = data.publicUrl;
+      }
+
+      // Update invoice with new attachment URL
+      const { error: updateError } = await supabase
+        .from('invoices')
+        .update({ attachment_url: attachmentUrl })
+        .eq('id', invoiceId);
+      
+      if (updateError) throw updateError;
+      return attachmentUrl;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice'] });
+      toast({
+        title: 'Bijlage bijgewerkt',
+        description: 'De factuur bijlage is opgeslagen.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fout bij uploaden bijlage',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const updateInvoice = useMutation({
     mutationFn: async ({ 
       id,
@@ -381,10 +439,12 @@ export function useInvoices() {
     createExternalInvoice: createExternalInvoice.mutateAsync,
     updateInvoice: updateInvoice.mutateAsync,
     updateInvoiceStatus: updateInvoiceStatus.mutate,
+    updateAttachment: updateAttachment.mutateAsync,
     deleteInvoice: deleteInvoice.mutate,
     isCreating: createInvoice.isPending,
     isCreatingExternal: createExternalInvoice.isPending,
     isUpdating: updateInvoice.isPending,
+    isUpdatingAttachment: updateAttachment.isPending,
     overdueInvoices,
   };
 }

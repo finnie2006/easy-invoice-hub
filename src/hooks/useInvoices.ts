@@ -175,7 +175,7 @@ export function useInvoices() {
     },
   });
 
-  // Upload attachment for external invoice
+  // Upload attachment for external invoice and return public URL
   const uploadAttachment = async (file: File, userId: string): Promise<string> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}.${fileExt}`;
@@ -185,17 +185,13 @@ export function useInvoices() {
       .upload(fileName, file);
     
     if (uploadError) throw uploadError;
-    return fileName;
-  };
-
-  // Get signed URL for attachment
-  const getAttachmentUrl = async (path: string): Promise<string | null> => {
-    const { data, error } = await supabase.storage
-      .from('invoice-attachments')
-      .createSignedUrl(path, 3600); // 1 hour expiry
     
-    if (error) return null;
-    return data.signedUrl;
+    // Get public URL
+    const { data } = supabase.storage
+      .from('invoice-attachments')
+      .getPublicUrl(fileName);
+    
+    return data.publicUrl;
   };
 
   // Create external invoice (without items, just totals)
@@ -386,7 +382,6 @@ export function useInvoices() {
     updateInvoice: updateInvoice.mutateAsync,
     updateInvoiceStatus: updateInvoiceStatus.mutate,
     deleteInvoice: deleteInvoice.mutate,
-    getAttachmentUrl,
     isCreating: createInvoice.isPending,
     isCreatingExternal: createExternalInvoice.isPending,
     isUpdating: updateInvoice.isPending,

@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Loader2, ArrowLeft, Send, CheckCircle2, Download, AlertTriangle, Pencil, Mail, Copy, Palette } from 'lucide-react';
+import { Loader2, ArrowLeft, Send, CheckCircle2, Download, AlertTriangle, Pencil, Mail, Copy, Palette, FileText, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -368,6 +368,9 @@ export default function InvoiceDetail() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Factuur {invoice.invoice_number}</h1>
             <div className="flex items-center gap-2 mt-1">
+              {invoice.attachment_url && (
+                <Badge variant="outline">Extern</Badge>
+              )}
               {isOverdue ? (
                 <Badge variant="destructive">
                   <AlertTriangle className="h-3 w-3 mr-1" />
@@ -440,14 +443,65 @@ export default function InvoiceDetail() {
         </div>
       </div>
 
-      {/* Invoice Preview */}
-      <Card className="print:shadow-none print:border-none overflow-hidden">
-        <CardContent className="p-0">
-          <div ref={invoiceRef}>
-            {renderTemplate()}
-          </div>
-        </CardContent>
-      </Card>
+      {/* External Invoice Attachment */}
+      {invoice.attachment_url && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-primary/10">
+                  <FileText className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-medium">Externe factuur</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Dit is een extern aangemaakte factuur met bijlage
+                  </p>
+                </div>
+              </div>
+              <Button asChild>
+                <a href={invoice.attachment_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Bekijk origineel
+                </a>
+              </Button>
+            </div>
+            
+            {/* Preview for images */}
+            {invoice.attachment_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) && (
+              <div className="mt-4 border rounded-lg overflow-hidden">
+                <img 
+                  src={invoice.attachment_url} 
+                  alt="Factuur bijlage" 
+                  className="max-w-full h-auto"
+                />
+              </div>
+            )}
+            
+            {/* Preview for PDFs */}
+            {invoice.attachment_url.match(/\.pdf$/i) && (
+              <div className="mt-4 border rounded-lg overflow-hidden">
+                <iframe 
+                  src={invoice.attachment_url} 
+                  className="w-full h-[600px]"
+                  title="Factuur PDF"
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Invoice Preview - only show for non-external invoices */}
+      {!invoice.attachment_url && (
+        <Card className="print:shadow-none print:border-none overflow-hidden">
+          <CardContent className="p-0">
+            <div ref={invoiceRef}>
+              {renderTemplate()}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Email Dialog */}
       <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>

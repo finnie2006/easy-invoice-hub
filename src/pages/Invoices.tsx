@@ -308,9 +308,14 @@ export default function Invoices() {
 
                   return (
                     <div key={invoice.id} className="p-4 rounded-lg bg-muted/50 space-y-3">
-                      <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-medium">{invoice.invoice_number}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{invoice.invoice_number}</p>
+                            {invoice.attachment_url && (
+                              <Badge variant="outline" className="text-xs">Extern</Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">{invoice.client_company_name || '-'}</p>
                         </div>
                         <DropdownMenu>
@@ -393,7 +398,14 @@ export default function Invoices() {
 
                       return (
                         <TableRow key={invoice.id}>
-                          <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{invoice.invoice_number}</span>
+                              {invoice.attachment_url && (
+                                <Badge variant="outline" className="text-xs">Extern</Badge>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>{invoice.client_company_name || '-'}</TableCell>
                           <TableCell>
                             {format(new Date(invoice.invoice_date), 'd MMM yyyy', { locale: nl })}

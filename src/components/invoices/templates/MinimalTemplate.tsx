@@ -83,7 +83,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </p>
         <div className="mt-2">
           {profile?.iban && <p>{profile.iban}</p>}
-          {profile?.company_name && <p className="text-gray-600">t.n.v. {profile.company_name}</p>}
+          {(profile?.payment_name || profile?.company_name) && <p className="text-gray-600">t.n.v. {profile?.payment_name || profile?.company_name}</p>}
         </div>
       </div>
 

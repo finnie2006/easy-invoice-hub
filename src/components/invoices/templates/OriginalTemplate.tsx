@@ -151,7 +151,7 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         <p className="text-xs uppercase tracking-wide mb-3" style={{ color: theme.accent }}>Betalingsgegevens</p>
         <div className="grid grid-cols-2 gap-6 text-sm">
           <div>
-            {profile?.company_name && <p style={{ color: theme.primary }}>{profile.company_name}</p>}
+            {(profile?.payment_name || profile?.company_name) && <p style={{ color: theme.primary }}>{profile?.payment_name || profile?.company_name}</p>}
             {profile?.iban && <p className="text-gray-600">IBAN: <span className="font-mono">{profile.iban}</span></p>}
           </div>
           <div className="text-right">

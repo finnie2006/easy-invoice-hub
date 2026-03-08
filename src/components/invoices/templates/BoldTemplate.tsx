@@ -117,7 +117,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </p>
           <div className="grid grid-cols-2 gap-6 text-sm">
             <div className="text-slate-600">
-              {profile?.company_name && <p>{profile.company_name}</p>}
+              {(profile?.payment_name || profile?.company_name) && <p>{profile?.payment_name || profile?.company_name}</p>}
               {profile?.iban && <p>IBAN: <span className="font-mono">{profile.iban}</span></p>}
             </div>
             <div className="text-right">

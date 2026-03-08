@@ -404,6 +404,7 @@ export default function InvoiceNew() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="none">—</SelectItem>
                               <SelectItem value="uur">uur</SelectItem>
                               <SelectItem value="dag">dag</SelectItem>
                               <SelectItem value="stuk">stuk</SelectItem>

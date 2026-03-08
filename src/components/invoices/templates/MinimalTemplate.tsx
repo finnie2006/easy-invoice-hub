@@ -52,7 +52,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
                 {item.quantity} × {formatCurrency(item.unit_price)} · {item.btw_percentage}% BTW
               </p>
             </div>
-            <div className="w-24 text-right">{formatCurrency(Number(item.subtotal))}</div>
+            <div className="w-24 text-right">{formatCurrency(Number(item.total))}</div>
           </div>
         ))}
       </div>

@@ -84,7 +84,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
                   <td className="text-right py-4 text-slate-600">{item.quantity} {item.unit || ''}</td>
                   <td className="text-right py-4 text-slate-600">{formatCurrency(item.unit_price)}</td>
                   <td className="text-right py-4 text-slate-600">{item.btw_percentage}%</td>
-                  <td className="text-right py-4 font-bold text-slate-900">{formatCurrency(Number(item.subtotal))}</td>
+                  <td className="text-right py-4 font-bold text-slate-900">{formatCurrency(Number(item.total))}</td>
                 </tr>
               ))}
             </tbody>

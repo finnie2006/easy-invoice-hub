@@ -122,7 +122,7 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
               <td className="text-right py-4 text-gray-600">{item.quantity} {item.unit || ''}</td>
               <td className="text-right py-4 text-gray-600">{formatCurrency(item.unit_price)}</td>
               <td className="text-right py-4 text-gray-600">{item.btw_percentage}%</td>
-              <td className="text-right py-4 font-medium" style={{ color: theme.primary }}>{formatCurrency(Number(item.subtotal))}</td>
+              <td className="text-right py-4 font-medium" style={{ color: theme.primary }}>{formatCurrency(Number(item.total))}</td>
             </tr>
           ))}
         </tbody>

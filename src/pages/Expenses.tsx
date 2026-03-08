@@ -566,7 +566,7 @@ export default function Expenses() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteExpense(expense.id)}
+                          onClick={() => setDeleteConfirmExpense(expense)}
                           className="text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />

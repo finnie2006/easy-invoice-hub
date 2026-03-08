@@ -8,7 +8,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
   };
 
   return (
-    <div className="bg-white text-black min-h-[1123px] relative flex flex-col" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
+    <div className="bg-white text-black h-[1123px] relative" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
       {/* Header with accent sidebar */}
       <div className="flex">
         <div className="w-2 bg-emerald-500"></div>
@@ -32,7 +32,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {/* Content */}
-      <div className="px-10 flex-1 flex flex-col">
+      <div className="px-10 pb-16">
         {/* Two Column Info */}
         <div className="flex justify-between mb-10 pb-6 border-b border-gray-200">
           <div>
@@ -124,16 +124,16 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
             <p className="text-gray-600 whitespace-pre-wrap">{invoice.notes}</p>
           </div>
         )}
+      </div>
 
-        {/* Footer */}
-        <div className="mt-auto pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
-          <div>
-            {profile?.company_name}
-          </div>
-          <div className="space-x-4">
-            {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}
-            {profile?.btw_number && <span>BTW: {profile.btw_number}</span>}
-          </div>
+      {/* Footer - absolutely positioned at bottom */}
+      <div className="absolute bottom-8 left-10 right-10 pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
+        <div>
+          {profile?.company_name}
+        </div>
+        <div className="space-x-4">
+          {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}
+          {profile?.btw_number && <span>BTW: {profile.btw_number}</span>}
         </div>
       </div>
     </div>

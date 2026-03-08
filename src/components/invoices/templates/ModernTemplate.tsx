@@ -8,7 +8,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
   };
 
   return (
-    <div className="bg-white text-black min-h-[1123px]" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
+    <div className="bg-white text-black min-h-[1123px] relative flex flex-col" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
       {/* Header with accent sidebar */}
       <div className="flex">
         <div className="w-2 bg-emerald-500"></div>
@@ -32,7 +32,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {/* Content */}
-      <div className="px-10">
+      <div className="px-10 flex-1 flex flex-col">
         {/* Two Column Info */}
         <div className="flex justify-between mb-10 pb-6 border-b border-gray-200">
           <div>
@@ -126,7 +126,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         )}
 
         {/* Footer */}
-        <div className="pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
+        <div className="mt-auto pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
           <div>
             {profile?.company_name}
           </div>

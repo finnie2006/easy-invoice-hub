@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Loader2, Plus, Users, MoreHorizontal, Pencil, Trash2, Search, X, MapPin } from 'lucide-react';
@@ -30,6 +31,7 @@ export default function Clients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState<ClientInsert>(emptyClient);
+  const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -356,7 +358,7 @@ export default function Clients() {
                             <Pencil className="h-4 w-4 mr-2" />
                             Bewerken
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => deleteClient(client.id)} className="text-destructive">
+                          <DropdownMenuItem onClick={() => setDeleteConfirmClient(client)} className="text-destructive">
                             <Trash2 className="h-4 w-4 mr-2" />
                             Verwijderen
                           </DropdownMenuItem>
@@ -404,7 +406,7 @@ export default function Clients() {
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Bewerken
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => deleteClient(client.id)} className="text-destructive">
+                              <DropdownMenuItem onClick={() => setDeleteConfirmClient(client)} className="text-destructive">
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Verwijderen
                               </DropdownMenuItem>
@@ -420,6 +422,31 @@ export default function Clients() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteConfirmClient} onOpenChange={(open) => !open && setDeleteConfirmClient(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Klant verwijderen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{deleteConfirmClient?.company_name}</strong> wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteConfirmClient) {
+                  deleteClient(deleteConfirmClient.id);
+                  setDeleteConfirmClient(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

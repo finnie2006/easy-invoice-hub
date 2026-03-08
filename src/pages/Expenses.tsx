@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search, AlertTriangle } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -21,6 +22,7 @@ export default function Expenses() {
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
   const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [deleteConfirmExpense, setDeleteConfirmExpense] = useState<Expense | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Filter state
@@ -565,7 +567,7 @@ export default function Expenses() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => deleteExpense(expense.id)}
+                          onClick={() => setDeleteConfirmExpense(expense)}
                           className="text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -649,7 +651,7 @@ export default function Expenses() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => deleteExpense(expense.id)}
+                            onClick={() => setDeleteConfirmExpense(expense)}
                             className="text-destructive"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -690,6 +692,31 @@ export default function Expenses() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteConfirmExpense} onOpenChange={(open) => !open && setDeleteConfirmExpense(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Uitgave verwijderen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je de uitgave van <strong>{deleteConfirmExpense?.vendor_name}</strong> wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteConfirmExpense) {
+                  deleteExpense(deleteConfirmExpense.id);
+                  setDeleteConfirmExpense(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

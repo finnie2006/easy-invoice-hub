@@ -422,6 +422,31 @@ export default function Clients() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!deleteConfirmClient} onOpenChange={(open) => !open && setDeleteConfirmClient(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Klant verwijderen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je <strong>{deleteConfirmClient?.company_name}</strong> wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteConfirmClient) {
+                  deleteClient(deleteConfirmClient.id);
+                  setDeleteConfirmClient(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

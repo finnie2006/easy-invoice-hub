@@ -403,7 +403,7 @@ export default function InvoiceEdit() {
                           />
                           <Select 
                             value={item.unit} 
-                            onValueChange={(value) => handleItemChange(item.id, 'unit', value)}
+                            onValueChange={(value) => handleItemChange(item.id, 'unit', value === 'none' ? null : value)}
                           >
                             <SelectTrigger className="w-24">
                               <SelectValue />

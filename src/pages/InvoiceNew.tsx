@@ -398,7 +398,7 @@ export default function InvoiceNew() {
                           />
                           <Select 
                             value={item.unit} 
-                            onValueChange={(value) => handleItemChange(item.id, 'unit', value)}
+                            onValueChange={(value) => handleItemChange(item.id, 'unit', value === 'none' ? null : value)}
                           >
                             <SelectTrigger className="w-24">
                               <SelectValue />

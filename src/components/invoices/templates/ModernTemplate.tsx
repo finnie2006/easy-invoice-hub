@@ -32,7 +32,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {/* Content */}
-      <div className="px-10">
+      <div className="px-10 flex-1 flex flex-col">
         {/* Two Column Info */}
         <div className="flex justify-between mb-10 pb-6 border-b border-gray-200">
           <div>

@@ -31,6 +31,7 @@ export default function Clients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState<ClientInsert>(emptyClient);
+  const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');

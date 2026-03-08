@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      annual_tax_data: {
+        Row: {
+          created_at: string
+          hours_worked: number | null
+          id: string
+          is_starter: boolean | null
+          notes: string | null
+          updated_at: string
+          user_id: string
+          vehicle_business_km: number | null
+          vehicle_costs: number | null
+          vehicle_private_percentage: number | null
+          vehicle_total_km: number | null
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          hours_worked?: number | null
+          id?: string
+          is_starter?: boolean | null
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+          vehicle_business_km?: number | null
+          vehicle_costs?: number | null
+          vehicle_private_percentage?: number | null
+          vehicle_total_km?: number | null
+          year: number
+        }
+        Update: {
+          created_at?: string
+          hours_worked?: number | null
+          id?: string
+          is_starter?: boolean | null
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+          vehicle_business_km?: number | null
+          vehicle_costs?: number | null
+          vehicle_private_percentage?: number | null
+          vehicle_total_km?: number | null
+          year?: number
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           created_at: string
@@ -77,6 +122,51 @@ export type Database = {
           updated_at?: string
           user_id?: string
           year?: number
+        }
+        Relationships: []
+      }
+      business_assets: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          name: string
+          notes: string | null
+          purchase_date: string
+          purchase_price: number
+          residual_value: number
+          updated_at: string
+          useful_life_years: number
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          notes?: string | null
+          purchase_date: string
+          purchase_price: number
+          residual_value?: number
+          updated_at?: string
+          useful_life_years?: number
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          notes?: string | null
+          purchase_date?: string
+          purchase_price?: number
+          residual_value?: number
+          updated_at?: string
+          useful_life_years?: number
+          user_id?: string
         }
         Relationships: []
       }

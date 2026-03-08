@@ -42,6 +42,8 @@ export default function TaxFilings() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedQuarter, setSelectedQuarter] = useState('1');
+  const [activeTab, setActiveTab] = useState('btw');
+  const [annualYear, setAnnualYear] = useState(new Date().getFullYear());
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);

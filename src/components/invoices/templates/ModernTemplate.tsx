@@ -8,7 +8,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
   };
 
   return (
-    <div className="bg-white text-black min-h-[1123px]" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
+    <div className="bg-white text-black min-h-[1123px] relative flex flex-col" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
       {/* Header with accent sidebar */}
       <div className="flex">
         <div className="w-2 bg-emerald-500"></div>

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   FileCheck, 
   Plus, 
@@ -20,10 +21,12 @@ import {
   TrendingUp,
   TrendingDown,
   Euro,
-  AlertCircle
+  AlertCircle,
+  Calculator,
 } from 'lucide-react';
 import { format, startOfQuarter, endOfQuarter, isAfter, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import AnnualTaxHelper from '@/components/tax/AnnualTaxHelper';
 
 const quarterLabels: Record<number, string> = {
   1: 'Q1 (jan - mrt)',
@@ -39,6 +42,8 @@ export default function TaxFilings() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [selectedQuarter, setSelectedQuarter] = useState('1');
+  const [activeTab, setActiveTab] = useState('btw');
+  const [annualYear, setAnnualYear] = useState(new Date().getFullYear());
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -125,278 +130,313 @@ export default function TaxFilings() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Aangiftes</h1>
           <p className="text-sm sm:text-base text-muted-foreground">
-            Beheer je BTW-aangiftes per kwartaal
+            Beheer je BTW-aangiftes en bereken je jaaraangifte
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Periode toevoegen
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>BTW-periode toevoegen</DialogTitle>
-              <DialogDescription>
-                Voeg een kwartaal toe om bij te houden of de aangifte is gedaan
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="year">Jaar</Label>
-                <Select value={selectedYear} onValueChange={setSelectedYear}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {years.map(y => (
-                      <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="quarter">Kwartaal</Label>
-                <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4].map(q => (
-                      <SelectItem 
-                        key={q} 
-                        value={q.toString()}
-                        disabled={existingPeriods.has(`${selectedYear}-Q${q}`)}
-                      >
-                        {quarterLabels[q]}
-                        {existingPeriods.has(`${selectedYear}-Q${q}`) && ' (bestaat al)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Annuleren
-              </Button>
-              <Button onClick={handleAddPeriod} disabled={isCreating}>
-                Toevoegen
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
 
-      {/* Current Quarter Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Euro className="h-5 w-5" />
-            Huidig kwartaal: {currentYear} {quarterLabels[currentQuarter]}
-          </CardTitle>
-          <CardDescription>
-            Overzicht van de BTW voor het huidige kwartaal
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-            <div className="p-4 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <TrendingUp className="h-4 w-4" />
-                BTW ontvangen
-              </div>
-              <div className="text-xl font-bold">{formatCurrency(currentPeriodStats.revenueVat)}</div>
-              <div className="text-xs text-muted-foreground">{currentPeriodStats.invoiceCount} facturen</div>
-            </div>
-            <div className="p-4 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <TrendingDown className="h-4 w-4" />
-                BTW betaald
-              </div>
-              <div className="text-xl font-bold text-success">{formatCurrency(currentPeriodStats.expenseVat)}</div>
-              <div className="text-xs text-muted-foreground">{currentPeriodStats.expenseCount} uitgaven</div>
-            </div>
-            <div className="p-4 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <Euro className="h-4 w-4" />
-                Per saldo
-              </div>
-              <div className={`text-xl font-bold ${currentPeriodStats.vatToPay >= 0 ? 'text-warning' : 'text-success'}`}>
-                {formatCurrency(currentPeriodStats.vatToPay)}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {currentPeriodStats.vatToPay >= 0 ? 'Te betalen' : 'Terug te vorderen'}
-              </div>
-            </div>
-            <div className="p-4 rounded-lg bg-muted/50">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-                <FileCheck className="h-4 w-4" />
-                Status
-              </div>
-              <div className="mt-1">
-                <Badge variant={currentPeriodClosed ? 'default' : 'secondary'}>
-                  {currentPeriodClosed ? 'Ingediend' : 'Open'}
-                </Badge>
-              </div>
-            </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="btw" className="flex items-center gap-2">
+            <Euro className="h-4 w-4" />
+            BTW-aangifte
+          </TabsTrigger>
+          <TabsTrigger value="annual" className="flex items-center gap-2">
+            <Calculator className="h-4 w-4" />
+            Jaaraangifte
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="btw" className="space-y-6 mt-6">
+          {/* Add period button */}
+          <div className="flex justify-end">
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Periode toevoegen
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>BTW-periode toevoegen</DialogTitle>
+                  <DialogDescription>
+                    Voeg een kwartaal toe om bij te houden of de aangifte is gedaan
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="year">Jaar</Label>
+                    <Select value={selectedYear} onValueChange={setSelectedYear}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map(y => (
+                          <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="quarter">Kwartaal</Label>
+                    <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4].map(q => (
+                          <SelectItem 
+                            key={q} 
+                            value={q.toString()}
+                            disabled={existingPeriods.has(`${selectedYear}-Q${q}`)}
+                          >
+                            {quarterLabels[q]}
+                            {existingPeriods.has(`${selectedYear}-Q${q}`) && ' (bestaat al)'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                    Annuleren
+                  </Button>
+                  <Button onClick={handleAddPeriod} disabled={isCreating}>
+                    Toevoegen
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Period List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileCheck className="h-5 w-5" />
-            BTW-periodes
-          </CardTitle>
-          <CardDescription>
-            Markeer kwartalen als ingediend om te voorkomen dat nieuwe uitgaven in afgesloten periodes terechtkomen
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {btwPeriods.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileCheck className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Nog geen BTW-periodes toegevoegd</p>
-              <p className="text-sm">Voeg een periode toe om je aangiftes bij te houden</p>
-            </div>
-          ) : (
-            <>
-              {/* Mobile card view */}
-              <div className="block md:hidden space-y-3">
-                {btwPeriods.map((period) => {
-                  const stats = getQuarterStats(period.year, period.quarter);
-                  return (
-                    <div 
-                      key={period.id} 
-                      className="p-4 rounded-lg bg-muted/50 space-y-3"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          {period.is_closed ? (
-                            <Lock className="h-4 w-4 text-success shrink-0" />
-                          ) : (
-                            <Unlock className="h-4 w-4 text-muted-foreground shrink-0" />
-                          )}
-                          <div>
-                            <p className="font-medium">
-                              {period.year} - {quarterLabels[period.quarter]}
-                            </p>
-                            {period.submitted_at && (
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <CalendarCheck className="h-3 w-3" />
-                                Ingediend op {format(new Date(period.submitted_at), 'd MMM yyyy', { locale: nl })}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <Badge variant={period.is_closed ? 'default' : 'secondary'}>
-                          {period.is_closed ? 'Afgesloten' : 'Open'}
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">BTW ontvangen:</span>
-                          <span className="ml-2 font-medium">{formatCurrency(stats.revenueVat)}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">BTW betaald:</span>
-                          <span className="ml-2 font-medium text-success">{formatCurrency(stats.expenseVat)}</span>
-                        </div>
-                        <div className="col-span-2">
-                          <span className="text-muted-foreground">Per saldo:</span>
-                          <span className={`ml-2 font-bold ${stats.vatToPay >= 0 ? 'text-warning' : 'text-success'}`}>
-                            {formatCurrency(stats.vatToPay)}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-end gap-2 pt-2 border-t">
-                        <Label htmlFor={`toggle-${period.id}`} className="text-sm cursor-pointer">
-                          Ingediend
-                        </Label>
-                        <Switch
-                          id={`toggle-${period.id}`}
-                          checked={period.is_closed}
-                          onCheckedChange={(checked) => togglePeriodClosed({ id: period.id, is_closed: checked })}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+          {/* Current Quarter Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Euro className="h-5 w-5" />
+                Huidig kwartaal: {currentYear} {quarterLabels[currentQuarter]}
+              </CardTitle>
+              <CardDescription>
+                Overzicht van de BTW voor het huidige kwartaal
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <TrendingUp className="h-4 w-4" />
+                    BTW ontvangen
+                  </div>
+                  <div className="text-xl font-bold">{formatCurrency(currentPeriodStats.revenueVat)}</div>
+                  <div className="text-xs text-muted-foreground">{currentPeriodStats.invoiceCount} facturen</div>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <TrendingDown className="h-4 w-4" />
+                    BTW betaald
+                  </div>
+                  <div className="text-xl font-bold text-success">{formatCurrency(currentPeriodStats.expenseVat)}</div>
+                  <div className="text-xs text-muted-foreground">{currentPeriodStats.expenseCount} uitgaven</div>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <Euro className="h-4 w-4" />
+                    Per saldo
+                  </div>
+                  <div className={`text-xl font-bold ${currentPeriodStats.vatToPay >= 0 ? 'text-warning' : 'text-success'}`}>
+                    {formatCurrency(currentPeriodStats.vatToPay)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {currentPeriodStats.vatToPay >= 0 ? 'Te betalen' : 'Terug te vorderen'}
+                  </div>
+                </div>
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <FileCheck className="h-4 w-4" />
+                    Status
+                  </div>
+                  <div className="mt-1">
+                    <Badge variant={currentPeriodClosed ? 'default' : 'secondary'}>
+                      {currentPeriodClosed ? 'Ingediend' : 'Open'}
+                    </Badge>
+                  </div>
+                </div>
               </div>
+            </CardContent>
+          </Card>
 
-              {/* Desktop table view */}
-              <div className="hidden md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Periode</TableHead>
-                      <TableHead className="text-right">BTW ontvangen</TableHead>
-                      <TableHead className="text-right">BTW betaald</TableHead>
-                      <TableHead className="text-right">Per saldo</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Ingediend</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+          {/* Period List */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileCheck className="h-5 w-5" />
+                BTW-periodes
+              </CardTitle>
+              <CardDescription>
+                Markeer kwartalen als ingediend om te voorkomen dat nieuwe uitgaven in afgesloten periodes terechtkomen
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {btwPeriods.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <FileCheck className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Nog geen BTW-periodes toegevoegd</p>
+                  <p className="text-sm">Voeg een periode toe om je aangiftes bij te houden</p>
+                </div>
+              ) : (
+                <>
+                  {/* Mobile card view */}
+                  <div className="block md:hidden space-y-3">
                     {btwPeriods.map((period) => {
                       const stats = getQuarterStats(period.year, period.quarter);
                       return (
-                        <TableRow key={period.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
+                        <div 
+                          key={period.id} 
+                          className="p-4 rounded-lg bg-muted/50 space-y-3"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
                               {period.is_closed ? (
-                                <Lock className="h-4 w-4 text-success" />
+                                <Lock className="h-4 w-4 text-success shrink-0" />
                               ) : (
-                                <Unlock className="h-4 w-4 text-muted-foreground" />
+                                <Unlock className="h-4 w-4 text-muted-foreground shrink-0" />
                               )}
                               <div>
-                                <p className="font-medium">{period.year} - {quarterLabels[period.quarter]}</p>
+                                <p className="font-medium">
+                                  {period.year} - {quarterLabels[period.quarter]}
+                                </p>
                                 {period.submitted_at && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Ingediend {format(new Date(period.submitted_at), 'd MMM yyyy', { locale: nl })}
+                                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <CalendarCheck className="h-3 w-3" />
+                                    Ingediend op {format(new Date(period.submitted_at), 'd MMM yyyy', { locale: nl })}
                                   </p>
                                 )}
                               </div>
                             </div>
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(stats.revenueVat)}</TableCell>
-                          <TableCell className="text-right text-success">{formatCurrency(stats.expenseVat)}</TableCell>
-                          <TableCell className={`text-right font-bold ${stats.vatToPay >= 0 ? 'text-warning' : 'text-success'}`}>
-                            {formatCurrency(stats.vatToPay)}
-                          </TableCell>
-                          <TableCell>
                             <Badge variant={period.is_closed ? 'default' : 'secondary'}>
                               {period.is_closed ? 'Afgesloten' : 'Open'}
                             </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">BTW ontvangen:</span>
+                              <span className="ml-2 font-medium">{formatCurrency(stats.revenueVat)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">BTW betaald:</span>
+                              <span className="ml-2 font-medium text-success">{formatCurrency(stats.expenseVat)}</span>
+                            </div>
+                            <div className="col-span-2">
+                              <span className="text-muted-foreground">Per saldo:</span>
+                              <span className={`ml-2 font-bold ${stats.vatToPay >= 0 ? 'text-warning' : 'text-success'}`}>
+                                {formatCurrency(stats.vatToPay)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                            <Label htmlFor={`toggle-${period.id}`} className="text-sm cursor-pointer">
+                              Ingediend
+                            </Label>
                             <Switch
+                              id={`toggle-${period.id}`}
                               checked={period.is_closed}
                               onCheckedChange={(checked) => togglePeriodClosed({ id: period.id, is_closed: checked })}
                             />
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                        </div>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              </div>
-            </>
-          )}
+                  </div>
 
-          <div className="flex items-start gap-2 mt-6 p-4 rounded-lg bg-primary/5 border border-primary/20">
-            <AlertCircle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-            <p className="text-sm text-muted-foreground">
-              Wanneer je een uitgave toevoegt met een datum in een afgesloten periode, 
-              wordt deze automatisch in de eerstvolgende open periode geboekt.
-            </p>
+                  {/* Desktop table view */}
+                  <div className="hidden md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Periode</TableHead>
+                          <TableHead className="text-right">BTW ontvangen</TableHead>
+                          <TableHead className="text-right">BTW betaald</TableHead>
+                          <TableHead className="text-right">Per saldo</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Ingediend</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {btwPeriods.map((period) => {
+                          const stats = getQuarterStats(period.year, period.quarter);
+                          return (
+                            <TableRow key={period.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {period.is_closed ? (
+                                    <Lock className="h-4 w-4 text-success" />
+                                  ) : (
+                                    <Unlock className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                  <div>
+                                    <p className="font-medium">{period.year} - {quarterLabels[period.quarter]}</p>
+                                    {period.submitted_at && (
+                                      <p className="text-xs text-muted-foreground">
+                                        Ingediend {format(new Date(period.submitted_at), 'd MMM yyyy', { locale: nl })}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">{formatCurrency(stats.revenueVat)}</TableCell>
+                              <TableCell className="text-right text-success">{formatCurrency(stats.expenseVat)}</TableCell>
+                              <TableCell className={`text-right font-bold ${stats.vatToPay >= 0 ? 'text-warning' : 'text-success'}`}>
+                                {formatCurrency(stats.vatToPay)}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={period.is_closed ? 'default' : 'secondary'}>
+                                  {period.is_closed ? 'Afgesloten' : 'Open'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Switch
+                                  checked={period.is_closed}
+                                  onCheckedChange={(checked) => togglePeriodClosed({ id: period.id, is_closed: checked })}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
+
+              <div className="flex items-start gap-2 mt-6 p-4 rounded-lg bg-primary/5 border border-primary/20">
+                <AlertCircle className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <p className="text-sm text-muted-foreground">
+                  Wanneer je een uitgave toevoegt met een datum in een afgesloten periode, 
+                  wordt deze automatisch in de eerstvolgende open periode geboekt.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="annual" className="space-y-6 mt-6">
+          <div className="flex justify-end">
+            <Select value={annualYear.toString()} onValueChange={(v) => setAnnualYear(parseInt(v))}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map(y => (
+                  <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>
+          <AnnualTaxHelper selectedYear={annualYear} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

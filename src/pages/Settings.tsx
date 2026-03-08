@@ -144,6 +144,20 @@ export default function Settings() {
                   placeholder="NL00 BANK 0000 0000 00"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="payment_name">Tenaamstelling (T.n.v.)</Label>
+                <Input
+                  id="payment_name"
+                  name="payment_name"
+                  value={displayData.payment_name || ''}
+                  onChange={handleChange}
+                  placeholder={displayData.company_name || 'Naam op factuur'}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Wordt getoond als T.n.v. op facturen. Laat leeg om je bedrijfsnaam te gebruiken.
+                </p>
+              </div>
             </div>
 
             <div className="border-t pt-6">

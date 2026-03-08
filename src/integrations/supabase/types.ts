@@ -577,6 +577,7 @@ export type Database = {
           kvk_number: string | null
           logo_url: string | null
           panel_color_theme: string | null
+          payment_name: string | null
           updated_at: string
           use_company_branding: boolean | null
           user_id: string
@@ -597,6 +598,7 @@ export type Database = {
           kvk_number?: string | null
           logo_url?: string | null
           panel_color_theme?: string | null
+          payment_name?: string | null
           updated_at?: string
           use_company_branding?: boolean | null
           user_id: string
@@ -617,6 +619,7 @@ export type Database = {
           kvk_number?: string | null
           logo_url?: string | null
           panel_color_theme?: string | null
+          payment_name?: string | null
           updated_at?: string
           use_company_branding?: boolean | null
           user_id?: string

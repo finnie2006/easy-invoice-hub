@@ -106,7 +106,7 @@ export function ClassicTemplate({ invoice, profile }: InvoiceTemplateProps) {
         <p className="font-bold mb-2">Betalingsgegevens</p>
         <p>Gelieve te betalen voor {format(new Date(invoice.due_date), 'd MMMM yyyy', { locale: nl })}</p>
         <div className="mt-2">
-          {profile?.company_name && <p>T.n.v.: {profile.company_name}</p>}
+          {(profile?.payment_name || profile?.company_name) && <p>T.n.v.: {profile?.payment_name || profile?.company_name}</p>}
           {profile?.iban && <p>IBAN: {profile.iban}</p>}
           <p>O.v.v.: {invoice.invoice_number}</p>
         </div>

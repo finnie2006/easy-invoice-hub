@@ -185,9 +185,13 @@
     color: hsl(217 91% 60%) !important;
   }
 
-  /* Remove any fixed positioning */
-  * {
-    position: static !important;
+  /* Exception for invoice template containers */
+  [style*="font-family"] {
+    position: relative !important;
+  }
+
+  [style*="font-family"] > div:last-child {
+    position: absolute !important;
   }
 
   /* Exception for positioned elements we need */

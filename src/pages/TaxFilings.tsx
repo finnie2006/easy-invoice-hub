@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   FileCheck, 
   Plus, 
@@ -20,10 +21,12 @@ import {
   TrendingUp,
   TrendingDown,
   Euro,
-  AlertCircle
+  AlertCircle,
+  Calculator,
 } from 'lucide-react';
 import { format, startOfQuarter, endOfQuarter, isAfter, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import AnnualTaxHelper from '@/components/tax/AnnualTaxHelper';
 
 const quarterLabels: Record<number, string> = {
   1: 'Q1 (jan - mrt)',

@@ -358,7 +358,7 @@ export default function Clients() {
                             <Pencil className="h-4 w-4 mr-2" />
                             Bewerken
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => deleteClient(client.id)} className="text-destructive">
+                          <DropdownMenuItem onClick={() => setDeleteConfirmClient(client)} className="text-destructive">
                             <Trash2 className="h-4 w-4 mr-2" />
                             Verwijderen
                           </DropdownMenuItem>

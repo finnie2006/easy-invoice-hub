@@ -402,13 +402,14 @@ export default function InvoiceEdit() {
                             className="w-20"
                           />
                           <Select 
-                            value={item.unit} 
-                            onValueChange={(value) => handleItemChange(item.id, 'unit', value)}
+                            value={item.unit || 'none'} 
+                            onValueChange={(value) => handleItemChange(item.id, 'unit', value === 'none' ? null : value)}
                           >
                             <SelectTrigger className="w-24">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="none">—</SelectItem>
                               <SelectItem value="uur">uur</SelectItem>
                               <SelectItem value="dag">dag</SelectItem>
                               <SelectItem value="stuk">stuk</SelectItem>

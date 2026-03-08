@@ -105,7 +105,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
             <div>
               <p className="font-semibold text-gray-900 mb-2">Betalingsinformatie</p>
               <div className="text-sm text-gray-600 space-y-1">
-                {profile?.company_name && <p>T.n.v.: {profile.company_name}</p>}
+                {(profile?.payment_name || profile?.company_name) && <p>T.n.v.: {profile?.payment_name || profile?.company_name}</p>}
                 {profile?.iban && <p>IBAN: <span className="font-mono">{profile.iban}</span></p>}
                 <p>Referentie: {invoice.invoice_number}</p>
               </div>

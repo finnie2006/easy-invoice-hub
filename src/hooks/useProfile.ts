@@ -20,6 +20,7 @@ export interface Profile {
   use_company_branding: boolean | null;
   invoice_color_theme: string | null;
   panel_color_theme: string | null;
+  payment_name: string | null;
   created_at: string;
   updated_at: string;
 }

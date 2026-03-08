@@ -126,7 +126,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         )}
 
         {/* Footer */}
-        <div className="pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
+        <div className="mt-auto pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
           <div>
             {profile?.company_name}
           </div>

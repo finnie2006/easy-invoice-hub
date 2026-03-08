@@ -21,6 +21,7 @@ export default function Expenses() {
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
   const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [deleteConfirmExpense, setDeleteConfirmExpense] = useState<Expense | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Filter state

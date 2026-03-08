@@ -691,6 +691,31 @@ export default function Expenses() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteConfirmExpense} onOpenChange={(open) => !open && setDeleteConfirmExpense(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Uitgave verwijderen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je de uitgave van <strong>{deleteConfirmExpense?.vendor_name}</strong> wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteConfirmExpense) {
+                  deleteExpense(deleteConfirmExpense.id);
+                  setDeleteConfirmExpense(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

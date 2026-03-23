@@ -10,6 +10,8 @@ export interface InvoiceItem {
   subtotal: number;
   btw_amount: number;
   total: number;
+  discount_type: string | null;
+  discount_value: number;
 }
 
 export interface InvoiceData {
@@ -28,6 +30,9 @@ export interface InvoiceData {
   subtotal: number;
   total_btw: number;
   total: number;
+  discount_type: string | null;
+  discount_value: number;
+  discount_amount: number;
   notes: string | null;
   notes_title: string | null;
   items: InvoiceItem[];

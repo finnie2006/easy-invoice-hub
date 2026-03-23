@@ -7,21 +7,19 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
     return `€${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
+
   return (
     <div className="bg-white text-black p-12 min-h-[1123px] text-sm" style={{ fontFamily: 'Georgia, serif' }}>
-      {/* Simple Header */}
       <div className="flex justify-between items-start mb-16">
         <div>
-          <h1 className="text-xl font-normal tracking-wide">
-            {profile?.company_name || 'Uw Bedrijf'}
-          </h1>
+          <h1 className="text-xl font-normal tracking-wide">{profile?.company_name || 'Uw Bedrijf'}</h1>
         </div>
         <div className="text-right">
           <p className="text-3xl font-light tracking-widest text-gray-400">FACTUUR</p>
         </div>
       </div>
 
-      {/* Two Column Info */}
       <div className="grid grid-cols-2 gap-16 mb-16">
         <div>
           <p className="text-gray-400 text-xs uppercase tracking-widest mb-4">Aan</p>
@@ -38,7 +36,6 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      {/* Invoice Items */}
       <div className="mb-16">
         <div className="border-b border-gray-200 pb-2 mb-4 flex text-xs text-gray-400 uppercase tracking-widest">
           <div className="flex-1">Omschrijving</div>
@@ -49,7 +46,11 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
             <div className="flex-1">
               <p>{item.description}</p>
               <p className="text-xs text-gray-400 mt-1">
-                {item.quantity} × {formatCurrency(item.unit_price)} · {item.btw_percentage}% BTW
+                {item.quantity} × {formatCurrency(item.unit_price)}
+                {item.discount_type && item.discount_value > 0 && (
+                  <span> · korting {item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)}</span>
+                )}
+                {' '}· {item.btw_percentage}% BTW
               </p>
             </div>
             <div className="w-24 text-right">{formatCurrency(Number(item.total))}</div>
@@ -57,13 +58,18 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         ))}
       </div>
 
-      {/* Totals */}
       <div className="flex justify-end mb-16">
         <div className="w-64">
           <div className="flex justify-between py-2 text-gray-500">
             <span>Subtotaal</span>
             <span>{formatCurrency(Number(invoice.subtotal))}</span>
           </div>
+          {hasInvoiceDiscount && (
+            <div className="flex justify-between py-2 text-red-600">
+              <span>Korting{invoice.discount_type === 'percentage' ? ` (${invoice.discount_value}%)` : ''}</span>
+              <span>-{formatCurrency(Number(invoice.discount_amount))}</span>
+            </div>
+          )}
           <div className="flex justify-between py-2 text-gray-500">
             <span>BTW</span>
             <span>{formatCurrency(Number(invoice.total_btw))}</span>
@@ -75,7 +81,6 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      {/* Payment */}
       <div className="mb-8">
         <p className="text-gray-400 text-xs uppercase tracking-widest mb-4">Betaling</p>
         <p className="text-gray-600">
@@ -87,18 +92,14 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      {/* Notes */}
       {invoice.notes && (
         <div className="mb-8 text-gray-600">
           <p className="whitespace-pre-wrap">{invoice.notes}</p>
         </div>
       )}
 
-      {/* Footer */}
       <div className="absolute bottom-12 left-12 right-12 text-xs text-gray-400 flex justify-between">
-        <div>
-          {profile?.company_address} · {profile?.company_postal_code} {profile?.company_city}
-        </div>
+        <div>{profile?.company_address} · {profile?.company_postal_code} {profile?.company_city}</div>
         <div>
           {profile?.kvk_number && <span>KVK {profile.kvk_number}</span>}
           {profile?.btw_number && <span className="ml-4">BTW {profile.btw_number}</span>}

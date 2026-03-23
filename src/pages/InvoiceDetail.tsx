@@ -269,6 +269,8 @@ export default function InvoiceDetail() {
           unit: item.unit,
           unit_price: item.unit_price,
           btw_percentage: item.btw_percentage,
+          discount_type: item.discount_type,
+          discount_value: Number(item.discount_value || 0),
         })) || [],
       });
 
@@ -328,6 +330,9 @@ export default function InvoiceDetail() {
     subtotal: Number(invoice.subtotal),
     total_btw: Number(invoice.total_btw),
     total: Number(invoice.total),
+    discount_type: invoice.discount_type,
+    discount_value: Number(invoice.discount_value || 0),
+    discount_amount: Number(invoice.discount_amount || 0),
     notes: invoice.notes,
     notes_title: invoice.notes_title || 'Opmerkingen',
     items: invoice.items?.map(item => ({
@@ -340,6 +345,8 @@ export default function InvoiceDetail() {
       subtotal: Number(item.subtotal),
       btw_amount: Number(item.btw_amount),
       total: Number(item.total),
+      discount_type: item.discount_type,
+      discount_value: Number(item.discount_value || 0),
     })) || [],
   };
 

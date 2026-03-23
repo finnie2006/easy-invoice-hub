@@ -7,15 +7,15 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
     return `€${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const hasItemDiscounts = invoice.items?.some(item => item.discount_type && item.discount_value > 0);
+  const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
+
   return (
     <div className="bg-white text-black min-h-[1123px]" style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif' }}>
-      {/* Executive Header */}
       <div className="bg-slate-900 text-white p-10">
         <div className="flex justify-between items-end">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              {profile?.company_name || 'Uw Bedrijf'}
-            </h1>
+            <h1 className="text-3xl font-bold tracking-tight">{profile?.company_name || 'Uw Bedrijf'}</h1>
             <p className="text-slate-400 mt-2 text-sm">
               {profile?.company_address} · {profile?.company_postal_code} {profile?.company_city}
             </p>
@@ -26,13 +26,10 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      {/* Invoice Badge Strip */}
       <div className="bg-amber-500 px-10 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <span className="text-white font-bold text-sm tracking-wide">FACTUUR</span>
-          <span className="bg-white/20 text-white px-3 py-1 rounded text-sm font-mono">
-            {invoice.invoice_number}
-          </span>
+          <span className="bg-white/20 text-white px-3 py-1 rounded text-sm font-mono">{invoice.invoice_number}</span>
         </div>
         <div className="text-white text-right">
           <span className="text-white/80 text-sm mr-2">Totaal:</span>
@@ -40,9 +37,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      {/* Content */}
       <div className="p-10">
-        {/* Info Grid */}
         <div className="grid grid-cols-2 gap-8 mb-10">
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Gefactureerd aan</p>
@@ -62,7 +57,6 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </div>
         </div>
 
-        {/* Invoice Items */}
         <div className="mb-10">
           <table className="w-full text-sm">
             <thead>
@@ -70,19 +64,24 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
                 <th className="text-left py-3 font-bold text-slate-900 uppercase text-xs tracking-wide">Omschrijving</th>
                 <th className="text-right py-3 font-bold text-slate-900 uppercase text-xs tracking-wide w-20">Aantal</th>
                 <th className="text-right py-3 font-bold text-slate-900 uppercase text-xs tracking-wide w-24">Prijs</th>
+                {hasItemDiscounts && <th className="text-right py-3 font-bold text-slate-900 uppercase text-xs tracking-wide w-20">Korting</th>}
                 <th className="text-right py-3 font-bold text-slate-900 uppercase text-xs tracking-wide w-16">BTW</th>
                 <th className="text-right py-3 font-bold text-slate-900 uppercase text-xs tracking-wide w-28">Bedrag</th>
               </tr>
             </thead>
             <tbody>
               {invoice.items?.map((item, index) => (
-                <tr 
-                  key={item.id} 
-                  className={`border-b border-slate-200 ${index % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}
-                >
+                <tr key={item.id} className={`border-b border-slate-200 ${index % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                   <td className="py-4 font-medium text-slate-800">{item.description}</td>
                   <td className="text-right py-4 text-slate-600">{item.quantity} {item.unit || ''}</td>
                   <td className="text-right py-4 text-slate-600">{formatCurrency(item.unit_price)}</td>
+                  {hasItemDiscounts && (
+                    <td className="text-right py-4 text-slate-600">
+                      {item.discount_type && item.discount_value > 0 
+                        ? item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)
+                        : '—'}
+                    </td>
+                  )}
                   <td className="text-right py-4 text-slate-600">{item.btw_percentage}%</td>
                   <td className="text-right py-4 font-bold text-slate-900">{formatCurrency(Number(item.total))}</td>
                 </tr>
@@ -91,13 +90,18 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </table>
         </div>
 
-        {/* Totals */}
         <div className="flex justify-end mb-10">
           <div className="w-80">
             <div className="flex justify-between py-2 text-slate-600">
               <span>Subtotaal</span>
               <span>{formatCurrency(Number(invoice.subtotal))}</span>
             </div>
+            {hasInvoiceDiscount && (
+              <div className="flex justify-between py-2 text-red-600">
+                <span>Korting{invoice.discount_type === 'percentage' ? ` (${invoice.discount_value}%)` : ''}</span>
+                <span>-{formatCurrency(Number(invoice.discount_amount))}</span>
+              </div>
+            )}
             <div className="flex justify-between py-2 text-slate-600">
               <span>BTW</span>
               <span>{formatCurrency(Number(invoice.total_btw))}</span>
@@ -109,7 +113,6 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </div>
         </div>
 
-        {/* Payment */}
         <div className="border-2 border-slate-200 p-6 mb-6">
           <p className="font-bold text-slate-900 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
@@ -127,7 +130,6 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </div>
         </div>
 
-        {/* Notes */}
         {invoice.notes && (
           <div className="text-sm mb-6">
             <p className="font-bold text-slate-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
@@ -135,11 +137,8 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </div>
         )}
 
-        {/* Footer */}
         <div className="pt-6 border-t border-slate-200 text-xs text-slate-400 flex justify-between">
-          <div>
-            {profile?.company_name}
-          </div>
+          <div>{profile?.company_name}</div>
           <div className="space-x-4">
             {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}
             {profile?.btw_number && <span>BTW: {profile.btw_number}</span>}

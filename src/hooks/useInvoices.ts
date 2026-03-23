@@ -15,6 +15,8 @@ export interface InvoiceItem {
   btw_amount: number;
   total: number;
   sort_order: number;
+  discount_type: string | null;
+  discount_value: number;
   created_at: string;
 }
 
@@ -29,6 +31,9 @@ export interface Invoice {
   subtotal: number;
   total_btw: number;
   total: number;
+  discount_type: string | null;
+  discount_value: number;
+  discount_amount: number;
   notes: string | null;
   notes_title: string | null;
   payment_reference: string | null;
@@ -64,6 +69,8 @@ export interface InvoiceInsert {
   client_country?: string;
   client_kvk_number?: string;
   client_btw_number?: string;
+  discount_type?: string | null;
+  discount_value?: number;
 }
 
 export interface InvoiceItemInsert {
@@ -72,6 +79,23 @@ export interface InvoiceItemInsert {
   unit: string;
   unit_price: number;
   btw_percentage: number;
+  discount_type?: string | null;
+  discount_value?: number;
+}
+
+// Calculate item totals with discount
+export function calculateItemTotals(item: InvoiceItemInsert) {
+  const lineSubtotal = item.quantity * item.unit_price;
+  let discountAmount = 0;
+  if (item.discount_type === 'percentage' && item.discount_value) {
+    discountAmount = lineSubtotal * (item.discount_value / 100);
+  } else if (item.discount_type === 'amount' && item.discount_value) {
+    discountAmount = item.discount_value;
+  }
+  const subtotal = lineSubtotal - discountAmount;
+  const btw_amount = subtotal * (item.btw_percentage / 100);
+  const total = subtotal + btw_amount;
+  return { subtotal, btw_amount, total, discountAmount };
 }
 
 export function useInvoices() {
@@ -108,6 +132,35 @@ export function useInvoices() {
     return `${year}${String(nextNumber).padStart(3, '0')}`;
   };
 
+  const calculateTotals = (items: InvoiceItemInsert[], invoiceDiscountType?: string | null, invoiceDiscountValue?: number) => {
+    const calculatedItems = items.map((item, index) => {
+      const { subtotal, btw_amount, total } = calculateItemTotals(item);
+      return { ...item, subtotal, btw_amount, total, sort_order: index };
+    });
+
+    let subtotal = calculatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+    let total_btw = calculatedItems.reduce((sum, item) => sum + item.btw_amount, 0);
+
+    // Apply invoice-level discount
+    let invoiceDiscountAmount = 0;
+    if (invoiceDiscountType === 'percentage' && invoiceDiscountValue) {
+      invoiceDiscountAmount = subtotal * (invoiceDiscountValue / 100);
+    } else if (invoiceDiscountType === 'amount' && invoiceDiscountValue) {
+      invoiceDiscountAmount = invoiceDiscountValue;
+    }
+
+    const discountedSubtotal = subtotal - invoiceDiscountAmount;
+    // Recalculate BTW proportionally if there's an invoice discount
+    if (invoiceDiscountAmount > 0 && subtotal > 0) {
+      const ratio = discountedSubtotal / subtotal;
+      total_btw = total_btw * ratio;
+    }
+
+    const total = discountedSubtotal + total_btw;
+
+    return { calculatedItems, subtotal, total_btw, total, invoiceDiscountAmount };
+  };
+
   const createInvoice = useMutation({
     mutationFn: async ({ 
       invoice, 
@@ -118,19 +171,10 @@ export function useInvoices() {
     }) => {
       if (!user) throw new Error('Not authenticated');
       
-      // Calculate totals
-      const calculatedItems = items.map((item, index) => {
-        const subtotal = item.quantity * item.unit_price;
-        const btw_amount = subtotal * (item.btw_percentage / 100);
-        const total = subtotal + btw_amount;
-        return { ...item, subtotal, btw_amount, total, sort_order: index };
-      });
+      const { calculatedItems, subtotal, total_btw, total, invoiceDiscountAmount } = calculateTotals(
+        items, invoice.discount_type, invoice.discount_value
+      );
 
-      const subtotal = calculatedItems.reduce((sum, item) => sum + item.subtotal, 0);
-      const total_btw = calculatedItems.reduce((sum, item) => sum + item.btw_amount, 0);
-      const total = subtotal + total_btw;
-
-      // Create invoice
       const { data: invoiceData, error: invoiceError } = await supabase
         .from('invoices')
         .insert({ 
@@ -139,13 +183,13 @@ export function useInvoices() {
           subtotal,
           total_btw,
           total,
+          discount_amount: invoiceDiscountAmount,
         })
         .select()
         .single();
       
       if (invoiceError) throw invoiceError;
 
-      // Create invoice items
       if (calculatedItems.length > 0) {
         const { error: itemsError } = await supabase
           .from('invoice_items')
@@ -175,7 +219,6 @@ export function useInvoices() {
     },
   });
 
-  // Upload attachment for external invoice and return public URL
   const uploadAttachment = async (file: File, userId: string): Promise<string> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}.${fileExt}`;
@@ -186,7 +229,6 @@ export function useInvoices() {
     
     if (uploadError) throw uploadError;
     
-    // Get public URL
     const { data } = supabase.storage
       .from('invoice-attachments')
       .getPublicUrl(fileName);
@@ -194,7 +236,6 @@ export function useInvoices() {
     return data.publicUrl;
   };
 
-  // Create external invoice (without items, just totals)
   const createExternalInvoice = useMutation({
     mutationFn: async ({ 
       invoice, 
@@ -243,7 +284,6 @@ export function useInvoices() {
     },
   });
 
-  // Update attachment for existing invoice
   const updateAttachment = useMutation({
     mutationFn: async ({ 
       invoiceId, 
@@ -257,7 +297,6 @@ export function useInvoices() {
       let attachmentUrl: string | null = null;
       
       if (file) {
-        // Upload new file
         const fileExt = file.name.split('.').pop();
         const fileName = `${user.id}/${Date.now()}.${fileExt}`;
         
@@ -267,7 +306,6 @@ export function useInvoices() {
         
         if (uploadError) throw uploadError;
         
-        // Get public URL
         const { data } = supabase.storage
           .from('invoice-attachments')
           .getPublicUrl(fileName);
@@ -275,7 +313,6 @@ export function useInvoices() {
         attachmentUrl = data.publicUrl;
       }
 
-      // Update invoice with new attachment URL
       const { error: updateError } = await supabase
         .from('invoices')
         .update({ attachment_url: attachmentUrl })
@@ -313,19 +350,10 @@ export function useInvoices() {
     }) => {
       if (!user) throw new Error('Not authenticated');
       
-      // Calculate totals
-      const calculatedItems = items.map((item, index) => {
-        const subtotal = item.quantity * item.unit_price;
-        const btw_amount = subtotal * (item.btw_percentage / 100);
-        const total = subtotal + btw_amount;
-        return { ...item, subtotal, btw_amount, total, sort_order: index };
-      });
+      const { calculatedItems, subtotal, total_btw, total, invoiceDiscountAmount } = calculateTotals(
+        items, invoice.discount_type, invoice.discount_value
+      );
 
-      const subtotal = calculatedItems.reduce((sum, item) => sum + item.subtotal, 0);
-      const total_btw = calculatedItems.reduce((sum, item) => sum + item.btw_amount, 0);
-      const total = subtotal + total_btw;
-
-      // Update invoice
       const { error: invoiceError } = await supabase
         .from('invoices')
         .update({ 
@@ -333,12 +361,12 @@ export function useInvoices() {
           subtotal,
           total_btw,
           total,
+          discount_amount: invoiceDiscountAmount,
         })
         .eq('id', id);
       
       if (invoiceError) throw invoiceError;
 
-      // Delete existing items and insert new ones
       const { error: deleteError } = await supabase
         .from('invoice_items')
         .delete()
@@ -346,7 +374,6 @@ export function useInvoices() {
       
       if (deleteError) throw deleteError;
 
-      // Create new invoice items
       if (calculatedItems.length > 0) {
         const { error: itemsError } = await supabase
           .from('invoice_items')
@@ -424,7 +451,6 @@ export function useInvoices() {
     },
   });
 
-  // Get overdue invoices (sent but not paid, past due date)
   const overdueInvoices = invoices.filter(inv => {
     if (inv.status === 'paid' || inv.status === 'cancelled') return false;
     const dueDate = new Date(inv.due_date);

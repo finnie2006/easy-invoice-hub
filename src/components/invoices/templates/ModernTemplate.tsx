@@ -7,6 +7,9 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
     return `€${amount.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const hasItemDiscounts = invoice.items?.some(item => item.discount_type && item.discount_value > 0);
+  const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
+
   return (
     <div className="bg-white text-black h-[1123px] relative" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
       {/* Header with accent sidebar */}
@@ -63,6 +66,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
                 <th className="text-left py-3 font-semibold text-gray-500 uppercase text-xs">Omschrijving</th>
                 <th className="text-right py-3 font-semibold text-gray-500 uppercase text-xs w-24">Aantal</th>
                 <th className="text-right py-3 font-semibold text-gray-500 uppercase text-xs w-24">Prijs</th>
+                {hasItemDiscounts && <th className="text-right py-3 font-semibold text-gray-500 uppercase text-xs w-20">Korting</th>}
                 <th className="text-right py-3 font-semibold text-gray-500 uppercase text-xs w-20">BTW</th>
                 <th className="text-right py-3 font-semibold text-gray-500 uppercase text-xs w-28">Totaal</th>
               </tr>
@@ -73,6 +77,13 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
                   <td className="py-4 text-gray-800">{item.description}</td>
                   <td className="text-right py-4 text-gray-600">{item.quantity} {item.unit || ''}</td>
                   <td className="text-right py-4 text-gray-600">{formatCurrency(item.unit_price)}</td>
+                  {hasItemDiscounts && (
+                    <td className="text-right py-4 text-gray-600">
+                      {item.discount_type && item.discount_value > 0 
+                        ? item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)
+                        : '—'}
+                    </td>
+                  )}
                   <td className="text-right py-4 text-gray-600">{item.btw_percentage}%</td>
                   <td className="text-right py-4 font-medium text-gray-900">{formatCurrency(Number(item.total))}</td>
                 </tr>
@@ -88,6 +99,12 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
               <span>Subtotaal</span>
               <span>{formatCurrency(Number(invoice.subtotal))}</span>
             </div>
+            {hasInvoiceDiscount && (
+              <div className="flex justify-between py-2 text-red-600">
+                <span>Korting{invoice.discount_type === 'percentage' ? ` (${invoice.discount_value}%)` : ''}</span>
+                <span>-{formatCurrency(Number(invoice.discount_amount))}</span>
+              </div>
+            )}
             <div className="flex justify-between py-2 text-gray-600">
               <span>BTW</span>
               <span>{formatCurrency(Number(invoice.total_btw))}</span>
@@ -126,11 +143,9 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         )}
       </div>
 
-      {/* Footer - absolutely positioned at bottom */}
+      {/* Footer */}
       <div className="absolute bottom-8 left-10 right-10 pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
-        <div>
-          {profile?.company_name}
-        </div>
+        <div>{profile?.company_name}</div>
         <div className="space-x-4">
           {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}
           {profile?.btw_number && <span>BTW: {profile.btw_number}</span>}

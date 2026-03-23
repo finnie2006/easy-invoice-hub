@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useInvoices, InvoiceItemInsert } from '@/hooks/useInvoices';
+import { useInvoices, InvoiceItemInsert, calculateItemTotals } from '@/hooks/useInvoices';
 import { useClients } from '@/hooks/useClients';
 import { useProfile } from '@/hooks/useProfile';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { DatePicker } from '@/components/ui/date-picker';
+import { DiscountInput } from '@/components/invoices/DiscountInput';
 import { Loader2, Plus, Trash2, FileText, ArrowLeft } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 
@@ -31,19 +32,22 @@ export default function InvoiceNew() {
   const [invoiceDate, setInvoiceDate] = useState<Date>(today);
   const [dueDate, setDueDate] = useState<Date>(addDays(today, defaultPaymentTerms));
 
-  // Auto-update due date when invoice date or payment terms change
   useEffect(() => {
     if (invoiceDate) {
       const terms = profile?.default_payment_terms || 14;
       setDueDate(addDays(invoiceDate, terms));
     }
   }, [invoiceDate, profile?.default_payment_terms]);
+
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [notesTitle, setNotesTitle] = useState('Opmerkingen');
   const [paymentReference, setPaymentReference] = useState('');
 
-  // Client data (for when no saved client is selected)
+  // Invoice-level discount
+  const [invoiceDiscountType, setInvoiceDiscountType] = useState<string | null>(null);
+  const [invoiceDiscountValue, setInvoiceDiscountValue] = useState<number>(0);
+
   const [clientData, setClientData] = useState({
     company_name: '',
     contact_name: '',
@@ -55,7 +59,6 @@ export default function InvoiceNew() {
     btw_number: '',
   });
 
-  // Invoice items
   const [items, setItems] = useState<InvoiceItemForm[]>([
     {
       id: crypto.randomUUID(),
@@ -64,6 +67,8 @@ export default function InvoiceNew() {
       unit: 'uur',
       unit_price: profile?.default_hourly_rate || 0,
       btw_percentage: 21,
+      discount_type: null,
+      discount_value: 0,
     },
   ]);
 
@@ -102,7 +107,7 @@ export default function InvoiceNew() {
     setClientData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleItemChange = (id: string, field: keyof InvoiceItemForm, value: string | number) => {
+  const handleItemChange = (id: string, field: keyof InvoiceItemForm, value: any) => {
     setItems(prev => prev.map(item => 
       item.id === id ? { ...item, [field]: value } : item
     ));
@@ -116,6 +121,8 @@ export default function InvoiceNew() {
       unit: 'uur',
       unit_price: profile?.default_hourly_rate || 0,
       btw_percentage: 21,
+      discount_type: null,
+      discount_value: 0,
     }]);
   };
 
@@ -125,24 +132,26 @@ export default function InvoiceNew() {
     }
   };
 
-  // Calculate totals
-  const calculateItemTotal = (item: InvoiceItemForm) => {
-    const subtotal = item.quantity * item.unit_price;
-    const btw = subtotal * (item.btw_percentage / 100);
-    return { subtotal, btw, total: subtotal + btw };
+  const getItemCalc = (item: InvoiceItemForm) => {
+    return calculateItemTotals(item);
   };
 
-  const totals = items.reduce(
-    (acc, item) => {
-      const { subtotal, btw, total } = calculateItemTotal(item);
-      return {
-        subtotal: acc.subtotal + subtotal,
-        btw: acc.btw + btw,
-        total: acc.total + total,
-      };
-    },
-    { subtotal: 0, btw: 0, total: 0 }
-  );
+  const itemTotals = items.map(item => getItemCalc(item));
+  const rawSubtotal = itemTotals.reduce((sum, t) => sum + t.subtotal, 0);
+  const rawBtw = itemTotals.reduce((sum, t) => sum + t.btw_amount, 0);
+
+  let invoiceDiscountAmount = 0;
+  if (invoiceDiscountType === 'percentage' && invoiceDiscountValue) {
+    invoiceDiscountAmount = rawSubtotal * (invoiceDiscountValue / 100);
+  } else if (invoiceDiscountType === 'amount' && invoiceDiscountValue) {
+    invoiceDiscountAmount = invoiceDiscountValue;
+  }
+
+  const discountedSubtotal = rawSubtotal - invoiceDiscountAmount;
+  const adjustedBtw = invoiceDiscountAmount > 0 && rawSubtotal > 0 
+    ? rawBtw * (discountedSubtotal / rawSubtotal) 
+    : rawBtw;
+  const grandTotal = discountedSubtotal + adjustedBtw;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
@@ -154,13 +163,8 @@ export default function InvoiceNew() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!clientData.company_name) {
-      return;
-    }
-
-    if (items.some(item => !item.description)) {
-      return;
-    }
+    if (!clientData.company_name) return;
+    if (items.some(item => !item.description)) return;
 
     try {
       await createInvoice({
@@ -181,6 +185,8 @@ export default function InvoiceNew() {
           notes_title: notesTitle || 'Opmerkingen',
           payment_reference: paymentReference || invoiceNumber,
           status: 'draft',
+          discount_type: invoiceDiscountType,
+          discount_value: invoiceDiscountValue,
         },
         items: items.map(({ id, ...item }) => item),
       });
@@ -372,7 +378,7 @@ export default function InvoiceNew() {
           <CardContent>
             <div className="space-y-4">
               {items.map((item, index) => {
-                const { subtotal } = calculateItemTotal(item);
+                const calc = getItemCalc(item);
                 return (
                   <div key={item.id} className="grid gap-4 p-4 bg-muted/50 rounded-lg">
                     <div className="grid gap-4 md:grid-cols-12">
@@ -442,7 +448,7 @@ export default function InvoiceNew() {
                       <div className="md:col-span-1 flex items-end justify-between">
                         <div className="text-right">
                           <Label className="text-xs text-muted-foreground">Subtotaal</Label>
-                          <p className="font-medium">{formatCurrency(subtotal)}</p>
+                          <p className="font-medium">{formatCurrency(calc.subtotal)}</p>
                         </div>
                         {items.length > 1 && (
                           <Button
@@ -457,6 +463,21 @@ export default function InvoiceNew() {
                         )}
                       </div>
                     </div>
+                    {/* Item-level discount */}
+                    <div className="flex items-end gap-4">
+                      <DiscountInput
+                        discountType={item.discount_type || null}
+                        discountValue={item.discount_value || 0}
+                        onTypeChange={(type) => handleItemChange(item.id, 'discount_type', type)}
+                        onValueChange={(value) => handleItemChange(item.id, 'discount_value', value)}
+                        label="Regelkorting"
+                      />
+                      {calc.discountAmount > 0 && (
+                        <p className="text-sm text-muted-foreground pb-2">
+                          -{formatCurrency(calc.discountAmount)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -469,21 +490,38 @@ export default function InvoiceNew() {
 
             <Separator className="my-6" />
 
+            {/* Invoice-level Discount */}
+            <div className="flex justify-between items-end mb-6">
+              <DiscountInput
+                discountType={invoiceDiscountType}
+                discountValue={invoiceDiscountValue}
+                onTypeChange={setInvoiceDiscountType}
+                onValueChange={setInvoiceDiscountValue}
+                label="Factuurkorting (op totaal)"
+              />
+            </div>
+
             {/* Totals */}
             <div className="flex justify-end">
               <div className="w-full max-w-xs space-y-2">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Subtotaal</span>
-                  <span>{formatCurrency(totals.subtotal)}</span>
+                  <span>{formatCurrency(rawSubtotal)}</span>
                 </div>
+                {invoiceDiscountAmount > 0 && (
+                  <div className="flex justify-between text-destructive">
+                    <span>Factuurkorting</span>
+                    <span>-{formatCurrency(invoiceDiscountAmount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">BTW</span>
-                  <span>{formatCurrency(totals.btw)}</span>
+                  <span>{formatCurrency(adjustedBtw)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between text-lg font-bold">
                   <span>Totaal</span>
-                  <span>{formatCurrency(totals.total)}</span>
+                  <span>{formatCurrency(grandTotal)}</span>
                 </div>
               </div>
             </div>

@@ -394,6 +394,8 @@ export type Database = {
           btw_percentage: number
           created_at: string
           description: string
+          discount_type: string | null
+          discount_value: number | null
           id: string
           invoice_id: string
           quantity: number
@@ -408,6 +410,8 @@ export type Database = {
           btw_percentage?: number
           created_at?: string
           description: string
+          discount_type?: string | null
+          discount_value?: number | null
           id?: string
           invoice_id: string
           quantity?: number
@@ -422,6 +426,8 @@ export type Database = {
           btw_percentage?: number
           created_at?: string
           description?: string
+          discount_type?: string | null
+          discount_value?: number | null
           id?: string
           invoice_id?: string
           quantity?: number
@@ -454,6 +460,9 @@ export type Database = {
           client_kvk_number: string | null
           client_postal_code: string | null
           created_at: string
+          discount_amount: number | null
+          discount_type: string | null
+          discount_value: number | null
           due_date: string
           id: string
           invoice_date: string
@@ -481,6 +490,9 @@ export type Database = {
           client_kvk_number?: string | null
           client_postal_code?: string | null
           created_at?: string
+          discount_amount?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
           due_date: string
           id?: string
           invoice_date?: string
@@ -508,6 +520,9 @@ export type Database = {
           client_kvk_number?: string | null
           client_postal_code?: string | null
           created_at?: string
+          discount_amount?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
           due_date?: string
           id?: string
           invoice_date?: string

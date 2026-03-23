@@ -269,6 +269,8 @@ export default function InvoiceDetail() {
           unit: item.unit,
           unit_price: item.unit_price,
           btw_percentage: item.btw_percentage,
+          discount_type: item.discount_type,
+          discount_value: Number(item.discount_value || 0),
         })) || [],
       });
 

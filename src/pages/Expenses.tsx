@@ -16,7 +16,7 @@ import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Sea
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
 export default function Expenses() {
-  const { expenses, isLoading, createExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
+  const { expenses, isLoading, createExpense, updateExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
   const { isPeriodClosed, getBtwPeriodForDate, getNextAvailablePeriod } = useBtwPeriods();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);

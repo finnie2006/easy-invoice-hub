@@ -136,35 +136,14 @@ export default function Expenses() {
     return { amountInclBtw, amountExclBtw, btwAmount };
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const { amountInclBtw, amountExclBtw, btwAmount } = calculateAmounts();
-
-    await createExpense({
-      expense: {
-        vendor_name: formData.vendor_name || '',
-        description: formData.description || null,
-        category: formData.category || 'overig',
-        expense_date: format(expenseDate, 'yyyy-MM-dd'),
-        amount_incl_btw: amountInclBtw,
-        amount_excl_btw: amountExclBtw,
-        btw_amount: btwAmount,
-        btw_percentage: formData.btw_percentage || 21,
-        btw_period: selectedBtwPeriod || null,
-        receipt_url: null,
-        notes: null,
-      },
-      file: selectedFile || undefined,
-    });
-    
-    setDialogOpen(false);
+  const resetForm = () => {
     setSelectedFile(null);
     setAmountInput('');
     setAmountInputMode('incl');
     setExpenseDate(new Date());
     setPeriodWarning(null);
     setSelectedBtwPeriod('');
+    setEditingExpense(null);
     setFormData({
       vendor_name: '',
       description: '',
@@ -172,6 +151,58 @@ export default function Expenses() {
       amount_incl_btw: 0,
       btw_percentage: 21,
     });
+  };
+
+  const handleEdit = (expense: Expense) => {
+    setEditingExpense(expense);
+    setFormData({
+      vendor_name: expense.vendor_name,
+      description: expense.description || '',
+      category: expense.category,
+      amount_incl_btw: Number(expense.amount_incl_btw),
+      btw_percentage: expense.btw_percentage ?? 21,
+    });
+    setAmountInputMode('incl');
+    setAmountInput(String(Number(expense.amount_incl_btw)));
+    setExpenseDate(new Date(expense.expense_date));
+    setSelectedBtwPeriod(expense.btw_period || '');
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const { amountInclBtw, amountExclBtw, btwAmount } = calculateAmounts();
+
+    const expenseData = {
+      vendor_name: formData.vendor_name || '',
+      description: formData.description || null,
+      category: formData.category || 'overig',
+      expense_date: format(expenseDate, 'yyyy-MM-dd'),
+      amount_incl_btw: amountInclBtw,
+      amount_excl_btw: amountExclBtw,
+      btw_amount: btwAmount,
+      btw_percentage: formData.btw_percentage || 21,
+      btw_period: selectedBtwPeriod || null,
+      receipt_url: editingExpense?.receipt_url || null,
+      notes: null,
+    };
+
+    if (editingExpense) {
+      updateExpense({
+        id: editingExpense.id,
+        updates: expenseData,
+        file: selectedFile || undefined,
+      });
+    } else {
+      await createExpense({
+        expense: expenseData,
+        file: selectedFile || undefined,
+      });
+    }
+    
+    setDialogOpen(false);
+    resetForm();
   };
 
   const handleViewReceipt = async (receiptPath: string) => {

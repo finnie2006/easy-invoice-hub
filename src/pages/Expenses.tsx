@@ -599,6 +599,14 @@ export default function Expenses() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => handleEdit(expense)}
+                          title="Bewerken"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setDeleteConfirmExpense(expense)}
                           className="text-destructive"
                         >

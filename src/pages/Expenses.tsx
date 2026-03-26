@@ -262,7 +262,7 @@ export default function Expenses() {
         <Dialog open={dialogOpen} onOpenChange={(open) => {
           setDialogOpen(open);
           if (!open) {
-            setSelectedFile(null);
+            resetForm();
           }
         }}>
           <DialogTrigger asChild>
@@ -273,9 +273,9 @@ export default function Expenses() {
           </DialogTrigger>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Nieuwe uitgave</DialogTitle>
+              <DialogTitle>{editingExpense ? 'Uitgave bewerken' : 'Nieuwe uitgave'}</DialogTitle>
               <DialogDescription>
-                Voeg een nieuwe zakelijke uitgave toe met bijbehorende bon
+                {editingExpense ? 'Wijzig de gegevens van deze uitgave' : 'Voeg een nieuwe zakelijke uitgave toe met bijbehorende bon'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">

@@ -454,7 +454,7 @@ export default function Expenses() {
                 </Button>
                 <Button type="submit" disabled={isCreating}>
                   {isCreating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Toevoegen
+                  {editingExpense ? 'Opslaan' : 'Toevoegen'}
                 </Button>
               </div>
             </form>

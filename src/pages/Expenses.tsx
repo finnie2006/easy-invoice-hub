@@ -12,17 +12,18 @@ import { Badge } from '@/components/ui/badge';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search, AlertTriangle } from 'lucide-react';
+import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search, AlertTriangle, Pencil } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
 export default function Expenses() {
-  const { expenses, isLoading, createExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
+  const { expenses, isLoading, createExpense, updateExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
   const { isPeriodClosed, getBtwPeriodForDate, getNextAvailablePeriod } = useBtwPeriods();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
   const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [deleteConfirmExpense, setDeleteConfirmExpense] = useState<Expense | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Filter state
@@ -135,35 +136,14 @@ export default function Expenses() {
     return { amountInclBtw, amountExclBtw, btwAmount };
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const { amountInclBtw, amountExclBtw, btwAmount } = calculateAmounts();
-
-    await createExpense({
-      expense: {
-        vendor_name: formData.vendor_name || '',
-        description: formData.description || null,
-        category: formData.category || 'overig',
-        expense_date: format(expenseDate, 'yyyy-MM-dd'),
-        amount_incl_btw: amountInclBtw,
-        amount_excl_btw: amountExclBtw,
-        btw_amount: btwAmount,
-        btw_percentage: formData.btw_percentage || 21,
-        btw_period: selectedBtwPeriod || null,
-        receipt_url: null,
-        notes: null,
-      },
-      file: selectedFile || undefined,
-    });
-    
-    setDialogOpen(false);
+  const resetForm = () => {
     setSelectedFile(null);
     setAmountInput('');
     setAmountInputMode('incl');
     setExpenseDate(new Date());
     setPeriodWarning(null);
     setSelectedBtwPeriod('');
+    setEditingExpense(null);
     setFormData({
       vendor_name: '',
       description: '',
@@ -171,6 +151,58 @@ export default function Expenses() {
       amount_incl_btw: 0,
       btw_percentage: 21,
     });
+  };
+
+  const handleEdit = (expense: Expense) => {
+    setEditingExpense(expense);
+    setFormData({
+      vendor_name: expense.vendor_name,
+      description: expense.description || '',
+      category: expense.category,
+      amount_incl_btw: Number(expense.amount_incl_btw),
+      btw_percentage: expense.btw_percentage ?? 21,
+    });
+    setAmountInputMode('incl');
+    setAmountInput(String(Number(expense.amount_incl_btw)));
+    setExpenseDate(new Date(expense.expense_date));
+    setSelectedBtwPeriod(expense.btw_period || '');
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const { amountInclBtw, amountExclBtw, btwAmount } = calculateAmounts();
+
+    const expenseData = {
+      vendor_name: formData.vendor_name || '',
+      description: formData.description || null,
+      category: formData.category || 'overig',
+      expense_date: format(expenseDate, 'yyyy-MM-dd'),
+      amount_incl_btw: amountInclBtw,
+      amount_excl_btw: amountExclBtw,
+      btw_amount: btwAmount,
+      btw_percentage: formData.btw_percentage || 21,
+      btw_period: selectedBtwPeriod || null,
+      receipt_url: editingExpense?.receipt_url || null,
+      notes: null,
+    };
+
+    if (editingExpense) {
+      updateExpense({
+        id: editingExpense.id,
+        updates: expenseData,
+        file: selectedFile || undefined,
+      });
+    } else {
+      await createExpense({
+        expense: expenseData,
+        file: selectedFile || undefined,
+      });
+    }
+    
+    setDialogOpen(false);
+    resetForm();
   };
 
   const handleViewReceipt = async (receiptPath: string) => {
@@ -230,7 +262,7 @@ export default function Expenses() {
         <Dialog open={dialogOpen} onOpenChange={(open) => {
           setDialogOpen(open);
           if (!open) {
-            setSelectedFile(null);
+            resetForm();
           }
         }}>
           <DialogTrigger asChild>
@@ -241,9 +273,9 @@ export default function Expenses() {
           </DialogTrigger>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Nieuwe uitgave</DialogTitle>
+              <DialogTitle>{editingExpense ? 'Uitgave bewerken' : 'Nieuwe uitgave'}</DialogTitle>
               <DialogDescription>
-                Voeg een nieuwe zakelijke uitgave toe met bijbehorende bon
+                {editingExpense ? 'Wijzig de gegevens van deze uitgave' : 'Voeg een nieuwe zakelijke uitgave toe met bijbehorende bon'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 mt-4">
@@ -422,7 +454,7 @@ export default function Expenses() {
                 </Button>
                 <Button type="submit" disabled={isCreating}>
                   {isCreating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Toevoegen
+                  {editingExpense ? 'Opslaan' : 'Toevoegen'}
                 </Button>
               </div>
             </form>
@@ -567,6 +599,14 @@ export default function Expenses() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={() => handleEdit(expense)}
+                          title="Bewerken"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setDeleteConfirmExpense(expense)}
                           className="text-destructive"
                         >
@@ -648,14 +688,24 @@ export default function Expenses() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeleteConfirmExpense(expense)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(expense)}
+                              title="Bewerken"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeleteConfirmExpense(expense)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

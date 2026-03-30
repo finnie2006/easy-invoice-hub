@@ -1,5 +1,20 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+-- Create role and database user if not exists
+-- This is idempotent and won't fail on re-runs
+DO $$
+BEGIN
+  -- Create role if it doesn't exist
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'invoice_hub') THEN
+    CREATE ROLE invoice_hub WITH LOGIN PASSWORD 'invoice_hub_password' CREATEDB;
+  END IF;
+END
+$$;
+
+-- Grant necessary permissions
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO invoice_hub;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO invoice_hub;
+
 CREATE TABLE IF NOT EXISTS public.users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text NOT NULL UNIQUE,

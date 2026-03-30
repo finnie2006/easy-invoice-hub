@@ -108,6 +108,48 @@ sudo docker compose pull
 sudo docker compose up -d
 ```
 
+## Troubleshooting
+
+### Database Role "invoice_hub" Does Not Exist
+
+If you see errors like `FATAL: role "invoice_hub" does not exist`, your database volume contains an old database. Reset it:
+
+```bash
+# Stop services
+sudo docker compose down
+
+# Remove the database volume
+sudo docker volume rm easy-invoice-hub_postgres_data
+
+# Restart (PostgreSQL will re-initialize with fresh schema)
+sudo docker compose up -d
+```
+
+**Warning:** This deletes all database data. Back it up first if needed (see Data Backup section below).
+
+### Check Service Logs
+
+```bash
+# View all logs
+sudo docker compose logs -f
+
+# View specific service
+sudo docker compose logs -f server
+sudo docker compose logs -f app
+sudo docker compose logs -f postgres
+```
+
+### Reset Everything (Fresh Installation)
+
+```bash
+# Stop and remove all containers and volumes
+sudo docker compose down -v
+
+# Re-pull and start fresh
+sudo docker compose pull
+sudo docker compose up -d
+```
+
 ## Data Backup and Restore
 
 Database backup:

@@ -73,18 +73,16 @@ ALLOWED_BUCKETS.forEach((bucket) => {
     fs.mkdirSync(bucketDir, { recursive: true });
   }
 });
+const TEMP_DIR = path.join(UPLOAD_ROOT, 'temp');
+if (!fs.existsSync(TEMP_DIR)) {
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const bucket = req.body.bucket || 'receipts';
-    if (!ALLOWED_BUCKETS.includes(bucket)) {
-      return cb(new Error('Invalid upload bucket'));
-    }
-    const target = path.join(UPLOAD_ROOT, bucket);
-    if (!fs.existsSync(target)) {
-      fs.mkdirSync(target, { recursive: true });
-    }
-    cb(null, target);
+    // Save to temp first, because in multipart/form-data the 'file' 
+    // might come before text fields like 'bucket', making req.body.bucket undefined here.
+    cb(null, TEMP_DIR);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname || '');
@@ -1386,7 +1384,20 @@ app.post('/api/files/upload', authenticateToken, uploadWithLimits.single('file')
 
   const bucket = req.body.bucket;
   if (!ALLOWED_BUCKETS.includes(bucket)) {
+    if (fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
     return res.status(400).json({ error: 'Invalid bucket' });
+  }
+
+  const targetDir = path.join(UPLOAD_ROOT, bucket);
+  const targetPath = path.join(targetDir, req.file.filename);
+  
+  try {
+    fs.renameSync(req.file.path, targetPath);
+  } catch (err) {
+    console.error('Failed to move uploaded file:', err);
+    return res.status(500).json({ error: 'Failed to process uploaded file' });
   }
 
   const relativeUrl = `/uploads/${bucket}/${req.file.filename}`;

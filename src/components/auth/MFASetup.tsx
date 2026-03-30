@@ -22,9 +22,7 @@ export function MFASetup({ onComplete, onCancel }) {
     try {
       const response = await fetch('/api/auth/mfa/setup', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
+        credentials: 'include',
       });
 
       if (!response.ok) throw new Error('Failed to setup MFA');
@@ -61,8 +59,8 @@ export function MFASetup({ onComplete, onCancel }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
+        credentials: 'include',
         body: JSON.stringify({ secret, totpToken }),
       });
 

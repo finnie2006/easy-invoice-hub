@@ -3,7 +3,7 @@
  * Add these to server/src/index.js after regular auth routes
  */
 
-export function setupOAuthRoutes(app, pool, isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback, createTokens) {
+export function setupOAuthRoutes(app, pool, isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback, createTokens, setAuthCookies) {
   /**
    * POST /api/auth/oauth/authorize
    * Get Authentik authorization URL
@@ -54,7 +54,13 @@ export function setupOAuthRoutes(app, pool, isAuthentikConfigured, getAuthorizat
       const { userId, email, isNewUser } = await handleOAuthCallback(pool, code, state, sessionState);
 
       // Issue JWT tokens
-      const { accessToken, refreshToken } = createTokens(userId);
+      const tokenVersionResult = await pool.query(
+        'SELECT COALESCE(token_version, 0) AS token_version FROM public.users WHERE id = $1',
+        [userId]
+      );
+      const tokenVersion = Number(tokenVersionResult.rows[0]?.token_version || 0);
+      const { accessToken, refreshToken } = createTokens(userId, tokenVersion);
+      setAuthCookies(req, res, accessToken, refreshToken);
 
       res.json({
         accessToken,

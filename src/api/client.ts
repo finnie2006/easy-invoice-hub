@@ -4,15 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/';
 
 const api = axios.create({
   baseURL: API_URL,
-});
-
-// Add token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+  withCredentials: true,
 });
 
 // Handle token refresh on 403
@@ -25,21 +17,14 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
         const response = await fetch(`${API_URL}/api/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
+          credentials: 'include',
+          body: JSON.stringify({}),
         });
 
         if (response.ok) {
-          const data = await response.json();
-          localStorage.setItem('accessToken', data.accessToken);
-          localStorage.setItem('refreshToken', data.refreshToken);
-
-          // Retry original request
-          api.defaults.headers.common['Authorization'] = `Bearer ${data.accessToken}`;
-          originalRequest.headers['Authorization'] = `Bearer ${data.accessToken}`;
           return api(originalRequest);
         }
       } catch (err) {
@@ -59,6 +44,8 @@ export const auth = {
     api.post('/api/auth/login', { email, password }),
   verify: () =>
     api.post('/api/auth/verify'),
+  logout: () =>
+    api.post('/api/auth/logout'),
   callback: (code, state) =>
     api.post('/api/auth/callback', { code, state }),
 };

@@ -10,7 +10,15 @@ import fs from 'fs';
 import multer from 'multer';
 import nodemailer from 'nodemailer';
 import pool from './db.js';
-import { authenticateToken, createTokens, verifyAccessToken, verifyRefreshToken } from './auth.js';
+import {
+  authenticateToken,
+  createTokens,
+  verifyAccessToken,
+  verifyRefreshToken,
+  setAuthCookies,
+  clearAuthCookies,
+  getRefreshTokenFromRequest,
+} from './auth.js';
 import { setupMFARoutes } from './mfa-routes.js';
 import { setupOAuthRoutes } from './oauth-routes.js';
 import { isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback } from './oauth.js';
@@ -46,6 +54,7 @@ app.use(cors({
     }
     return callback(new Error('CORS origin denied'));
   },
+  credentials: true,
 }));
 app.use(express.json({ limit: BODY_LIMIT }));
 app.use('/uploads', express.static(UPLOAD_ROOT));
@@ -196,7 +205,8 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
       client.release();
     }
 
-    const { accessToken, refreshToken } = createTokens(userId);
+    const { accessToken, refreshToken } = createTokens(userId, 0);
+    setAuthCookies(req, res, accessToken, refreshToken);
     res.json({ accessToken, refreshToken, userId });
   } catch (err) {
     console.error('Register error:', err);
@@ -213,20 +223,56 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
   }
 
   try {
-    const result = await pool.query('SELECT id, password_hash FROM public.users WHERE email = $1', [email]);
+    const result = await pool.query(
+      `SELECT id, password_hash,
+              COALESCE(token_version, 0) AS token_version,
+              COALESCE(failed_login_attempts, 0) AS failed_login_attempts,
+              locked_until
+       FROM public.users
+       WHERE email = $1`,
+      [email]
+    );
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const user = result.rows[0];
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      return res.status(423).json({ error: 'Account tijdelijk vergrendeld. Probeer later opnieuw.' });
+    }
+
     const validPassword = await bcryptjs.compare(password, user.password_hash);
 
     if (!validPassword) {
+      await pool.query(
+        `UPDATE public.users
+         SET failed_login_attempts = COALESCE(failed_login_attempts, 0) + 1,
+             last_failed_login_at = NOW(),
+             locked_until = CASE
+               WHEN COALESCE(failed_login_attempts, 0) + 1 >= 5 THEN NOW() + INTERVAL '15 minutes'
+               ELSE locked_until
+             END,
+             token_version = CASE
+               WHEN COALESCE(failed_login_attempts, 0) + 1 >= 5 THEN COALESCE(token_version, 0) + 1
+               ELSE COALESCE(token_version, 0)
+             END
+         WHERE id = $1`,
+        [user.id]
+      );
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const { accessToken, refreshToken } = createTokens(user.id);
+    await pool.query(
+      `UPDATE public.users
+       SET failed_login_attempts = 0,
+           locked_until = NULL
+       WHERE id = $1`,
+      [user.id]
+    );
+
+    const { accessToken, refreshToken } = createTokens(user.id, Number(user.token_version || 0));
+    setAuthCookies(req, res, accessToken, refreshToken);
     res.json({ accessToken, refreshToken, userId: user.id });
   } catch (err) {
     console.error('Login error:', err);
@@ -236,7 +282,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
 
 // Refresh token
 app.post('/api/auth/refresh', authLimiter, (req, res) => {
-  const { refreshToken } = req.body;
+  const refreshToken = req.body?.refreshToken || getRefreshTokenFromRequest(req);
 
   if (!refreshToken) {
     return res.status(400).json({ error: 'Refresh token required' });
@@ -247,8 +293,34 @@ app.post('/api/auth/refresh', authLimiter, (req, res) => {
     return res.status(403).json({ error: 'Invalid or expired refresh token' });
   }
 
-  const { accessToken, refreshToken: newRefreshToken } = createTokens(decoded.userId);
-  res.json({ accessToken, refreshToken: newRefreshToken });
+  pool.query(
+    'SELECT COALESCE(token_version, 0) AS token_version FROM public.users WHERE id = $1',
+    [decoded.userId]
+  )
+    .then((result) => {
+      if (result.rows.length === 0) {
+        return res.status(401).json({ error: 'User not found' });
+      }
+
+      const currentVersion = Number(result.rows[0].token_version || 0);
+      const tokenVersion = Number(decoded.tokenVersion || 0);
+      if (currentVersion !== tokenVersion) {
+        return res.status(403).json({ error: 'Session invalidated. Please log in again.' });
+      }
+
+      const { accessToken, refreshToken: newRefreshToken } = createTokens(decoded.userId, currentVersion);
+      setAuthCookies(req, res, accessToken, newRefreshToken);
+      return res.json({ accessToken, refreshToken: newRefreshToken });
+    })
+    .catch((err) => {
+      console.error('Refresh error:', err);
+      return res.status(500).json({ error: 'Refresh failed' });
+    });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearAuthCookies(req, res);
+  res.json({ success: true });
 });
 
 // Verify token
@@ -1454,8 +1526,8 @@ app.use((err, req, res, next) => {
 // ============================================
 // Setup MFA and OAuth Routes
 // ============================================
-setupMFARoutes(app, pool, authenticateToken, createTokens);
-setupOAuthRoutes(app, pool, isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback, createTokens);
+setupMFARoutes(app, pool, authenticateToken, createTokens, setAuthCookies);
+setupOAuthRoutes(app, pool, isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback, createTokens, setAuthCookies);
 
 // ============================================
 // Start server

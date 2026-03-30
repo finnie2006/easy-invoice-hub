@@ -22,34 +22,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session
-    const token = localStorage.getItem('accessToken');
     const userId = localStorage.getItem('userId');
 
-    if (token && userId) {
-      auth
-        .verify()
-        .then(() => {
-          setUser({ id: userId });
-          setLoading(false);
-        })
-        .catch(() => {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-          localStorage.removeItem('userId');
-          setLoading(false);
-        });
-    } else {
-      setLoading(false);
-    }
+    auth
+      .verify()
+      .then((response) => {
+        const verifiedUserId = response.data?.userId || userId;
+        if (verifiedUserId) {
+          localStorage.setItem('userId', verifiedUserId);
+          setUser({ id: verifiedUserId });
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('userId');
+        setLoading(false);
+      });
   }, []);
 
   const signUp = async (email: string, password: string) => {
     try {
       const response = await auth.register(email, password);
-      const { accessToken, refreshToken, userId } = response.data;
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
+      const { userId } = response.data;
       localStorage.setItem('userId', userId);
       setUser({ id: userId });
       return { error: null };
@@ -63,9 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       const response = await auth.login(email, password);
-      const { accessToken, refreshToken, userId } = response.data;
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
+      const { userId } = response.data;
       localStorage.setItem('userId', userId);
       setUser({ id: userId });
       return { error: null };
@@ -77,6 +73,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    try {
+      await auth.logout();
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('userId');

@@ -36,7 +36,7 @@ function ensureMFATables(pool) {
   `);
 }
 
-export function setupMFARoutes(app, pool, authenticateToken, createTokens) {
+export function setupMFARoutes(app, pool, authenticateToken, createTokens, setAuthCookies) {
   // Lazy one-time schema bootstrap for existing deployments that missed MFA tables.
   let mfaSchemaReady;
   const ensureSchema = async () => {
@@ -260,7 +260,13 @@ export function setupMFARoutes(app, pool, authenticateToken, createTokens) {
       await clearMFAAttempts(pool, userId);
 
       // Issue tokens
-      const { accessToken, refreshToken } = createTokens(userId);
+      const tokenVersionResult = await pool.query(
+        'SELECT COALESCE(token_version, 0) AS token_version FROM public.users WHERE id = $1',
+        [userId]
+      );
+      const tokenVersion = Number(tokenVersionResult.rows[0]?.token_version || 0);
+      const { accessToken, refreshToken } = createTokens(userId, tokenVersion);
+      setAuthCookies(req, res, accessToken, refreshToken);
       res.json({ accessToken, refreshToken, userId });
     } catch (err) {
       console.error('Error verifying MFA token:', err);

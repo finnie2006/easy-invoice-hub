@@ -22,9 +22,7 @@ export function MFASettings() {
   const checkMFAStatus = async () => {
     try {
       const response = await fetch('/api/auth/mfa/status', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -63,8 +61,8 @@ export function MFASettings() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
         },
+        credentials: 'include',
         body: JSON.stringify({ password: disablePassword }),
       });
 

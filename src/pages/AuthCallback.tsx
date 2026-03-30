@@ -60,9 +60,7 @@ export default function AuthCallback() {
 
           const data = await response.json();
 
-          // Store tokens
-          localStorage.setItem('accessToken', data.accessToken);
-          localStorage.setItem('refreshToken', data.refreshToken);
+          // Persist only user identifier; auth tokens are stored in httpOnly cookies.
           localStorage.setItem('userId', data.userId);
 
           // Show welcome message for new users

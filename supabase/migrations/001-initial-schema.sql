@@ -53,6 +53,23 @@ CREATE TABLE IF NOT EXISTS public.user_roles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.user_mfa (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+  totp_secret text,
+  totp_enabled boolean DEFAULT false,
+  recovery_codes text[] DEFAULT ARRAY[]::text[],
+  backup_codes_generated_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.user_mfa_attempts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  failed_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS public.clients (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -267,6 +284,9 @@ ON CONFLICT (setting_key) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON public.profiles (user_id);
 CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON public.user_roles (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_mfa_user_id ON public.user_mfa (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_mfa_attempts_user_id ON public.user_mfa_attempts (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_mfa_attempts_failed_at ON public.user_mfa_attempts (failed_at);
 CREATE INDEX IF NOT EXISTS idx_clients_user_id ON public.clients (user_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON public.invoices (user_id);
 CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON public.invoice_items (invoice_id);

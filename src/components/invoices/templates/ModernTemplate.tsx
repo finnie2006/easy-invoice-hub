@@ -138,7 +138,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         {invoice.notes && (
           <div className="mb-6 text-sm">
             <p className="font-semibold text-gray-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
-            <p className="text-gray-600 whitespace-pre-wrap">{invoice.notes}</p>
+            <div className="text-gray-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
           </div>
         )}
       </div>

@@ -271,12 +271,11 @@ export default function InvoiceNew() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">Opmerkingen</Label>
-                <Textarea
+                <RichTextEditor
                   id="notes"
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  onChange={setNotes}
                   placeholder="Optionele opmerkingen voor op de factuur..."
-                  rows={3}
                 />
               </div>
             </CardContent>

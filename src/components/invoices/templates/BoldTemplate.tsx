@@ -133,7 +133,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
         {invoice.notes && (
           <div className="text-sm mb-6">
             <p className="font-bold text-slate-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
-            <p className="text-slate-600 whitespace-pre-wrap">{invoice.notes}</p>
+            <div className="text-slate-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
           </div>
         )}
 

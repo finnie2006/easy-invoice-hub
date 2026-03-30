@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { MFASetup } from './MFASetup';
+import { MFASetup } from '../auth/MFASetup';
 
 export function MFASettings() {
   const [mfaEnabled, setMfaEnabled] = useState(false);

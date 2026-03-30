@@ -40,7 +40,8 @@ export function AuthentikLoginButton() {
       const data = await response.json();
 
       // Store state for CSRF validation on callback
-      sessionStorage.setItem('oauth_state', data.url.match(/state=([^&]+)/)?.[1] || '');
+      sessionStorage.setItem('oauth_state', data.state || '');
+      sessionStorage.setItem('oauth_mode', 'login');
 
       // Redirect to Authentik
       window.location.href = data.url;

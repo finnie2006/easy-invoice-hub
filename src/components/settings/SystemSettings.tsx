@@ -16,6 +16,7 @@ interface SystemConfig {
   authentik_url: string;
   authentik_client_id: string;
   authentik_client_secret: string;
+  authentik_redirect_uri: string;
   // SMTP
   smtp_host: string;
   smtp_port: string;
@@ -29,6 +30,7 @@ const defaultConfig: SystemConfig = {
   authentik_url: '',
   authentik_client_id: '',
   authentik_client_secret: '',
+  authentik_redirect_uri: '',
   smtp_host: '',
   smtp_port: '587',
   smtp_user: '',
@@ -189,6 +191,17 @@ export default function SystemSettings() {
                 value={config.authentik_client_secret}
                 onChange={handleChange}
                 placeholder="••••••••"
+              />
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="authentik_redirect_uri">Redirect URI</Label>
+              <Input
+                id="authentik_redirect_uri"
+                name="authentik_redirect_uri"
+                value={config.authentik_redirect_uri}
+                onChange={handleChange}
+                placeholder="https://app.yourdomain.com/auth/callback"
               />
             </div>
           </div>

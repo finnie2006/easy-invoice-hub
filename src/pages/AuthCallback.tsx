@@ -36,16 +36,23 @@ export default function AuthCallback() {
         if (code) {
           // Retrieve state from session storage (set during OAuth initiation)
           const sessionState = sessionStorage.getItem('oauth_state');
+          const oauthMode = sessionStorage.getItem('oauth_mode') || 'login';
           sessionStorage.removeItem('oauth_state');
+          sessionStorage.removeItem('oauth_mode');
 
           if (!sessionState) {
             throw new Error('Invalid session state - please try again');
           }
 
-          // Exchange code for tokens
-          const response = await fetch('/api/auth/oauth/callback', {
+          const callbackEndpoint = oauthMode === 'link'
+            ? '/api/auth/oauth/link/callback'
+            : '/api/auth/oauth/callback';
+
+          // Exchange code for tokens or complete linking
+          const response = await fetch(callbackEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({
               code,
               state,
@@ -59,6 +66,15 @@ export default function AuthCallback() {
           }
 
           const data = await response.json();
+
+          if (oauthMode === 'link') {
+            toast({
+              title: 'Authentik gekoppeld',
+              description: 'Je bestaande account is nu gekoppeld aan Authentik.',
+            });
+            navigate('/settings', { replace: true });
+            return;
+          }
 
           // Persist only user identifier; auth tokens are stored in httpOnly cookies.
           localStorage.setItem('userId', data.userId);

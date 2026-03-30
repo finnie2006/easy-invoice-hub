@@ -2,42 +2,105 @@ import fetch from 'node-fetch';
 import { v4 as uuidv4 } from 'uuid';
 import bcryptjs from 'bcryptjs';
 
-const AUTHENTIK_SERVER_URL = process.env.AUTHENTIK_SERVER_URL || '';
-const AUTHENTIK_CLIENT_ID = process.env.AUTHENTIK_CLIENT_ID || '';
-const AUTHENTIK_CLIENT_SECRET = process.env.AUTHENTIK_CLIENT_SECRET || '';
-const AUTHENTIK_REDIRECT_URI = process.env.AUTHENTIK_REDIRECT_URI || '';
+const AUTHENTIK_SERVER_URL = (process.env.AUTHENTIK_SERVER_URL || '').trim();
+const AUTHENTIK_CLIENT_ID = (process.env.AUTHENTIK_CLIENT_ID || '').trim();
+const AUTHENTIK_CLIENT_SECRET = (process.env.AUTHENTIK_CLIENT_SECRET || '').trim();
+const AUTHENTIK_REDIRECT_URI = (process.env.AUTHENTIK_REDIRECT_URI || '').trim();
 
-const OIDC_CONFIG_URL = `${AUTHENTIK_SERVER_URL}/.well-known/openid-configuration`;
+const OIDC_CACHE_MS = 3600000;
+const oidcCache = new Map();
 
-let cachedOIDCConfig = null;
-let configCachedAt = 0;
+function normalizeSettingValue(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  return String(value).trim();
+}
+
+async function getAuthentikRuntimeConfig(pool, fallbackRedirectUri = '') {
+  const defaults = {
+    serverUrl: AUTHENTIK_SERVER_URL,
+    clientId: AUTHENTIK_CLIENT_ID,
+    clientSecret: AUTHENTIK_CLIENT_SECRET,
+    redirectUri: AUTHENTIK_REDIRECT_URI || fallbackRedirectUri,
+  };
+
+  if (!pool) {
+    return defaults;
+  }
+
+  const result = await pool.query(
+    `SELECT setting_key, setting_value
+     FROM public.app_settings
+     WHERE setting_key = ANY($1::text[])`,
+    [[
+      'authentik_url',
+      'authentik_client_id',
+      'authentik_client_secret',
+      'authentik_redirect_uri',
+    ]]
+  );
+
+  const fromDb = {
+    serverUrl: '',
+    clientId: '',
+    clientSecret: '',
+    redirectUri: '',
+  };
+
+  for (const row of result.rows) {
+    const key = row.setting_key;
+    const value = normalizeSettingValue(row.setting_value);
+
+    if (key === 'authentik_url') fromDb.serverUrl = value;
+    if (key === 'authentik_client_id') fromDb.clientId = value;
+    if (key === 'authentik_client_secret') fromDb.clientSecret = value;
+    if (key === 'authentik_redirect_uri') fromDb.redirectUri = value;
+  }
+
+  return {
+    serverUrl: fromDb.serverUrl || defaults.serverUrl,
+    clientId: fromDb.clientId || defaults.clientId,
+    clientSecret: fromDb.clientSecret || defaults.clientSecret,
+    redirectUri: fromDb.redirectUri || defaults.redirectUri,
+  };
+}
 
 /**
  * Check if Authentik is configured
  */
-export function isAuthentikConfigured() {
-  return !!(AUTHENTIK_SERVER_URL && AUTHENTIK_CLIENT_ID && AUTHENTIK_CLIENT_SECRET);
+export async function isAuthentikConfigured(pool, fallbackRedirectUri = '') {
+  const config = await getAuthentikRuntimeConfig(pool, fallbackRedirectUri);
+  return !!(config.serverUrl && config.clientId && config.clientSecret);
 }
 
 /**
  * Get OIDC configuration from Authentik
  * Cached for 1 hour
  */
-async function getOIDCConfig() {
+async function getOIDCConfig(serverUrl) {
+  const baseUrl = (serverUrl || '').replace(/\/$/, '');
+  const oidcConfigUrl = `${baseUrl}/.well-known/openid-configuration`;
   const now = Date.now();
-  if (cachedOIDCConfig && now - configCachedAt < 3600000) {
-    return cachedOIDCConfig;
+  const cached = oidcCache.get(baseUrl);
+  if (cached && now - cached.cachedAt < OIDC_CACHE_MS) {
+    return cached.config;
   }
 
   try {
-    const response = await fetch(OIDC_CONFIG_URL);
+    const response = await fetch(oidcConfigUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch OIDC config: ${response.statusText}`);
     }
 
-    cachedOIDCConfig = await response.json();
-    configCachedAt = now;
-    return cachedOIDCConfig;
+    const config = await response.json();
+    oidcCache.set(baseUrl, { config, cachedAt: now });
+    return config;
   } catch (err) {
     console.error('Error fetching OIDC config:', err);
     throw err;
@@ -47,19 +110,23 @@ async function getOIDCConfig() {
 /**
  * Generate OAuth authorization URL
  */
-export async function getAuthorizationURL() {
-  if (!isAuthentikConfigured()) {
+export async function getAuthorizationURL(pool, fallbackRedirectUri = '') {
+  const runtimeConfig = await getAuthentikRuntimeConfig(pool, fallbackRedirectUri);
+  if (!(runtimeConfig.serverUrl && runtimeConfig.clientId && runtimeConfig.clientSecret)) {
     throw new Error('Authentik is not configured');
   }
 
-  const config = await getOIDCConfig();
+  if (!runtimeConfig.redirectUri) {
+    throw new Error('Authentik redirect URI is not configured');
+  }
+
+  const config = await getOIDCConfig(runtimeConfig.serverUrl);
   const state = uuidv4();
   const nonce = uuidv4();
 
-  // Store state/nonce for validation on callback (consider using encrypted session)
   const params = new URLSearchParams({
-    client_id: AUTHENTIK_CLIENT_ID,
-    redirect_uri: AUTHENTIK_REDIRECT_URI,
+    client_id: runtimeConfig.clientId,
+    redirect_uri: runtimeConfig.redirectUri,
     response_type: 'code',
     scope: 'openid profile email',
     state,
@@ -76,15 +143,15 @@ export async function getAuthorizationURL() {
 /**
  * Exchange authorization code for tokens
  */
-async function exchangeCodeForTokens(code) {
-  const config = await getOIDCConfig();
+async function exchangeCodeForTokens(code, runtimeConfig) {
+  const config = await getOIDCConfig(runtimeConfig.serverUrl);
 
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    client_id: AUTHENTIK_CLIENT_ID,
-    client_secret: AUTHENTIK_CLIENT_SECRET,
-    redirect_uri: AUTHENTIK_REDIRECT_URI,
+    client_id: runtimeConfig.clientId,
+    client_secret: runtimeConfig.clientSecret,
+    redirect_uri: runtimeConfig.redirectUri,
   });
 
   const response = await fetch(config.token_endpoint, {
@@ -103,8 +170,8 @@ async function exchangeCodeForTokens(code) {
 /**
  * Get user info from Authentik
  */
-async function getUserInfo(accessToken) {
-  const config = await getOIDCConfig();
+async function getUserInfo(accessToken, runtimeConfig) {
+  const config = await getOIDCConfig(runtimeConfig.serverUrl);
 
   const response = await fetch(config.userinfo_endpoint, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -122,7 +189,7 @@ async function getUserInfo(accessToken) {
  * Receives: code, state from Authentik
  * Returns: { accessToken, refreshToken, userId, isNewUser }
  */
-export async function handleOAuthCallback(pool, code, state, expectedState) {
+export async function handleOAuthCallback(pool, code, state, expectedState, options = {}) {
   if (!code) {
     throw new Error('Missing authorization code');
   }
@@ -132,84 +199,96 @@ export async function handleOAuthCallback(pool, code, state, expectedState) {
     throw new Error('Invalid state parameter - possible CSRF attack');
   }
 
+  const runtimeConfig = await getAuthentikRuntimeConfig(pool, options.fallbackRedirectUri || '');
+  if (!(runtimeConfig.serverUrl && runtimeConfig.clientId && runtimeConfig.clientSecret)) {
+    throw new Error('Authentik is not configured');
+  }
+
+  if (!runtimeConfig.redirectUri) {
+    throw new Error('Authentik redirect URI is not configured');
+  }
+
   try {
-    // Exchange code for tokens
-    const tokenResponse = await exchangeCodeForTokens(code);
-    const { access_token: accessToken, refresh_token: refreshToken } = tokenResponse;
+    const tokenResponse = await exchangeCodeForTokens(code, runtimeConfig);
+    const { access_token: accessToken } = tokenResponse;
 
-    // Get user info
-    const userInfo = await getUserInfo(accessToken);
+    const userInfo = await getUserInfo(accessToken, runtimeConfig);
     const { sub: authentikId, email, preferred_username, name } = userInfo;
+    const linkUserId = options.linkUserId || null;
 
-    if (!email) {
+    if (!authentikId) {
+      throw new Error('OAuth provider did not return subject identifier');
+    }
+
+    if (!email && !linkUserId) {
       throw new Error('OAuth provider did not return email');
     }
 
-    // Check/create user in database
     const client = await pool.connect();
-    let userId, isNewUser = false;
+    let userId;
+    let isNewUser = false;
+    let isLinked = false;
 
     try {
       await client.query('BEGIN');
 
-      // Look up user by email
-      const userResult = await client.query(
-        'SELECT id FROM public.users WHERE email = $1',
-        [email]
+      const existingOauthResult = await client.query(
+        `SELECT user_id
+         FROM public.user_oauth_providers
+         WHERE provider = $1 AND provider_id = $2
+         LIMIT 1`,
+        ['authentik', authentikId]
       );
 
-      if (userResult.rows.length > 0) {
-        userId = userResult.rows[0].id;
+      if (linkUserId) {
+        if (existingOauthResult.rows.length > 0 && existingOauthResult.rows[0].user_id !== linkUserId) {
+          throw new Error('Deze Authentik-identiteit is al gekoppeld aan een ander account');
+        }
+
+        userId = linkUserId;
+        isLinked = true;
       } else {
-        // Create new user from OAuth
-        userId = uuidv4();
-        // Generate a secure random password (user won't use it, they'll use OAuth)
-        const randomPassword = await bcryptjs.hash(uuidv4(), 10);
+        if (existingOauthResult.rows.length > 0) {
+          userId = existingOauthResult.rows[0].user_id;
+        } else {
+          const userResult = await client.query(
+            'SELECT id FROM public.users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+            [email]
+          );
 
-        await client.query(
-          'INSERT INTO public.users (id, email, password_hash) VALUES ($1, $2, $3)',
-          [userId, email, randomPassword]
-        );
+          if (userResult.rows.length > 0) {
+            userId = userResult.rows[0].id;
+          } else {
+            userId = uuidv4();
+            const randomPassword = await bcryptjs.hash(uuidv4(), 10);
 
-        // Create profile
-        await client.query('INSERT INTO public.profiles (user_id) VALUES ($1)', [userId]);
+            await client.query(
+              'INSERT INTO public.users (id, email, password_hash) VALUES ($1, $2, $3)',
+              [userId, email, randomPassword]
+            );
 
-        // Make first user admin
-        const roleCount = await client.query('SELECT COUNT(*) FROM public.user_roles');
-        const role = roleCount.rows[0].count === '0' ? 'admin' : 'user';
+            await client.query('INSERT INTO public.profiles (user_id) VALUES ($1)', [userId]);
 
-        await client.query(
-          'INSERT INTO public.user_roles (user_id, role) VALUES ($1, $2)',
-          [userId, role]
-        );
+            const roleCount = await client.query('SELECT COUNT(*) FROM public.user_roles');
+            const role = roleCount.rows[0].count === '0' ? 'admin' : 'user';
 
-        // Store OAuth provider info for future reference
-        await client.query(
-          `INSERT INTO public.user_oauth_providers (user_id, provider, provider_id, display_name)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (user_id, provider) DO UPDATE
-           SET provider_id = $3, display_name = $4`,
-          [userId, 'authentik', authentikId, name || preferred_username || email]
-        );
+            await client.query(
+              'INSERT INTO public.user_roles (user_id, role) VALUES ($1, $2)',
+              [userId, role]
+            );
 
-        isNewUser = true;
+            isNewUser = true;
+          }
+        }
       }
 
-      // Update profile with OAuth name if available
-      if (name || preferred_username) {
-        const displayName = name || preferred_username;
-        // Split name into first/last if possible
-        const nameParts = displayName.split(' ');
-        const firstName = nameParts[0];
-        const lastName = nameParts.slice(1).join(' ');
-
-        await client.query(
-          `UPDATE public.profiles
-           SET company_name = $1
-           WHERE user_id = $2`,
-          [displayName, userId]
-        );
-      }
+      await client.query(
+        `INSERT INTO public.user_oauth_providers (user_id, provider, provider_id, display_name)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, provider)
+         DO UPDATE SET provider_id = EXCLUDED.provider_id, display_name = EXCLUDED.display_name, updated_at = now()`,
+        [userId, 'authentik', authentikId, name || preferred_username || email || authentikId]
+      );
 
       await client.query('COMMIT');
     } catch (err) {
@@ -221,10 +300,9 @@ export async function handleOAuthCallback(pool, code, state, expectedState) {
 
     return {
       userId,
-      email,
+      email: email || null,
       isNewUser,
-      // Note: Don't return Authentik tokens directly
-      // These should be exchanged for app JWTs
+      isLinked,
     };
   } catch (err) {
     console.error('OAuth callback error:', err);

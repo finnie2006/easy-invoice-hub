@@ -1527,7 +1527,7 @@ app.use((err, req, res, next) => {
 // Setup MFA and OAuth Routes
 // ============================================
 setupMFARoutes(app, pool, authenticateToken, createTokens, setAuthCookies);
-setupOAuthRoutes(app, pool, isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback, createTokens, setAuthCookies);
+setupOAuthRoutes(app, pool, authenticateToken, isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback, createTokens, setAuthCookies);
 
 // ============================================
 // Start server

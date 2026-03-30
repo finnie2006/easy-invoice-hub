@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Shield, Trash2 } from 'lucide-react';
+import { Link2, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -13,11 +13,30 @@ export function MFASettings() {
   const [showSetup, setShowSetup] = useState(false);
   const [disablePassword, setDisablePassword] = useState('');
   const [disableLoading, setDisableLoading] = useState(false);
+  const [oauthEnabled, setOauthEnabled] = useState(false);
+  const [linkLoading, setLinkLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     checkMFAStatus();
+    checkOAuthConfig();
   }, []);
+
+  const checkOAuthConfig = async () => {
+    try {
+      const response = await fetch('/api/auth/oauth/config', {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      setOauthEnabled(Boolean(data.enabled));
+    } catch (error) {
+      console.error('Error checking OAuth status:', error);
+    }
+  };
 
   const checkMFAStatus = async () => {
     try {
@@ -85,6 +104,33 @@ export function MFASettings() {
       });
     } finally {
       setDisableLoading(false);
+    }
+  };
+
+  const handleLinkAuthentik = async () => {
+    setLinkLoading(true);
+    try {
+      const response = await fetch('/api/auth/oauth/link/authorize', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to initiate Authentik linking');
+      }
+
+      const data = await response.json();
+      sessionStorage.setItem('oauth_state', data.state || '');
+      sessionStorage.setItem('oauth_mode', 'link');
+      window.location.href = data.url;
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to link Authentik account',
+        variant: 'destructive',
+      });
+      setLinkLoading(false);
     }
   };
 
@@ -157,6 +203,21 @@ export function MFASettings() {
 
             <Button onClick={() => setShowSetup(true)} className="w-full">
               Enable Two-Factor Authentication
+            </Button>
+          </div>
+        )}
+
+        {oauthEnabled && (
+          <div className="mt-6 border-t pt-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-muted-foreground" />
+              <h4 className="font-semibold">Authentik account koppelen</h4>
+            </div>
+            <p className="text-sm text-gray-600">
+              Koppel je huidige account aan Authentik zodat je ook met Single Sign-On kunt inloggen.
+            </p>
+            <Button onClick={handleLinkAuthentik} disabled={linkLoading} variant="outline" className="w-full">
+              {linkLoading ? 'Doorsturen naar Authentik...' : 'Koppel met Authentik'}
             </Button>
           </div>
         )}

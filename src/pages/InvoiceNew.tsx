@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -271,12 +271,11 @@ export default function InvoiceNew() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="notes">Opmerkingen</Label>
-                <Textarea
+                <RichTextEditor
                   id="notes"
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  onChange={setNotes}
                   placeholder="Optionele opmerkingen voor op de factuur..."
-                  rows={3}
                 />
               </div>
             </CardContent>

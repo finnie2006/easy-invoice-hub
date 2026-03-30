@@ -94,7 +94,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
       {invoice.notes && (
         <div className="mb-8 text-gray-600">
-          <p className="whitespace-pre-wrap">{invoice.notes}</p>
+          <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
         </div>
       )}
 

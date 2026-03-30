@@ -153,7 +153,7 @@ VITE_API_URL=http://localhost:3001
 
 ```bash
 # Update environment variabelen
-nano server/.env
+nano .env
 
 # Build images (optioneel)
 docker-compose build
@@ -167,6 +167,37 @@ docker exec invoice_hub_db pg_dump -U invoice_hub invoice_hub > backup.sql
 # Stop services
 docker-compose stop
 docker-compose down
+```
+
+### Via Docker Hub images
+
+Gebruik dit als je niet op de server wilt builden.
+
+1. Build en push op je build-machine:
+
+```bash
+docker login
+
+docker build -t <dockerhub-user>/easy-invoice-hub-app:latest .
+docker push <dockerhub-user>/easy-invoice-hub-app:latest
+
+docker build -t <dockerhub-user>/easy-invoice-hub-server:latest ./server
+docker push <dockerhub-user>/easy-invoice-hub-server:latest
+```
+
+2. Zet op productie in `.env`:
+
+```env
+DOCKERHUB_NAMESPACE=<dockerhub-user>
+IMAGE_TAG=latest
+PULL_POLICY=always
+```
+
+3. Start op productie:
+
+```bash
+docker compose pull
+docker compose up -d
 ```
 
 ### Database Backups

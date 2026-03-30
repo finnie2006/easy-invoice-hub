@@ -21,6 +21,8 @@ services:
 
   # Node.js Backend
   server:
+    image: ${DOCKERHUB_NAMESPACE:-easyinvoicehub}/easy-invoice-hub-server:${IMAGE_TAG:-latest}
+    pull_policy: ${PULL_POLICY:-missing}
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -52,6 +54,8 @@ services:
 
   # Vite React Frontend
   app:
+    image: ${DOCKERHUB_NAMESPACE:-easyinvoicehub}/easy-invoice-hub-app:${IMAGE_TAG:-latest}
+    pull_policy: ${PULL_POLICY:-missing}
     build:
       context: .
       dockerfile: Dockerfile

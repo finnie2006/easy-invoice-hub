@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 import bcryptjs from 'bcryptjs';
@@ -16,13 +18,44 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 const UPLOAD_ROOT = path.resolve(process.cwd(), 'uploads');
+const BODY_LIMIT = process.env.BODY_LIMIT || '1mb';
+const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 10);
+const AUTH_WINDOW_MS = Number(process.env.AUTH_WINDOW_MS || 15 * 60 * 1000);
+const AUTH_MAX_REQUESTS = Number(process.env.AUTH_MAX_REQUESTS || 30);
+const ALLOWED_BUCKETS = ['receipts', 'invoice-attachments', 'logos'];
+
+const parsedAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const corsAllowAll = parsedAllowedOrigins.length === 0 || parsedAllowedOrigins.includes('*');
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (corsAllowAll || !origin || parsedAllowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('CORS origin denied'));
+  },
+}));
+app.use(express.json({ limit: BODY_LIMIT }));
 app.use('/uploads', express.static(UPLOAD_ROOT));
 
-['receipts', 'invoice-attachments', 'logos'].forEach((bucket) => {
+const authLimiter = rateLimit({
+  windowMs: AUTH_WINDOW_MS,
+  max: AUTH_MAX_REQUESTS,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts, please try again later.' },
+});
+
+ALLOWED_BUCKETS.forEach((bucket) => {
   const bucketDir = path.join(UPLOAD_ROOT, bucket);
   if (!fs.existsSync(bucketDir)) {
     fs.mkdirSync(bucketDir, { recursive: true });
@@ -31,7 +64,10 @@ app.use('/uploads', express.static(UPLOAD_ROOT));
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const bucket = req.body.bucket || 'misc';
+    const bucket = req.body.bucket || 'receipts';
+    if (!ALLOWED_BUCKETS.includes(bucket)) {
+      return cb(new Error('Invalid upload bucket'));
+    }
     const target = path.join(UPLOAD_ROOT, bucket);
     if (!fs.existsSync(target)) {
       fs.mkdirSync(target, { recursive: true });
@@ -44,7 +80,24 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage });
+const uploadWithLimits = multer({
+  storage,
+  limits: { fileSize: UPLOAD_MAX_MB * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ];
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return cb(new Error('Unsupported file type'));
+    }
+
+    cb(null, true);
+  },
+});
 
 async function getSetting(key, fallback = null) {
   const result = await pool.query(
@@ -84,7 +137,7 @@ async function requireAdmin(req, res, next) {
 // ============================================
 
 // Register
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -149,7 +202,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // Login
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -179,7 +232,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Refresh token
-app.post('/api/auth/refresh', (req, res) => {
+app.post('/api/auth/refresh', authLimiter, (req, res) => {
   const { refreshToken } = req.body;
 
   if (!refreshToken) {
@@ -1251,14 +1304,13 @@ app.get('/api/calendar/ical', async (req, res) => {
 // File Upload Routes
 // ============================================
 
-app.post('/api/files/upload', authenticateToken, upload.single('file'), async (req, res) => {
+app.post('/api/files/upload', authenticateToken, uploadWithLimits.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  const allowedBuckets = ['receipts', 'invoice-attachments', 'logos'];
   const bucket = req.body.bucket;
-  if (!allowedBuckets.includes(bucket)) {
+  if (!ALLOWED_BUCKETS.includes(bucket)) {
     return res.status(400).json({ error: 'Invalid bucket' });
   }
 
@@ -1284,7 +1336,12 @@ app.delete('/api/files', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Invalid upload path' });
     }
 
-    const absolutePath = path.join(process.cwd(), relativePath);
+    const safeRelativePath = relativePath.replace(/^\/uploads\//, '');
+    const absolutePath = path.resolve(UPLOAD_ROOT, safeRelativePath);
+    if (!absolutePath.startsWith(UPLOAD_ROOT + path.sep)) {
+      return res.status(400).json({ error: 'Invalid upload path' });
+    }
+
     if (fs.existsSync(absolutePath)) {
       fs.unlinkSync(absolutePath);
     }
@@ -1372,6 +1429,23 @@ app.post('/api/invoices/:id/send-email', authenticateToken, async (req, res) => 
 // ============================================
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.use((err, req, res, next) => {
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: `File is too large. Max ${UPLOAD_MAX_MB}MB.` });
+  }
+
+  if (err?.message === 'Unsupported file type' || err?.message === 'Invalid upload bucket') {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (err?.message === 'CORS origin denied') {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+
+  console.error('Unhandled API error:', err);
+  return res.status(500).json({ error: 'Internal server error' });
 });
 
 // ============================================

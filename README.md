@@ -1,73 +1,129 @@
-# Welcome to your Lovable project
+# Easy Invoice Hub (Self-Hosted)
 
-## Project info
+Production-ready invoicing app with:
+- React + Vite frontend
+- Node.js + Express API
+- PostgreSQL database
+- Docker Compose deployment
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Quick Start
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+cp server/.env.example .env
+# Edit secrets in .env first
+sudo docker compose up -d --build
 ```
 
-**Edit a file directly in GitHub**
+Open:
+- App: http://localhost:8080
+- API health: http://localhost:3001/api/health
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Security Defaults Implemented
 
-**Use GitHub Codespaces**
+- `helmet` security headers on API
+- Auth rate limiting (`/api/auth/*`)
+- Configurable CORS allow-list (`ALLOWED_ORIGINS`)
+- JSON body size limit (`BODY_LIMIT`)
+- Upload size/type restrictions (`UPLOAD_MAX_MB`, PDF/JPEG/PNG/WEBP)
+- Safe upload path deletion checks (path traversal protection)
+- Backend container runs as non-root user
+- Server dependencies with `npm audit` clean state
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Environment Variables (root `.env`)
 
-## What technologies are used for this project?
+Required in production:
 
-This project is built with:
+```env
+DB_USER=invoice_hub
+DB_PASSWORD=change_me
+DB_NAME=invoice_hub
+PUBLIC_URL=https://your-domain.tld
+JWT_SECRET=change_me_long_random
+JWT_REFRESH_SECRET=change_me_long_random
+ALLOWED_ORIGINS=https://your-domain.tld
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Optional:
 
-## How can I deploy this project?
+```env
+IMAGE_TAG=latest
+DOCKERHUB_NAMESPACE=yourdockerhubuser
+PULL_POLICY=always
+BODY_LIMIT=1mb
+UPLOAD_MAX_MB=10
+AUTH_WINDOW_MS=900000
+AUTH_MAX_REQUESTS=30
+```
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Build and Push to Docker Hub
 
-## Can I connect a custom domain to my Lovable project?
+Login once:
 
-Yes, you can!
+```bash
+docker login
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Build and push app image:
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```bash
+docker build -t yourdockerhubuser/easy-invoice-hub-app:latest .
+docker push yourdockerhubuser/easy-invoice-hub-app:latest
+```
+
+Build and push server image:
+
+```bash
+docker build -t yourdockerhubuser/easy-invoice-hub-server:latest ./server
+docker push yourdockerhubuser/easy-invoice-hub-server:latest
+```
+
+## Deploy from Docker Hub
+
+Set in `.env` on your server:
+
+```env
+DOCKERHUB_NAMESPACE=yourdockerhubuser
+IMAGE_TAG=latest
+PULL_POLICY=always
+```
+
+Start with pull:
+
+```bash
+sudo docker compose pull
+sudo docker compose up -d
+```
+
+## Data Backup and Restore
+
+Database backup:
+
+```bash
+sudo docker compose exec -T postgres pg_dump -U "$DB_USER" -d "$DB_NAME" -Fc > invoice_hub.dump
+```
+
+Uploads backup:
+
+```bash
+sudo docker run --rm \
+  -v easy-invoice-hub_uploads_data:/from \
+  -v "$PWD":/to \
+  alpine sh -c "cd /from && tar czf /to/uploads_data.tar.gz ."
+```
+
+Restore database:
+
+```bash
+sudo docker compose exec -T postgres pg_restore \
+  -U "$DB_USER" -d "$DB_NAME" \
+  --clean --if-exists --no-owner --no-privileges < invoice_hub.dump
+```
+
+Restore uploads:
+
+```bash
+sudo docker run --rm \
+  -v easy-invoice-hub_uploads_data:/to \
+  -v "$PWD":/from \
+  alpine sh -c "cd /to && tar xzf /from/uploads_data.tar.gz"
+```

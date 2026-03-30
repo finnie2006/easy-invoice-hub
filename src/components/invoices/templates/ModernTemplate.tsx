@@ -88,7 +88,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
                   {hasItemDiscounts && (
                     <td className="text-right py-4 text-gray-600">
                       {item.discount_type && item.discount_value > 0 
-                        ? item.discount_type === 'percentage' ? \`\${item.discount_value}%\` : formatCurrency(item.discount_value)
+                        ? item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)
                         : '—'}
                     </td>
                   )}
@@ -109,7 +109,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
             </div>
             {hasInvoiceDiscount && (
               <div className="flex justify-between py-2 text-red-600">
-                <span>Korting{invoice.discount_type === 'percentage' ? \` (\${invoice.discount_value}%)\` : ''}</span>
+                <span>Korting{invoice.discount_type === 'percentage' ? ` (${invoice.discount_value}%)` : ''}</span>
                 <span>-{formatCurrency(Number(invoice.discount_amount))}</span>
               </div>
             )}

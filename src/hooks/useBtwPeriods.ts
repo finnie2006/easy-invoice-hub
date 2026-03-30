@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { btwPeriods as btwPeriodsApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -35,16 +35,9 @@ export function useBtwPeriods() {
     queryKey: ['btw-periods', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('btw_periods')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('year', { ascending: false })
-        .order('quarter', { ascending: false });
-      
-      if (error) throw error;
-      return data as BtwPeriod[];
+
+      const response = await btwPeriodsApi.getAll();
+      return response.data as BtwPeriod[];
     },
     enabled: !!user?.id,
   });
@@ -52,15 +45,9 @@ export function useBtwPeriods() {
   const createPeriodMutation = useMutation({
     mutationFn: async (period: BtwPeriodInsert) => {
       if (!user?.id) throw new Error('Not authenticated');
-      
-      const { data, error } = await supabase
-        .from('btw_periods')
-        .insert({ ...period, user_id: user.id })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+
+      const response = await btwPeriodsApi.create(period);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['btw-periods'] });
@@ -74,15 +61,8 @@ export function useBtwPeriods() {
 
   const updatePeriodMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<BtwPeriod> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('btw_periods')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const response = await btwPeriodsApi.update(id, updates);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['btw-periods'] });
@@ -101,16 +81,9 @@ export function useBtwPeriods() {
         closed_at: is_closed ? new Date().toISOString() : null,
         submitted_at: is_closed ? new Date().toISOString() : null,
       };
-      
-      const { data, error } = await supabase
-        .from('btw_periods')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+
+      const response = await btwPeriodsApi.update(id, updates);
+      return response.data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['btw-periods'] });

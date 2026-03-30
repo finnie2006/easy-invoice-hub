@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { profile as profileApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -34,14 +34,8 @@ export function useProfile() {
     queryKey: ['profile', user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data as Profile | null;
+      const response = await profileApi.getProfile();
+      return (response.data || null) as Profile | null;
     },
     enabled: !!user,
   });
@@ -49,13 +43,8 @@ export function useProfile() {
   const updateProfile = useMutation({
     mutationFn: async (updates: Partial<Profile>) => {
       if (!user) throw new Error('Not authenticated');
-      
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('user_id', user.id);
-      
-      if (error) throw error;
+
+      await profileApi.updateProfile(updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });

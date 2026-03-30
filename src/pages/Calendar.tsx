@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCalendarEvents, useLabels, useExternalFeeds } from '@/hooks/useCalendar';
+import { calendar as calendarApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -166,7 +167,7 @@ export default function Calendar() {
 
   const getICalUrl = () => {
     if (!user) return '';
-    return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calendar-ical?user_id=${user.id}`;
+    return calendarApi.getIcalUrl();
   };
 
   const handleCopyICalUrl = async () => {

@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Briefcase, Loader2, Shield } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 
 export function AuthPage() {
   const [email, setEmail] = useState('');
@@ -55,33 +54,12 @@ export function AuthPage() {
 
   const handleAuthentikLogin = async () => {
     setAuthentikLoading(true);
-    try {
-      // Get the authorization URL from the edge function
-      const { data, error } = await supabase.functions.invoke('authentik-login');
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Store state in sessionStorage for CSRF verification
-      sessionStorage.setItem('authentik_state', data.state);
-      
-      // Redirect to Authentik
-      window.location.href = data.authUrl;
-    } catch (error: unknown) {
-      console.error('Authentik login error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Kon niet verbinden met Authentik';
-      toast({
-        title: 'Authentik login mislukt',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-      setAuthentikLoading(false);
-    }
+    toast({
+      title: 'Authentik niet geconfigureerd',
+      description: 'Authentik OAuth is nog niet ingesteld op deze self-hosted installatie.',
+      variant: 'destructive',
+    });
+    setAuthentikLoading(false);
   };
 
   return (

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { labels as labelsApi, calendarEvents as calendarEventsApi, externalFeeds as externalFeedsApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -55,15 +55,8 @@ export function useLabels() {
     queryKey: ['labels', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from('labels')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('is_system', { ascending: false })
-        .order('name');
-      
-      if (error) throw error;
-      return data as Label[];
+      const response = await labelsApi.getAll();
+      return response.data as Label[];
     },
     enabled: !!user,
   });
@@ -71,15 +64,9 @@ export function useLabels() {
   const createLabel = useMutation({
     mutationFn: async (label: LabelInsert) => {
       if (!user) throw new Error('Not authenticated');
-      
-      const { data, error } = await supabase
-        .from('labels')
-        .insert({ ...label, user_id: user.id })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data as Label;
+
+      const response = await labelsApi.create(label);
+      return response.data as Label;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['labels'] });
@@ -92,12 +79,7 @@ export function useLabels() {
 
   const updateLabel = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Label> & { id: string }) => {
-      const { error } = await supabase
-        .from('labels')
-        .update(updates)
-        .eq('id', id);
-      
-      if (error) throw error;
+      await labelsApi.update(id, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['labels'] });
@@ -110,12 +92,7 @@ export function useLabels() {
 
   const deleteLabel = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('labels')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
+      await labelsApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['labels'] });
@@ -144,14 +121,8 @@ export function useCalendarEvents() {
     queryKey: ['calendar_events', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from('calendar_events')
-        .select('*, label:labels(*)')
-        .eq('user_id', user.id)
-        .order('start_time');
-      
-      if (error) throw error;
-      return data as CalendarEvent[];
+      const response = await calendarEventsApi.getAll();
+      return response.data as CalendarEvent[];
     },
     enabled: !!user,
   });
@@ -159,15 +130,9 @@ export function useCalendarEvents() {
   const createEvent = useMutation({
     mutationFn: async (event: CalendarEventInsert) => {
       if (!user) throw new Error('Not authenticated');
-      
-      const { data, error } = await supabase
-        .from('calendar_events')
-        .insert({ ...event, user_id: user.id })
-        .select('*, label:labels(*)')
-        .single();
-      
-      if (error) throw error;
-      return data as CalendarEvent;
+
+      const response = await calendarEventsApi.create(event);
+      return response.data as CalendarEvent;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar_events'] });
@@ -180,12 +145,7 @@ export function useCalendarEvents() {
 
   const updateEvent = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<CalendarEvent> & { id: string }) => {
-      const { error } = await supabase
-        .from('calendar_events')
-        .update(updates)
-        .eq('id', id);
-      
-      if (error) throw error;
+      await calendarEventsApi.update(id, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar_events'] });
@@ -198,12 +158,7 @@ export function useCalendarEvents() {
 
   const deleteEvent = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('calendar_events')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
+      await calendarEventsApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar_events'] });
@@ -232,14 +187,8 @@ export function useExternalFeeds() {
     queryKey: ['external_feeds', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from('external_feeds')
-        .select('*, label:labels(*)')
-        .eq('user_id', user.id)
-        .order('name');
-      
-      if (error) throw error;
-      return data as ExternalFeed[];
+      const response = await externalFeedsApi.getAll();
+      return response.data as ExternalFeed[];
     },
     enabled: !!user,
   });
@@ -247,15 +196,9 @@ export function useExternalFeeds() {
   const createFeed = useMutation({
     mutationFn: async (feed: ExternalFeedInsert) => {
       if (!user) throw new Error('Not authenticated');
-      
-      const { data, error } = await supabase
-        .from('external_feeds')
-        .insert({ ...feed, user_id: user.id })
-        .select('*, label:labels(*)')
-        .single();
-      
-      if (error) throw error;
-      return data as ExternalFeed;
+
+      const response = await externalFeedsApi.create(feed);
+      return response.data as ExternalFeed;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['external_feeds'] });
@@ -268,12 +211,7 @@ export function useExternalFeeds() {
 
   const deleteFeed = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('external_feeds')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
+      await externalFeedsApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['external_feeds'] });

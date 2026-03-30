@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { businessAssets as businessAssetsApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -45,12 +45,8 @@ export function useBusinessAssets() {
     queryKey: ['business-assets', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from('business_assets')
-        .select('*')
-        .order('purchase_date', { ascending: false });
-      if (error) throw error;
-      return data as BusinessAsset[];
+      const response = await businessAssetsApi.getAll();
+      return response.data as BusinessAsset[];
     },
     enabled: !!user,
   });
@@ -58,10 +54,7 @@ export function useBusinessAssets() {
   const createAsset = useMutation({
     mutationFn: async (asset: BusinessAssetInsert) => {
       if (!user) throw new Error('Not authenticated');
-      const { error } = await supabase
-        .from('business_assets')
-        .insert({ ...asset, user_id: user.id });
-      if (error) throw error;
+      await businessAssetsApi.create(asset);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['business-assets'] });
@@ -74,8 +67,7 @@ export function useBusinessAssets() {
 
   const deleteAsset = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('business_assets').delete().eq('id', id);
-      if (error) throw error;
+      await businessAssetsApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['business-assets'] });

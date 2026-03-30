@@ -21,7 +21,7 @@ import {
 import { Loader2, ArrowLeft, Send, CheckCircle2, Download, AlertTriangle, Pencil, Mail, Copy, Palette, FileText, ExternalLink, Upload, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import { supabase } from '@/integrations/supabase/client';
+import { invoices as invoicesApi } from '@/api/client';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -187,16 +187,11 @@ export default function InvoiceDetail() {
 
     setIsSendingEmail(true);
     try {
-      const { data, error } = await supabase.functions.invoke('send-invoice-email', {
-        body: {
-          invoiceId: id,
-          recipientEmail: emailTo,
-          recipientName: emailName || undefined,
-          customMessage: emailMessage || undefined,
-        },
+      await invoicesApi.sendEmail(id, {
+        recipientEmail: emailTo,
+        recipientName: emailName || undefined,
+        customMessage: emailMessage || undefined,
       });
-
-      if (error) throw error;
 
       toast({
         title: 'E-mail verzonden',
@@ -212,7 +207,7 @@ export default function InvoiceDetail() {
       console.error('Error sending email:', error);
       toast({
         title: 'Fout bij verzenden',
-        description: error.message || 'Er is een fout opgetreden bij het verzenden van de e-mail',
+        description: error?.response?.data?.error || error.message || 'Er is een fout opgetreden bij het verzenden van de e-mail',
         variant: 'destructive',
       });
     } finally {

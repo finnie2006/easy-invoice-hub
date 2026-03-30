@@ -13,11 +13,10 @@ RUN npm ci
 COPY . .
 
 # Build args for environment variables
-ARG VITE_SUPABASE_URL
-ARG VITE_SUPABASE_PUBLISHABLE_KEY
-ARG VITE_SUPABASE_PROJECT_ID
+ARG VITE_API_URL=/
 
 # Build the application
+ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # Production stage

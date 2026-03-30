@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Server, Mail, Key, Save, Loader2, Info } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { appSettings as appSettingsApi } from '@/api/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface SystemConfig {
@@ -48,11 +48,8 @@ export default function SystemSettings() {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const { data, error } = await supabase
-          .from('app_settings')
-          .select('setting_key, setting_value');
-        
-        if (error) throw error;
+        const response = await appSettingsApi.getAll();
+        const data = response.data as Array<{ setting_key: string; setting_value: unknown }>;
         
         const newConfig = { ...defaultConfig };
         data?.forEach((row) => {
@@ -82,34 +79,8 @@ export default function SystemSettings() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // Save each setting
-      const settingsToSave = Object.entries(config);
-      
-      for (const [key, value] of settingsToSave) {
-        // Check if setting exists
-        const { data: existing } = await supabase
-          .from('app_settings')
-          .select('id')
-          .eq('setting_key', key)
-          .maybeSingle();
-
-        if (existing) {
-          // Update existing
-          const { error } = await supabase
-            .from('app_settings')
-            .update({ setting_value: JSON.stringify(value) })
-            .eq('setting_key', key);
-          
-          if (error) throw error;
-        } else {
-          // Insert new
-          const { error } = await supabase
-            .from('app_settings')
-            .insert({ setting_key: key, setting_value: JSON.stringify(value) });
-          
-          if (error) throw error;
-        }
-      }
+      const settingsToSave = Object.entries(config).map(([key, value]) => ({ key, value }));
+      await appSettingsApi.upsertMany(settingsToSave);
 
       toast({
         title: 'Instellingen opgeslagen',

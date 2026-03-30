@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { appSettings as appSettingsApi, userRole as userRoleApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -25,11 +25,8 @@ export function useAppSettings() {
   const { data: settings, isLoading: isLoadingSettings } = useQuery({
     queryKey: ['app-settings'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('setting_key, setting_value');
-      
-      if (error) throw error;
+      const response = await appSettingsApi.getAll();
+      const data = response.data as Array<{ setting_key: string; setting_value: unknown }>;
       
       const settingsMap: AppSettings = {
         registration_enabled: true,
@@ -38,10 +35,10 @@ export function useAppSettings() {
       
       data?.forEach((row) => {
         if (row.setting_key === 'registration_enabled') {
-          settingsMap.registration_enabled = row.setting_value as boolean;
+          settingsMap.registration_enabled = Boolean(row.setting_value);
         }
         if (row.setting_key === 'environment_mode') {
-          settingsMap.environment_mode = (row.setting_value as string).replace(/"/g, '') as EnvironmentMode;
+          settingsMap.environment_mode = String(row.setting_value).replace(/"/g, '') as EnvironmentMode;
         }
       });
       
@@ -55,22 +52,9 @@ export function useAppSettings() {
     queryKey: ['user-role', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (error) {
-        // User might not have a role yet (existing users before migration)
-        if (error.code === 'PGRST116') {
-          return null;
-        }
-        throw error;
-      }
-      
-      return data as UserRole;
+
+      const response = await userRoleApi.getCurrent();
+      return (response.data || null) as UserRole | null;
     },
     enabled: !!user?.id,
   });
@@ -80,12 +64,7 @@ export function useAppSettings() {
   // Update setting mutation
   const updateSettingMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: boolean | string }) => {
-      const { error } = await supabase
-        .from('app_settings')
-        .update({ setting_value: JSON.stringify(value) })
-        .eq('setting_key', key);
-      
-      if (error) throw error;
+      await appSettingsApi.update(key, value);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['app-settings'] });

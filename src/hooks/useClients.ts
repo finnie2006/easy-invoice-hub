@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { clients as clientsApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -33,15 +33,8 @@ export function useClients() {
     queryKey: ['clients', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_saved', true)
-        .order('company_name');
-      
-      if (error) throw error;
-      return data as Client[];
+      const response = await clientsApi.getAll();
+      return response.data as Client[];
     },
     enabled: !!user,
   });
@@ -49,15 +42,9 @@ export function useClients() {
   const createClient = useMutation({
     mutationFn: async (client: ClientInsert) => {
       if (!user) throw new Error('Not authenticated');
-      
-      const { data, error } = await supabase
-        .from('clients')
-        .insert({ ...client, user_id: user.id })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data as Client;
+
+      const response = await clientsApi.create(client);
+      return response.data as Client;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
@@ -77,12 +64,7 @@ export function useClients() {
 
   const updateClient = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Client> & { id: string }) => {
-      const { error } = await supabase
-        .from('clients')
-        .update(updates)
-        .eq('id', id);
-      
-      if (error) throw error;
+      await clientsApi.update(id, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });
@@ -102,12 +84,7 @@ export function useClients() {
 
   const deleteClient = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('clients')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
+      await clientsApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] });

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { invoices as invoicesApi, invoiceItems as invoiceItemsApi, files as filesApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -107,14 +107,8 @@ export function useInvoices() {
     queryKey: ['invoices', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from('invoices')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('invoice_number', { ascending: false });
-      
-      if (error) throw error;
-      return data as Invoice[];
+      const response = await invoicesApi.getAll();
+      return response.data as Invoice[];
     },
     enabled: !!user,
   });
@@ -175,30 +169,24 @@ export function useInvoices() {
         items, invoice.discount_type, invoice.discount_value
       );
 
-      const { data: invoiceData, error: invoiceError } = await supabase
-        .from('invoices')
-        .insert({ 
-          ...invoice, 
-          user_id: user.id,
-          subtotal,
-          total_btw,
-          total,
-          discount_amount: invoiceDiscountAmount,
-        })
-        .select()
-        .single();
-      
-      if (invoiceError) throw invoiceError;
+      const invoiceResponse = await invoicesApi.create({
+        ...invoice,
+        subtotal,
+        total_btw,
+        total,
+        discount_amount: invoiceDiscountAmount,
+      });
+      const invoiceData = invoiceResponse.data as Invoice;
 
       if (calculatedItems.length > 0) {
-        const { error: itemsError } = await supabase
-          .from('invoice_items')
-          .insert(calculatedItems.map(item => ({
-            ...item,
-            invoice_id: invoiceData.id,
-          })));
-        
-        if (itemsError) throw itemsError;
+        await Promise.all(
+          calculatedItems.map((item) =>
+            invoiceItemsApi.create({
+              ...item,
+              invoice_id: invoiceData.id,
+            })
+          )
+        );
       }
 
       return invoiceData as Invoice;
@@ -220,20 +208,9 @@ export function useInvoices() {
   });
 
   const uploadAttachment = async (file: File, userId: string): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}/${Date.now()}.${fileExt}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('invoice-attachments')
-      .upload(fileName, file);
-    
-    if (uploadError) throw uploadError;
-    
-    const { data } = supabase.storage
-      .from('invoice-attachments')
-      .getPublicUrl(fileName);
-    
-    return data.publicUrl;
+    if (!userId) throw new Error('Not authenticated');
+    const response = await filesApi.upload(file, 'invoice-attachments');
+    return response.data.url;
   };
 
   const createExternalInvoice = useMutation({
@@ -255,18 +232,11 @@ export function useInvoices() {
         attachmentUrl = await uploadAttachment(file, user.id);
       }
 
-      const { data: invoiceData, error: invoiceError } = await supabase
-        .from('invoices')
-        .insert({ 
-          ...invoice, 
-          user_id: user.id,
-          attachment_url: attachmentUrl,
-        })
-        .select()
-        .single();
-      
-      if (invoiceError) throw invoiceError;
-      return invoiceData as Invoice;
+      const response = await invoicesApi.create({
+        ...invoice,
+        attachment_url: attachmentUrl,
+      });
+      return response.data as Invoice;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -297,28 +267,10 @@ export function useInvoices() {
       let attachmentUrl: string | null = null;
       
       if (file) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('invoice-attachments')
-          .upload(fileName, file);
-        
-        if (uploadError) throw uploadError;
-        
-        const { data } = supabase.storage
-          .from('invoice-attachments')
-          .getPublicUrl(fileName);
-        
-        attachmentUrl = data.publicUrl;
+        attachmentUrl = await uploadAttachment(file, user.id);
       }
 
-      const { error: updateError } = await supabase
-        .from('invoices')
-        .update({ attachment_url: attachmentUrl })
-        .eq('id', invoiceId);
-      
-      if (updateError) throw updateError;
+      await invoicesApi.update(invoiceId, { attachment_url: attachmentUrl });
       return attachmentUrl;
     },
     onSuccess: () => {
@@ -354,35 +306,27 @@ export function useInvoices() {
         items, invoice.discount_type, invoice.discount_value
       );
 
-      const { error: invoiceError } = await supabase
-        .from('invoices')
-        .update({ 
-          ...invoice, 
-          subtotal,
-          total_btw,
-          total,
-          discount_amount: invoiceDiscountAmount,
-        })
-        .eq('id', id);
-      
-      if (invoiceError) throw invoiceError;
+      await invoicesApi.update(id, {
+        ...invoice,
+        subtotal,
+        total_btw,
+        total,
+        discount_amount: invoiceDiscountAmount,
+      });
 
-      const { error: deleteError } = await supabase
-        .from('invoice_items')
-        .delete()
-        .eq('invoice_id', id);
-      
-      if (deleteError) throw deleteError;
+      const existingInvoiceResponse = await invoicesApi.getOne(id);
+      const existingItems = (existingInvoiceResponse.data?.items || []) as InvoiceItem[];
+      await Promise.all(existingItems.map((item) => invoiceItemsApi.delete(item.id)));
 
       if (calculatedItems.length > 0) {
-        const { error: itemsError } = await supabase
-          .from('invoice_items')
-          .insert(calculatedItems.map(item => ({
-            ...item,
-            invoice_id: id,
-          })));
-        
-        if (itemsError) throw itemsError;
+        await Promise.all(
+          calculatedItems.map((item) =>
+            invoiceItemsApi.create({
+              ...item,
+              invoice_id: id,
+            })
+          )
+        );
       }
     },
     onSuccess: () => {
@@ -404,12 +348,7 @@ export function useInvoices() {
 
   const updateInvoiceStatus = useMutation({
     mutationFn: async ({ id, status, paid_at }: { id: string; status: string; paid_at?: string }) => {
-      const { error } = await supabase
-        .from('invoices')
-        .update({ status, paid_at })
-        .eq('id', id);
-      
-      if (error) throw error;
+      await invoicesApi.update(id, { status, paid_at: paid_at || null });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -429,12 +368,7 @@ export function useInvoices() {
 
   const deleteInvoice = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('invoices')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
+      await invoicesApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -482,26 +416,9 @@ export function useInvoice(id: string) {
     queryKey: ['invoice', id],
     queryFn: async () => {
       if (!user) return null;
-      
-      const { data: invoice, error: invoiceError } = await supabase
-        .from('invoices')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      if (invoiceError) throw invoiceError;
-      if (!invoice) return null;
 
-      const { data: items, error: itemsError } = await supabase
-        .from('invoice_items')
-        .select('*')
-        .eq('invoice_id', id)
-        .order('sort_order');
-      
-      if (itemsError) throw itemsError;
-
-      return { ...invoice, items } as Invoice;
+      const response = await invoicesApi.getOne(id);
+      return (response.data || null) as Invoice | null;
     },
     enabled: !!user && !!id,
   });

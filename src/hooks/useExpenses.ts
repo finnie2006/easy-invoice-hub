@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { expenses as expensesApi, files as filesApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -44,42 +44,21 @@ export function useExpenses() {
     queryKey: ['expenses', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('expense_date', { ascending: false });
-      
-      if (error) throw error;
-      return data as Expense[];
+      const response = await expensesApi.getAll();
+      return response.data as Expense[];
     },
     enabled: !!user,
   });
 
   const uploadReceipt = async (file: File): Promise<string | null> => {
     if (!user) throw new Error('Not authenticated');
-    
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
-    
-    const { error: uploadError } = await supabase.storage
-      .from('receipts')
-      .upload(fileName, file);
-    
-    if (uploadError) throw uploadError;
-    
-    const { data } = supabase.storage
-      .from('receipts')
-      .getPublicUrl(fileName);
-    
-    return data.publicUrl;
+
+    const response = await filesApi.upload(file, 'receipts');
+    return response.data.url || null;
   };
 
   const getReceiptUrl = (path: string): string => {
-    const { data } = supabase.storage
-      .from('receipts')
-      .getPublicUrl(path);
-    return data.publicUrl;
+    return path;
   };
 
   const createExpense = useMutation({
@@ -89,27 +68,11 @@ export function useExpenses() {
       let receiptUrl = expense.receipt_url;
       
       if (file) {
-        const fileExt = file.name.split('.').pop();
-        const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('receipts')
-          .upload(filePath, file);
-        
-        if (uploadError) throw uploadError;
-        
-        // Store the path, not the full URL
-        receiptUrl = filePath;
+        receiptUrl = await uploadReceipt(file);
       }
-      
-      const { data, error } = await supabase
-        .from('expenses')
-        .insert({ ...expense, receipt_url: receiptUrl, user_id: user.id })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data as Expense;
+
+      const response = await expensesApi.create({ ...expense, receipt_url: receiptUrl });
+      return response.data as Expense;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
@@ -134,24 +97,10 @@ export function useExpenses() {
       let receiptUrl = updates.receipt_url;
       
       if (file) {
-        const fileExt = file.name.split('.').pop();
-        const filePath = `${user.id}/${crypto.randomUUID()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('receipts')
-          .upload(filePath, file);
-        
-        if (uploadError) throw uploadError;
-        
-        receiptUrl = filePath;
+        receiptUrl = await uploadReceipt(file);
       }
-      
-      const { error } = await supabase
-        .from('expenses')
-        .update({ ...updates, receipt_url: receiptUrl })
-        .eq('id', id);
-      
-      if (error) throw error;
+
+      await expensesApi.update(id, { ...updates, receipt_url: receiptUrl });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
@@ -173,18 +122,11 @@ export function useExpenses() {
       // First get the expense to delete the receipt if it exists
       const expense = expenses.find(e => e.id === id);
       
-      if (expense?.receipt_url) {
-        await supabase.storage
-          .from('receipts')
-          .remove([expense.receipt_url]);
+      if (expense?.receipt_url && expense.receipt_url.includes('/uploads/')) {
+        await filesApi.remove(expense.receipt_url);
       }
-      
-      const { error } = await supabase
-        .from('expenses')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
+
+      await expensesApi.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
@@ -203,12 +145,7 @@ export function useExpenses() {
 
   // Get signed URL for private receipt
   const getSignedReceiptUrl = async (path: string): Promise<string | null> => {
-    const { data, error } = await supabase.storage
-      .from('receipts')
-      .createSignedUrl(path, 3600); // 1 hour expiry
-    
-    if (error) return null;
-    return data.signedUrl;
+    return path || null;
   };
 
   return {

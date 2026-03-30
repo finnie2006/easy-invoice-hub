@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { annualTaxData as annualTaxDataApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -50,13 +50,9 @@ export function useAnnualTaxData(year: number) {
     queryKey: ['annual-tax-data', user?.id, year],
     queryFn: async () => {
       if (!user) return null;
-      const { data, error } = await supabase
-        .from('annual_tax_data')
-        .select('*')
-        .eq('year', year)
-        .maybeSingle();
-      if (error) throw error;
-      return data as AnnualTaxData | null;
+      const response = await annualTaxDataApi.getAll();
+      const rows = response.data as AnnualTaxData[];
+      return rows.find((row) => row.year === year) || null;
     },
     enabled: !!user,
   });
@@ -64,14 +60,8 @@ export function useAnnualTaxData(year: number) {
   const upsertTaxData = useMutation({
     mutationFn: async (data: AnnualTaxDataUpsert) => {
       if (!user) throw new Error('Not authenticated');
-      
-      const { error } = await supabase
-        .from('annual_tax_data')
-        .upsert(
-          { ...data, user_id: user.id, updated_at: new Date().toISOString() },
-          { onConflict: 'user_id,year' }
-        );
-      if (error) throw error;
+
+      await annualTaxDataApi.save(data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['annual-tax-data'] });

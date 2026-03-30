@@ -169,26 +169,27 @@ docker-compose stop
 docker-compose down
 ```
 
-### Via Docker Hub images
+### Via GHCR images
 
 Gebruik dit als je niet op de server wilt builden.
 
 1. Build en push op je build-machine:
 
 ```bash
-docker login
+echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
 
-docker build -t <dockerhub-user>/easy-invoice-hub-app:latest .
-docker push <dockerhub-user>/easy-invoice-hub-app:latest
+docker build -t ghcr.io/<github-user>/easy-invoice-hub-app:latest .
+docker push ghcr.io/<github-user>/easy-invoice-hub-app:latest
 
-docker build -t <dockerhub-user>/easy-invoice-hub-server:latest ./server
-docker push <dockerhub-user>/easy-invoice-hub-server:latest
+docker build -t ghcr.io/<github-user>/easy-invoice-hub-server:latest ./server
+docker push ghcr.io/<github-user>/easy-invoice-hub-server:latest
 ```
 
 2. Zet op productie in `.env`:
 
 ```env
-DOCKERHUB_NAMESPACE=<dockerhub-user>
+APP_IMAGE=ghcr.io/<github-user>/easy-invoice-hub-app
+SERVER_IMAGE=ghcr.io/<github-user>/easy-invoice-hub-server
 IMAGE_TAG=latest
 PULL_POLICY=always
 ```

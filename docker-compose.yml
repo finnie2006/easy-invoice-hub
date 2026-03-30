@@ -21,7 +21,7 @@ services:
 
   # Node.js Backend
   server:
-    image: ${DOCKERHUB_NAMESPACE:-easyinvoicehub}/easy-invoice-hub-server:${IMAGE_TAG:-latest}
+    image: ${SERVER_IMAGE:-ghcr.io/finnie2006/easy-invoice-hub-server}:${IMAGE_TAG:-latest}
     pull_policy: ${PULL_POLICY:-missing}
     build:
       context: ./server
@@ -54,7 +54,7 @@ services:
 
   # Vite React Frontend
   app:
-    image: ${DOCKERHUB_NAMESPACE:-easyinvoicehub}/easy-invoice-hub-app:${IMAGE_TAG:-latest}
+    image: ${APP_IMAGE:-ghcr.io/finnie2006/easy-invoice-hub-app}:${IMAGE_TAG:-latest}
     pull_policy: ${PULL_POLICY:-missing}
     build:
       context: .

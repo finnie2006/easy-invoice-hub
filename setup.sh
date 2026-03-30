@@ -26,71 +26,53 @@ fi
 echo "✅ Docker is installed"
 echo ""
 
-# Create .env file for server if it doesn't exist
-if [ ! -f "server/.env" ]; then
-    echo "Creating server/.env file..."
-    
-    # Generate random secrets
+# Create root .env if it doesn't exist
+if [ ! -f ".env" ]; then
+    echo "Creating .env file..."
+    cp .env.example .env
+
+    # Generate random secrets for safer defaults
     DB_PASSWORD=$(openssl rand -base64 32 | head -c 32)
     JWT_SECRET=$(openssl rand -base64 32)
     JWT_REFRESH_SECRET=$(openssl rand -base64 32)
-    
-    cat > server/.env << EOF
-# Server Configuration
-PORT=3001
 
-# Database Configuration
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=invoice_hub
-DB_USER=invoice_hub
-DB_PASSWORD=$DB_PASSWORD
+    if sed --version >/dev/null 2>&1; then
+        sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$DB_PASSWORD/" .env
+        sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/" .env
+        sed -i "s/^JWT_REFRESH_SECRET=.*/JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET/" .env
+    else
+        # Fallback for systems without GNU sed
+        perl -0777 -i -pe "s/^DB_PASSWORD=.*/DB_PASSWORD=$DB_PASSWORD/m; s/^JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/m; s/^JWT_REFRESH_SECRET=.*/JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET/m" .env
+    fi
 
-# JWT Secrets (generated)
-JWT_SECRET=$JWT_SECRET
-JWT_REFRESH_SECRET=$JWT_REFRESH_SECRET
-EOF
-    
-    echo "✅ server/.env created with random secrets"
-else
-    echo "ℹ️  server/.env already exists"
-fi
-
-echo ""
-
-# Create frontend .env if it doesn't exist
-if [ ! -f ".env" ]; then
-    echo "Creating .env file for frontend..."
-    cat > .env << EOF
-VITE_API_URL=http://localhost:3001
-EOF
-    echo "✅ .env created"
+    echo "✅ .env created with random secrets"
 else
     echo "ℹ️  .env already exists"
 fi
 
 echo ""
 echo "Starting Docker containers..."
-docker-compose up -d
+docker compose pull
+docker compose up -d
 
 echo ""
 echo "Waiting for services to be ready..."
 sleep 5
 
 # Check if services are running
-if docker-compose ps | grep -q "postgres.*Up"; then
+if docker compose ps | grep -q "postgres.*Up"; then
     echo "✅ PostgreSQL is running"
 else
     echo "⚠️  PostgreSQL may not be fully started yet"
 fi
 
-if docker-compose ps | grep -q "server.*Up"; then
+if docker compose ps | grep -q "server.*Up"; then
     echo "✅ Backend server is running"
 else
     echo "⚠️  Backend server may not be fully started yet"
 fi
 
-if docker-compose ps | grep -q "app.*Up"; then
+if docker compose ps | grep -q "app.*Up"; then
     echo "✅ Frontend app is running"
 else
     echo "⚠️  Frontend app may not be fully started yet"
@@ -115,8 +97,8 @@ echo "For more information:"
 echo "  📖 See SELF_HOSTED_SETUP.md for detailed setup instructions"
 echo ""
 echo "To stop services:"
-echo "  docker-compose stop"
+echo "  docker compose stop"
 echo ""
 echo "To view logs:"
-echo "  docker-compose logs -f"
+echo "  docker compose logs -f"
 echo ""

@@ -9,9 +9,10 @@ Production-ready invoicing app with:
 ## Quick Start
 
 ```bash
-cp server/.env.example .env
+cp .env.example .env
 # Edit secrets in .env first
-sudo docker compose up -d --build
+sudo docker compose pull
+sudo docker compose up -d
 ```
 
 Open:
@@ -46,8 +47,9 @@ ALLOWED_ORIGINS=https://your-domain.tld
 Optional:
 
 ```env
+APP_IMAGE=ghcr.io/finnie2006/easy-invoice-hub-app
+SERVER_IMAGE=ghcr.io/finnie2006/easy-invoice-hub-server
 IMAGE_TAG=latest
-DOCKERHUB_NAMESPACE=yourdockerhubuser
 PULL_POLICY=always
 BODY_LIMIT=1mb
 UPLOAD_MAX_MB=10
@@ -55,34 +57,46 @@ AUTH_WINDOW_MS=900000
 AUTH_MAX_REQUESTS=30
 ```
 
-## Build and Push to Docker Hub
+## Automatic GHCR Publishing (recommended)
 
-Login once:
+This repository includes a GitHub Actions workflow at `.github/workflows/publish-ghcr.yml`.
+
+On each push to `main`, it builds and publishes:
+- `ghcr.io/<repo-owner>/easy-invoice-hub-app:latest`
+- `ghcr.io/<repo-owner>/easy-invoice-hub-server:latest`
+
+It uses `GITHUB_TOKEN` with package write permissions, so no extra secret is needed for same-repo publishing.
+
+## Build and Push to GHCR (manual)
+
+Login once (token needs `write:packages`):
 
 ```bash
-docker login
+echo "$GHCR_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ```
 
 Build and push app image:
 
 ```bash
-docker build -t yourdockerhubuser/easy-invoice-hub-app:latest .
-docker push yourdockerhubuser/easy-invoice-hub-app:latest
+docker build -t ghcr.io/YOUR_GITHUB_USERNAME/easy-invoice-hub-app:latest .
+docker push ghcr.io/YOUR_GITHUB_USERNAME/easy-invoice-hub-app:latest
 ```
 
 Build and push server image:
 
 ```bash
-docker build -t yourdockerhubuser/easy-invoice-hub-server:latest ./server
-docker push yourdockerhubuser/easy-invoice-hub-server:latest
+docker build -t ghcr.io/YOUR_GITHUB_USERNAME/easy-invoice-hub-server:latest ./server
+docker push ghcr.io/YOUR_GITHUB_USERNAME/easy-invoice-hub-server:latest
 ```
 
-## Deploy from Docker Hub
+
+## Deploy from GHCR
 
 Set in `.env` on your server:
 
 ```env
-DOCKERHUB_NAMESPACE=yourdockerhubuser
+APP_IMAGE=ghcr.io/finnie2006/easy-invoice-hub-app
+SERVER_IMAGE=ghcr.io/finnie2006/easy-invoice-hub-server
 IMAGE_TAG=latest
 PULL_POLICY=always
 ```

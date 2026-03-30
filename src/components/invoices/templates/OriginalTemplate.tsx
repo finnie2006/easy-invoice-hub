@@ -24,14 +24,14 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
   return (
     <div className="bg-white text-gray-900 p-12 min-h-[1123px] text-sm" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <div className="mb-10 pb-6" style={{ borderBottom: `2px solid ${theme.primary}` }}>
+      <div data-pdf-section className="mb-10 pb-6" style={{ borderBottom: `2px solid ${theme.primary}` }}>
         <h2 className="text-3xl font-semibold tracking-tight" style={{ color: theme.primary }}>{profile?.company_name || 'Uw Bedrijf'}</h2>
         <p className="text-xs mt-3 tracking-wide uppercase" style={{ color: theme.accent }}>
           {profile?.company_address} · {profile?.company_postal_code} {profile?.company_city}
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-12 mb-10">
+      <div data-pdf-section className="grid grid-cols-2 gap-12 mb-10">
         <div>
           <p className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.accent }}>Factuur aan</p>
           <p className="font-semibold text-lg" style={{ color: theme.primary }}>{invoice.client_company_name}</p>
@@ -51,44 +51,46 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      <div className="mb-8">
+      <div data-pdf-section className="mb-8">
         <p className="text-sm text-gray-500">Betreft de volgende geleverde diensten / werkzaamheden</p>
       </div>
 
-      <table className="w-full mb-8 text-sm">
-        <thead>
-          <tr style={{ borderBottom: `2px solid ${theme.border}` }}>
-            <th className="text-left py-3 font-medium text-xs uppercase tracking-wide w-12" style={{ color: theme.accent }}>Nr</th>
-            <th className="text-left py-3 font-medium text-xs uppercase tracking-wide" style={{ color: theme.accent }}>Omschrijving</th>
-            <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-20" style={{ color: theme.accent }}>Aantal</th>
-            <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-24" style={{ color: theme.accent }}>Prijs</th>
-            {hasItemDiscounts && <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-20" style={{ color: theme.accent }}>Korting</th>}
-            <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-16" style={{ color: theme.accent }}>BTW</th>
-            <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-28" style={{ color: theme.accent }}>Bedrag</th>
-          </tr>
-        </thead>
-        <tbody>
-          {invoice.items?.map((item, index) => (
-            <tr key={item.id} className="border-b border-gray-100">
-              <td className="py-4 text-gray-400">{index + 1}</td>
-              <td className="py-4 text-gray-800">{item.description}</td>
-              <td className="text-right py-4 text-gray-600">{item.quantity} {item.unit || ''}</td>
-              <td className="text-right py-4 text-gray-600">{formatCurrency(item.unit_price)}</td>
-              {hasItemDiscounts && (
-                <td className="text-right py-4 text-gray-600">
-                  {item.discount_type && item.discount_value > 0 
-                    ? item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)
-                    : '—'}
-                </td>
-              )}
-              <td className="text-right py-4 text-gray-600">{item.btw_percentage}%</td>
-              <td className="text-right py-4 font-medium" style={{ color: theme.primary }}>{formatCurrency(Number(item.total))}</td>
+      <div data-pdf-section>
+        <table className="w-full mb-8 text-sm">
+          <thead>
+            <tr style={{ borderBottom: `2px solid ${theme.border}` }}>
+              <th className="text-left py-3 font-medium text-xs uppercase tracking-wide w-12" style={{ color: theme.accent }}>Nr</th>
+              <th className="text-left py-3 font-medium text-xs uppercase tracking-wide" style={{ color: theme.accent }}>Omschrijving</th>
+              <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-20" style={{ color: theme.accent }}>Aantal</th>
+              <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-24" style={{ color: theme.accent }}>Prijs</th>
+              {hasItemDiscounts && <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-20" style={{ color: theme.accent }}>Korting</th>}
+              <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-16" style={{ color: theme.accent }}>BTW</th>
+              <th className="text-right py-3 font-medium text-xs uppercase tracking-wide w-28" style={{ color: theme.accent }}>Bedrag</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {invoice.items?.map((item, index) => (
+              <tr key={item.id} className="border-b border-gray-100">
+                <td className="py-4 text-gray-400">{index + 1}</td>
+                <td className="py-4 text-gray-800">{item.description}</td>
+                <td className="text-right py-4 text-gray-600">{item.quantity} {item.unit || ''}</td>
+                <td className="text-right py-4 text-gray-600">{formatCurrency(item.unit_price)}</td>
+                {hasItemDiscounts && (
+                  <td className="text-right py-4 text-gray-600">
+                    {item.discount_type && item.discount_value > 0 
+                      ? item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)
+                      : '—'}
+                  </td>
+                )}
+                <td className="text-right py-4 text-gray-600">{item.btw_percentage}%</td>
+                <td className="text-right py-4 font-medium" style={{ color: theme.primary }}>{formatCurrency(Number(item.total))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-      <div className="flex justify-end mb-10">
+      <div data-pdf-section className="flex justify-end mb-10">
         <div className="w-72">
           <div className="flex justify-between py-2 text-gray-600 border-b border-gray-100">
             <span>Subtotaal</span>
@@ -111,7 +113,7 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      <div className="p-6 mb-8 rounded-lg" style={{ backgroundColor: theme.light, border: `1px solid ${theme.border}` }}>
+      <div data-pdf-section className="p-6 mb-8 rounded-lg" style={{ backgroundColor: theme.light, border: `1px solid ${theme.border}` }}>
         <p className="text-xs uppercase tracking-wide mb-3" style={{ color: theme.accent }}>Betalingsgegevens</p>
         <div className="grid grid-cols-2 gap-6 text-sm">
           <div>
@@ -126,13 +128,13 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {invoice.notes && (
-        <div className="mb-8">
+        <div data-pdf-section className="mb-8">
           <p className="text-xs uppercase tracking-wide mb-3" style={{ color: theme.accent }}>{invoice.notes_title || 'Opmerkingen'}</p>
           <div className="pl-4 text-sm text-gray-600 whitespace-pre-wrap" style={{ borderLeft: `2px solid ${theme.border}` }} dangerouslySetInnerHTML={{ __html: invoice.notes }} />
         </div>
       )}
 
-      <div className="mt-auto pt-8 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
+      <div data-pdf-section className="mt-auto pt-8 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
         <div className="tracking-wide">{profile?.company_name}</div>
         <div className="text-right space-x-4">
           {profile?.kvk_number && <span>KVK {profile.kvk_number}</span>}

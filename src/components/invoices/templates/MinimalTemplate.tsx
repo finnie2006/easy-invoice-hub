@@ -11,7 +11,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
   return (
     <div className="bg-white text-black p-12 min-h-[1123px] text-sm" style={{ fontFamily: 'Georgia, serif' }}>
-      <div className="flex justify-between items-start mb-16">
+      <div data-pdf-section className="flex justify-between items-start mb-16">
         <div>
           <h1 className="text-xl font-normal tracking-wide">{profile?.company_name || 'Uw Bedrijf'}</h1>
         </div>
@@ -20,7 +20,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-16 mb-16">
+      <div data-pdf-section className="grid grid-cols-2 gap-16 mb-16">
         <div>
           <p className="text-gray-400 text-xs uppercase tracking-widest mb-4">Aan</p>
           <p className="font-medium">{invoice.client_company_name}</p>
@@ -36,7 +36,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      <div className="mb-16">
+      <div data-pdf-section className="mb-16">
         <div className="border-b border-gray-200 pb-2 mb-4 flex text-xs text-gray-400 uppercase tracking-widest">
           <div className="flex-1">Omschrijving</div>
           <div className="w-24 text-right">Bedrag</div>
@@ -58,7 +58,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         ))}
       </div>
 
-      <div className="flex justify-end mb-16">
+      <div data-pdf-section className="flex justify-end mb-16">
         <div className="w-64">
           <div className="flex justify-between py-2 text-gray-500">
             <span>Subtotaal</span>
@@ -81,7 +81,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      <div className="mb-8">
+      <div data-pdf-section className="mb-8">
         <p className="text-gray-400 text-xs uppercase tracking-widest mb-4">Betaling</p>
         <p className="text-gray-600">
           Graag het totaalbedrag overmaken voor {format(new Date(invoice.due_date), 'd MMMM yyyy', { locale: nl })} naar:
@@ -93,12 +93,12 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {invoice.notes && (
-        <div className="mb-8 text-gray-600">
+        <div data-pdf-section className="mb-8 text-gray-600">
           <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
         </div>
       )}
 
-      <div className="absolute bottom-12 left-12 right-12 text-xs text-gray-400 flex justify-between">
+      <div data-pdf-section className="pt-4 text-xs text-gray-400 flex justify-between">
         <div>{profile?.company_address} · {profile?.company_postal_code} {profile?.company_city}</div>
         <div>
           {profile?.kvk_number && <span>KVK {profile.kvk_number}</span>}

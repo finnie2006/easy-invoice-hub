@@ -11,9 +11,9 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
 
   return (
-    <div className="bg-white text-black min-h-[1123px] relative" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
+    <div className="bg-white text-black min-h-[1123px]" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
       {/* Header with accent sidebar */}
-      <div className="flex">
+      <div data-pdf-section className="flex">
         <div className="w-2 bg-emerald-500"></div>
         <div className="flex-1 p-10 pb-6">
           <div className="flex justify-between items-start">
@@ -37,7 +37,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
       {/* Content */}
       <div className="px-10 pb-16">
         {/* Two Column Info */}
-        <div className="flex justify-between mb-10 pb-6 border-b border-gray-200">
+        <div data-pdf-section className="flex justify-between mb-10 pb-6 border-b border-gray-200">
           <div>
             <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-2">Factuur aan</p>
             <p className="font-semibold text-lg text-gray-900">{invoice.client_company_name}</p>
@@ -59,7 +59,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
 
         {/* Invoice Items */}
-        <div className="mb-8">
+        <div data-pdf-section className="mb-8">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b-2 border-gray-200">
@@ -93,7 +93,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
 
         {/* Totals */}
-        <div className="flex justify-end mb-10">
+        <div data-pdf-section className="flex justify-end mb-10">
           <div className="w-72">
             <div className="flex justify-between py-2 text-gray-600">
               <span>Subtotaal</span>
@@ -117,7 +117,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
 
         {/* Payment Info */}
-        <div className="bg-gray-50 border-l-4 border-emerald-500 p-6 mb-6">
+        <div data-pdf-section className="bg-gray-50 border-l-4 border-emerald-500 p-6 mb-6">
           <div className="flex justify-between items-start">
             <div>
               <p className="font-semibold text-gray-900 mb-2">Betalingsinformatie</p>
@@ -136,7 +136,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
         {/* Notes */}
         {invoice.notes && (
-          <div className="mb-6 text-sm">
+          <div data-pdf-section className="mb-6 text-sm">
             <p className="font-semibold text-gray-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
             <div className="text-gray-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
           </div>
@@ -144,7 +144,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {/* Footer */}
-      <div className="absolute bottom-8 left-10 right-10 pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
+      <div data-pdf-section className="px-10 pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
         <div>{profile?.company_name}</div>
         <div className="space-x-4">
           {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}

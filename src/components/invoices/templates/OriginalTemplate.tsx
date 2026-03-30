@@ -134,7 +134,7 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       )}
 
-      <div data-pdf-section className="mt-auto pt-8 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
+      <div data-pdf-section data-pdf-stick-bottom className="mt-auto pt-8 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
         <div className="tracking-wide">{profile?.company_name}</div>
         <div className="text-right space-x-4">
           {profile?.kvk_number && <span>KVK {profile.kvk_number}</span>}

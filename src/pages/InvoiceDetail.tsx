@@ -123,6 +123,7 @@ export default function InvoiceDetail() {
 
       for (const section of sections) {
         const startOnPage = Number(section.getAttribute('data-pdf-start-page') || 0);
+        const stickToBottom = section.hasAttribute('data-pdf-stick-bottom');
 
         if (startOnPage > 0) {
           while (currentPage < startOnPage) {
@@ -155,9 +156,14 @@ export default function InvoiceDetail() {
           currentY = MARGIN_MM;
         }
 
+        // Footer-like sections should sit at the page bottom to match preview layout.
+        const drawY = stickToBottom
+          ? Math.max(currentY, A4_HEIGHT_MM - MARGIN_MM - heightMM)
+          : currentY;
+
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        pdf.addImage(imgData, 'JPEG', MARGIN_MM, currentY, CONTENT_WIDTH_MM, heightMM);
-        currentY += heightMM + SECTION_GAP_MM;
+        pdf.addImage(imgData, 'JPEG', MARGIN_MM, drawY, CONTENT_WIDTH_MM, heightMM);
+        currentY = drawY + heightMM + SECTION_GAP_MM;
       }
 
       // Remove clone

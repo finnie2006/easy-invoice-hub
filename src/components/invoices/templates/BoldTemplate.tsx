@@ -137,7 +137,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </div>
         )}
 
-        <div data-pdf-section className="mt-auto pt-6 border-t border-slate-200 text-xs text-slate-400 flex justify-between">
+        <div data-pdf-section data-pdf-stick-bottom className="mt-auto pt-6 border-t border-slate-200 text-xs text-slate-400 flex justify-between">
           <div>{profile?.company_name}</div>
           <div className="space-x-4">
             {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}

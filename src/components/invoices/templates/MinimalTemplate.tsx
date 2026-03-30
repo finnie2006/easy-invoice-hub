@@ -98,7 +98,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       )}
 
-      <div data-pdf-section className="mt-auto pt-4 text-xs text-gray-400 flex justify-between">
+      <div data-pdf-section data-pdf-stick-bottom className="mt-auto pt-4 text-xs text-gray-400 flex justify-between">
         <div>{profile?.company_address} · {profile?.company_postal_code} {profile?.company_city}</div>
         <div>
           {profile?.kvk_number && <span>KVK {profile.kvk_number}</span>}

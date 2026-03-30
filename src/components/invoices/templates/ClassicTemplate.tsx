@@ -119,7 +119,7 @@ export function ClassicTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       )}
 
-      <div data-pdf-section className="mt-auto pt-4 border-t border-gray-300 text-xs text-gray-500 flex justify-between">
+      <div data-pdf-section data-pdf-stick-bottom className="mt-auto pt-4 border-t border-gray-300 text-xs text-gray-500 flex justify-between">
         <div>
           {profile?.company_name && <span>{profile.company_name}</span>}
           {profile?.iban && <span className="ml-4">IBAN: {profile.iban}</span>}

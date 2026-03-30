@@ -12,7 +12,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
   return (
     <div className="bg-white text-black min-h-[1123px]" style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif' }}>
-      <div className="bg-slate-900 text-white p-10">
+      <div data-pdf-section className="bg-slate-900 text-white p-10">
         <div className="flex justify-between items-end">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{profile?.company_name || 'Uw Bedrijf'}</h1>
@@ -26,7 +26,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      <div className="bg-amber-500 px-10 py-4 flex justify-between items-center">
+      <div data-pdf-section className="bg-amber-500 px-10 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <span className="text-white font-bold text-sm tracking-wide">FACTUUR</span>
           <span className="bg-white/20 text-white px-3 py-1 rounded text-sm font-mono">{invoice.invoice_number}</span>
@@ -38,7 +38,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       <div className="p-10">
-        <div className="grid grid-cols-2 gap-8 mb-10">
+        <div data-pdf-section className="grid grid-cols-2 gap-8 mb-10">
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Gefactureerd aan</p>
             <p className="font-bold text-xl text-slate-900">{invoice.client_company_name}</p>
@@ -57,7 +57,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </div>
         </div>
 
-        <div className="mb-10">
+        <div data-pdf-section className="mb-10">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b-2 border-slate-900">
@@ -90,7 +90,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </table>
         </div>
 
-        <div className="flex justify-end mb-10">
+        <div data-pdf-section className="flex justify-end mb-10">
           <div className="w-80">
             <div className="flex justify-between py-2 text-slate-600">
               <span>Subtotaal</span>
@@ -113,7 +113,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </div>
         </div>
 
-        <div className="border-2 border-slate-200 p-6 mb-6">
+        <div data-pdf-section className="border-2 border-slate-200 p-6 mb-6">
           <p className="font-bold text-slate-900 mb-3 flex items-center gap-2">
             <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
             Betalingsinformatie
@@ -131,13 +131,13 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
 
         {invoice.notes && (
-          <div className="text-sm mb-6">
+          <div data-pdf-section className="text-sm mb-6">
             <p className="font-bold text-slate-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
             <div className="text-slate-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
           </div>
         )}
 
-        <div className="pt-6 border-t border-slate-200 text-xs text-slate-400 flex justify-between">
+        <div data-pdf-section className="pt-6 border-t border-slate-200 text-xs text-slate-400 flex justify-between">
           <div>{profile?.company_name}</div>
           <div className="space-x-4">
             {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}

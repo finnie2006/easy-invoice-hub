@@ -25,6 +25,7 @@ import { invoices as invoicesApi } from '@/api/client';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import type { AxiosError } from 'axios';
 import {
   OriginalTemplate,
   ClassicTemplate,
@@ -62,6 +63,19 @@ export default function InvoiceDetail() {
   useEffect(() => {
     localStorage.setItem('invoice-design', selectedDesign);
   }, [selectedDesign]);
+
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+
+    const axiosError = error as AxiosError<{ error?: string }>;
+    if (axiosError?.response?.data?.error) {
+      return axiosError.response.data.error;
+    }
+
+    return fallback;
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
@@ -203,11 +217,11 @@ export default function InvoiceDetail() {
       if (invoice?.status === 'draft') {
         updateInvoiceStatus({ id: invoice.id, status: 'sent' });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error sending email:', error);
       toast({
         title: 'Fout bij verzenden',
-        description: error?.response?.data?.error || error.message || 'Er is een fout opgetreden bij het verzenden van de e-mail',
+        description: getErrorMessage(error, 'Er is een fout opgetreden bij het verzenden van de e-mail'),
         variant: 'destructive',
       });
     } finally {
@@ -253,10 +267,10 @@ export default function InvoiceDetail() {
       });
 
       navigate(`/invoices/${newInvoice.id}/edit`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Fout bij dupliceren',
-        description: error.message,
+        description: getErrorMessage(error, 'Er is een fout opgetreden bij dupliceren'),
         variant: 'destructive',
       });
     }
@@ -527,9 +541,13 @@ export default function InvoiceDetail() {
       {/* Invoice Preview - only show for non-external invoices */}
       {!invoice.attachment_url && (
         <Card className="print:shadow-none print:border-none overflow-hidden">
-          <CardContent className="p-0">
-            <div ref={invoiceRef}>
-              {renderTemplate()}
+          <CardContent className="p-0 bg-slate-100/70">
+            <div className="p-3 md:p-6 lg:p-8 overflow-x-auto">
+              <div className="mx-auto w-[794px] max-w-full shadow-sm ring-1 ring-slate-200">
+                <div ref={invoiceRef}>
+                  {renderTemplate()}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

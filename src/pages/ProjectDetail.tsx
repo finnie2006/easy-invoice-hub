@@ -96,7 +96,7 @@ export default function ProjectDetail() {
     const [startH, startM] = start.split(':').map(Number);
     const [endH, endM] = end.split(':').map(Number);
     
-    let startMinutes = startH * 60 + startM;
+    const startMinutes = startH * 60 + startM;
     let endMinutes = endH * 60 + endM;
     
     if (overnight || endMinutes < startMinutes) {

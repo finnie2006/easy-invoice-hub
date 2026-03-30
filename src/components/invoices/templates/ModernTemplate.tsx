@@ -9,25 +9,27 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
   const hasItemDiscounts = invoice.items?.some(item => item.discount_type && item.discount_value > 0);
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
+  const companyAddressLine = [profile?.company_postal_code, profile?.company_city].filter(Boolean).join(' ');
+  const clientAddressLine = [invoice.client_postal_code, invoice.client_city].filter(Boolean).join(' ');
 
   return (
-    <div className="bg-white text-black min-h-[1123px]" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
+    <div className="bg-white text-black min-h-[1123px] text-[13px] leading-relaxed" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
       {/* Header with accent sidebar */}
       <div data-pdf-section className="flex">
         <div className="w-2 bg-emerald-500"></div>
-        <div className="flex-1 p-10 pb-6">
+        <div className="flex-1 px-10 pt-10 pb-7">
           <div className="flex justify-between items-start">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
                 {profile?.company_name || 'Uw Bedrijf'}
               </h1>
               <p className="text-gray-500 mt-1 text-sm">
-                {profile?.company_address}<br />
-                {profile?.company_postal_code} {profile?.company_city}
+                {profile?.company_address ? <>{profile.company_address}<br /></> : null}
+                {companyAddressLine}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-3xl font-light text-gray-300">FACTUUR</p>
+              <p className="text-3xl font-light tracking-wide text-gray-300">FACTUUR</p>
               <p className="text-lg font-semibold text-gray-900 mt-1">#{invoice.invoice_number}</p>
             </div>
           </div>
@@ -35,14 +37,16 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {/* Content */}
-      <div className="px-10 pb-16">
+      <div className="px-10 pb-10">
         {/* Two Column Info */}
-        <div data-pdf-section className="flex justify-between mb-10 pb-6 border-b border-gray-200">
+        <div data-pdf-section className="grid grid-cols-2 gap-6 mb-8 pb-6 border-b border-gray-200">
           <div>
             <p className="text-xs text-emerald-600 font-semibold uppercase tracking-wider mb-2">Factuur aan</p>
-            <p className="font-semibold text-lg text-gray-900">{invoice.client_company_name}</p>
+            <p className="font-semibold text-lg text-gray-900">{invoice.client_company_name || '-'}</p>
+            {invoice.client_contact_name && <p className="text-gray-700 text-sm">{invoice.client_contact_name}</p>}
             {invoice.client_address && <p className="text-gray-600 text-sm">{invoice.client_address}</p>}
-            <p className="text-gray-600 text-sm">{invoice.client_postal_code} {invoice.client_city}</p>
+            {clientAddressLine && <p className="text-gray-600 text-sm">{clientAddressLine}</p>}
+            {invoice.client_country && <p className="text-gray-600 text-sm">{invoice.client_country}</p>}
           </div>
           <div className="text-right">
             <div className="space-y-3">
@@ -54,13 +58,17 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
                 <p className="text-xs text-gray-400 uppercase tracking-wider">Vervaldatum</p>
                 <p className="font-semibold text-gray-900">{format(new Date(invoice.due_date), 'd MMM yyyy', { locale: nl })}</p>
               </div>
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wider">Factuurnummer</p>
+                <p className="font-semibold text-gray-900">{invoice.invoice_number}</p>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Invoice Items */}
-        <div data-pdf-section className="mb-8">
-          <table className="w-full text-sm">
+        <div data-pdf-section className="mb-6">
+          <table className="w-full text-sm table-fixed">
             <thead>
               <tr className="border-b-2 border-gray-200">
                 <th className="text-left py-3 font-semibold text-gray-500 uppercase text-xs">Omschrijving</th>
@@ -72,9 +80,9 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
               </tr>
             </thead>
             <tbody>
-              {invoice.items?.map((item) => (
-                <tr key={item.id} className="border-b border-gray-100">
-                  <td className="py-4 text-gray-800">{item.description}</td>
+              {invoice.items?.map((item, index) => (
+                <tr key={item.id} className={`border-b border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
+                  <td className="py-4 pr-4 text-gray-800 break-words">{item.description}</td>
                   <td className="text-right py-4 text-gray-600">{item.quantity} {item.unit || ''}</td>
                   <td className="text-right py-4 text-gray-600">{formatCurrency(item.unit_price)}</td>
                   {hasItemDiscounts && (
@@ -93,7 +101,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
 
         {/* Totals */}
-        <div data-pdf-section className="flex justify-end mb-10">
+        <div data-pdf-section className="flex justify-end mb-8">
           <div className="w-72">
             <div className="flex justify-between py-2 text-gray-600">
               <span>Subtotaal</span>
@@ -117,7 +125,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
 
         {/* Payment Info */}
-        <div data-pdf-section className="bg-gray-50 border-l-4 border-emerald-500 p-6 mb-6">
+        <div data-pdf-section className="bg-gray-50 border border-emerald-100 border-l-4 border-l-emerald-500 p-6 mb-6 rounded-r-md">
           <div className="flex justify-between items-start">
             <div>
               <p className="font-semibold text-gray-900 mb-2">Betalingsinformatie</p>
@@ -144,7 +152,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {/* Footer */}
-      <div data-pdf-section className="px-10 pt-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
+      <div data-pdf-section className="px-10 py-6 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
         <div>{profile?.company_name}</div>
         <div className="space-x-4">
           {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}

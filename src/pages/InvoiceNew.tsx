@@ -107,7 +107,7 @@ export default function InvoiceNew() {
     setClientData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleItemChange = (id: string, field: keyof InvoiceItemForm, value: any) => {
+  const handleItemChange = (id: string, field: keyof InvoiceItemForm, value: InvoiceItemForm[keyof InvoiceItemForm]) => {
     setItems(prev => prev.map(item => 
       item.id === id ? { ...item, [field]: value } : item
     ));

@@ -1389,10 +1389,11 @@ app.post('/api/files/upload', authenticateToken, uploadWithLimits.single('file')
     return res.status(400).json({ error: 'Invalid bucket' });
   }
 
-  const url = `${PUBLIC_URL}/uploads/${bucket}/${req.file.filename}`;
+  const relativeUrl = `/uploads/${bucket}/${req.file.filename}`;
   return res.status(201).json({
-    url,
-    path: `/uploads/${bucket}/${req.file.filename}`,
+    url: relativeUrl,
+    absoluteUrl: `${PUBLIC_URL}${relativeUrl}`,
+    path: relativeUrl,
     filename: req.file.filename,
     bucket,
   });

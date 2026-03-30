@@ -132,7 +132,7 @@ export function useInvoices() {
       return { ...item, subtotal, btw_amount, total, sort_order: index };
     });
 
-    let subtotal = calculatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const subtotal = calculatedItems.reduce((sum, item) => sum + item.subtotal, 0);
     let total_btw = calculatedItems.reduce((sum, item) => sum + item.btw_amount, 0);
 
     // Apply invoice-level discount

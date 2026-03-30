@@ -84,27 +84,42 @@ export async function isAuthentikConfigured(pool, fallbackRedirectUri = '') {
  * Cached for 1 hour
  */
 async function getOIDCConfig(serverUrl) {
-  const baseUrl = (serverUrl || '').replace(/\/$/, '');
-  const oidcConfigUrl = `${baseUrl}/.well-known/openid-configuration`;
+  const normalizedInput = (serverUrl || '').trim();
+  const baseUrl = normalizedInput.replace(/\/$/, '');
+  const looksLikeWellKnownUrl = /\/\.well-known\/openid-configuration\/?$/i.test(baseUrl);
+  const oidcConfigUrls = looksLikeWellKnownUrl
+    ? [baseUrl]
+    : [`${baseUrl}/.well-known/openid-configuration`];
   const now = Date.now();
-  const cached = oidcCache.get(baseUrl);
+  const cacheKey = oidcConfigUrls[0] || baseUrl;
+  const cached = oidcCache.get(cacheKey);
   if (cached && now - cached.cachedAt < OIDC_CACHE_MS) {
     return cached.config;
   }
 
-  try {
-    const response = await fetch(oidcConfigUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch OIDC config: ${response.statusText}`);
-    }
+  let lastError = null;
 
-    const config = await response.json();
-    oidcCache.set(baseUrl, { config, cachedAt: now });
-    return config;
-  } catch (err) {
-    console.error('Error fetching OIDC config:', err);
-    throw err;
+  for (const oidcConfigUrl of oidcConfigUrls) {
+    try {
+      const response = await fetch(oidcConfigUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch OIDC config from ${oidcConfigUrl}: ${response.status} ${response.statusText}`);
+      }
+
+      const config = await response.json();
+      oidcCache.set(cacheKey, { config, cachedAt: now });
+      return config;
+    } catch (err) {
+      lastError = err;
+    }
   }
+
+  const guidance = 'Use the Authentik issuer URL (for example https://auth.example.com/application/o/<provider>/) or the full .well-known/openid-configuration URL.';
+  const message = `Error fetching OIDC config for "${serverUrl}": ${lastError?.message || 'Unknown error'}. ${guidance}`;
+  const wrappedError = new Error(message);
+  wrappedError.cause = lastError;
+  console.error(message);
+  throw wrappedError;
 }
 
 /**

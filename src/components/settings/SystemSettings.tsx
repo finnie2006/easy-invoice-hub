@@ -167,7 +167,7 @@ export default function SystemSettings() {
                 name="authentik_url"
                 value={config.authentik_url}
                 onChange={handleChange}
-                placeholder="https://auth.yourdomain.com"
+                placeholder="https://auth.yourdomain.com/application/o/your-provider/"
               />
             </div>
 

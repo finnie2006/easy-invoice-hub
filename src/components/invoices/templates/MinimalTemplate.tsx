@@ -10,7 +10,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
 
   return (
-    <div className="bg-white text-black p-12 min-h-[1123px] text-sm" style={{ fontFamily: 'Georgia, serif' }}>
+    <div className="bg-white text-black p-12 min-h-[1123px] flex flex-col text-sm" style={{ fontFamily: 'Georgia, serif' }}>
       <div data-pdf-section className="flex justify-between items-start mb-16">
         <div>
           <h1 className="text-xl font-normal tracking-wide">{profile?.company_name || 'Uw Bedrijf'}</h1>
@@ -98,7 +98,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       )}
 
-      <div data-pdf-section className="pt-4 text-xs text-gray-400 flex justify-between">
+      <div data-pdf-section className="mt-auto pt-4 text-xs text-gray-400 flex justify-between">
         <div>{profile?.company_address} · {profile?.company_postal_code} {profile?.company_city}</div>
         <div>
           {profile?.kvk_number && <span>KVK {profile.kvk_number}</span>}

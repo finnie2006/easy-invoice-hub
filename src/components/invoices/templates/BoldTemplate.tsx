@@ -11,7 +11,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
 
   return (
-    <div className="bg-white text-black min-h-[1123px]" style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif' }}>
+    <div className="bg-white text-black min-h-[1123px] flex flex-col" style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif' }}>
       <div data-pdf-section className="bg-slate-900 text-white p-10">
         <div className="flex justify-between items-end">
           <div>
@@ -37,7 +37,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      <div className="p-10">
+      <div className="p-10 flex-1 flex flex-col">
         <div data-pdf-section className="grid grid-cols-2 gap-8 mb-10">
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Gefactureerd aan</p>
@@ -137,7 +137,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </div>
         )}
 
-        <div data-pdf-section className="pt-6 border-t border-slate-200 text-xs text-slate-400 flex justify-between">
+        <div data-pdf-section className="mt-auto pt-6 border-t border-slate-200 text-xs text-slate-400 flex justify-between">
           <div>{profile?.company_name}</div>
           <div className="space-x-4">
             {profile?.kvk_number && <span>KVK: {profile.kvk_number}</span>}

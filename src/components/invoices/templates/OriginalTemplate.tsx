@@ -23,7 +23,7 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
 
   return (
-    <div className="bg-white text-gray-900 p-12 min-h-[1123px] text-sm" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div className="bg-white text-gray-900 p-12 min-h-[1123px] flex flex-col text-sm" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <div data-pdf-section className="mb-10 pb-6" style={{ borderBottom: `2px solid ${theme.primary}` }}>
         <h2 className="text-3xl font-semibold tracking-tight" style={{ color: theme.primary }}>{profile?.company_name || 'Uw Bedrijf'}</h2>
         <p className="text-xs mt-3 tracking-wide uppercase" style={{ color: theme.accent }}>

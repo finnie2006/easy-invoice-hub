@@ -11,7 +11,7 @@ export function ClassicTemplate({ invoice, profile }: InvoiceTemplateProps) {
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
 
   return (
-    <div className="bg-white text-black p-10 min-h-[1123px] text-sm" style={{ fontFamily: 'Arial, sans-serif' }}>
+    <div className="bg-white text-black p-10 min-h-[1123px] flex flex-col text-sm" style={{ fontFamily: 'Arial, sans-serif' }}>
       {/* Company Header */}
       <div data-pdf-section className="mb-8 border-b-2 border-gray-800 pb-4">
         <h1 className="text-2xl font-bold text-gray-800">{profile?.company_name || 'Uw Bedrijf'}</h1>
@@ -119,7 +119,7 @@ export function ClassicTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       )}
 
-      <div data-pdf-section className="pt-4 border-t border-gray-300 text-xs text-gray-500 flex justify-between">
+      <div data-pdf-section className="mt-auto pt-4 border-t border-gray-300 text-xs text-gray-500 flex justify-between">
         <div>
           {profile?.company_name && <span>{profile.company_name}</span>}
           {profile?.iban && <span className="ml-4">IBAN: {profile.iban}</span>}

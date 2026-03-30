@@ -7,13 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { Briefcase, Loader2, Shield } from 'lucide-react';
+import { Briefcase, Loader2 } from 'lucide-react';
+import { AuthentikLoginButton } from './AuthentikLoginButton';
 
 export function AuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [authentikLoading, setAuthentikLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
 
@@ -52,16 +52,6 @@ export function AuthPage() {
     }
   };
 
-  const handleAuthentikLogin = async () => {
-    setAuthentikLoading(true);
-    toast({
-      title: 'Authentik niet geconfigureerd',
-      description: 'Authentik OAuth is nog niet ingesteld op deze self-hosted installatie.',
-      variant: 'destructive',
-    });
-    setAuthentikLoading(false);
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
@@ -80,20 +70,8 @@ export function AuthPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Authentik SSO Button */}
-            <Button 
-              variant="outline" 
-              className="w-full" 
-              onClick={handleAuthentikLogin}
-              disabled={authentikLoading}
-            >
-              {authentikLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Shield className="mr-2 h-4 w-4" />
-              )}
-              Inloggen met Authentik
-            </Button>
+            {/* Authentik OAuth Button */}
+            <AuthentikLoginButton />
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">

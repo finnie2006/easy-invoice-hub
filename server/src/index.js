@@ -11,6 +11,9 @@ import multer from 'multer';
 import nodemailer from 'nodemailer';
 import pool from './db.js';
 import { authenticateToken, createTokens, verifyAccessToken, verifyRefreshToken } from './auth.js';
+import { setupMFARoutes } from './mfa-routes.js';
+import { setupOAuthRoutes } from './oauth-routes.js';
+import { isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback } from './oauth.js';
 
 dotenv.config();
 
@@ -1447,6 +1450,12 @@ app.use((err, req, res, next) => {
   console.error('Unhandled API error:', err);
   return res.status(500).json({ error: 'Internal server error' });
 });
+
+// ============================================
+// Setup MFA and OAuth Routes
+// ============================================
+setupMFARoutes(app, pool, authenticateToken);
+setupOAuthRoutes(app, pool, isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback, createTokens);
 
 // ============================================
 // Start server

@@ -136,7 +136,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
         {/* Notes */}
         {invoice.notes && (
-          <div data-pdf-section className="mb-6 text-sm">
+          <div data-pdf-section data-pdf-start-page="2" className="mb-6 text-sm">
             <p className="font-semibold text-gray-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
             <div className="text-gray-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
           </div>

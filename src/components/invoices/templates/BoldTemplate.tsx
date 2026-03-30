@@ -131,7 +131,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
 
         {invoice.notes && (
-          <div data-pdf-section className="text-sm mb-6">
+          <div data-pdf-section data-pdf-start-page="2" className="text-sm mb-6">
             <p className="font-bold text-slate-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
             <div className="text-slate-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
           </div>

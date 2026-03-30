@@ -113,7 +113,7 @@ export function ClassicTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {invoice.notes && (
-        <div data-pdf-section className="mb-8">
+        <div data-pdf-section data-pdf-start-page="2" className="mb-8">
           <p className="font-bold mb-2">Opmerkingen</p>
           <div className="whitespace-pre-wrap text-gray-600" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
         </div>

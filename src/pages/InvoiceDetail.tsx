@@ -105,8 +105,19 @@ export default function InvoiceDetail() {
 
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       let currentY = MARGIN_MM;
+      let currentPage = 1;
 
       for (const section of sections) {
+        const startOnPage = Number(section.getAttribute('data-pdf-start-page') || 0);
+
+        if (startOnPage > 0) {
+          while (currentPage < startOnPage) {
+            pdf.addPage();
+            currentPage += 1;
+            currentY = MARGIN_MM;
+          }
+        }
+
         const canvas = await html2canvas(section, {
           scale: SCALE,
           useCORS: true,
@@ -126,6 +137,7 @@ export default function InvoiceDetail() {
         // If section won't fit on current page, add new page
         if (heightMM > remainingSpace && currentY > MARGIN_MM) {
           pdf.addPage();
+          currentPage += 1;
           currentY = MARGIN_MM;
         }
 

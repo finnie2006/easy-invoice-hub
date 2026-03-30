@@ -3,6 +3,8 @@
  * Add these to server/src/index.js after the regular auth routes
  */
 
+import bcryptjs from 'bcryptjs';
+
 import {
   generateTOTPSecret,
   verifyTOTPToken,
@@ -13,7 +15,37 @@ import {
   clearMFAAttempts,
 } from './mfa.js';
 
-export function setupMFARoutes(app, pool, authenticateToken) {
+function ensureMFATables(pool) {
+  return pool.query(`
+    CREATE TABLE IF NOT EXISTS public.user_mfa (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+      totp_secret text,
+      totp_enabled boolean DEFAULT false,
+      recovery_codes text[] DEFAULT ARRAY[]::text[],
+      backup_codes_generated_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.user_mfa_attempts (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      failed_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+}
+
+export function setupMFARoutes(app, pool, authenticateToken, createTokens) {
+  // Lazy one-time schema bootstrap for existing deployments that missed MFA tables.
+  let mfaSchemaReady;
+  const ensureSchema = async () => {
+    if (!mfaSchemaReady) {
+      mfaSchemaReady = ensureMFATables(pool);
+    }
+    await mfaSchemaReady;
+  };
+
   /**
    * POST /api/auth/mfa/setup
    * Generate TOTP secret and recovery codes
@@ -21,8 +53,10 @@ export function setupMFARoutes(app, pool, authenticateToken) {
    */
   app.post('/api/auth/mfa/setup', authenticateToken, async (req, res) => {
     try {
+      await ensureSchema();
+
       // Check if user already has MFA enabled
-      const existingMFA = await pool.query(
+      await pool.query(
         'SELECT id FROM public.user_mfa WHERE user_id = $1',
         [req.userId]
       );
@@ -58,6 +92,8 @@ export function setupMFARoutes(app, pool, authenticateToken) {
     }
 
     try {
+      await ensureSchema();
+
       const isValid = verifyTOTPToken(secret, totpToken);
       if (!isValid) {
         return res.status(400).json({ error: 'Invalid TOTP token' });
@@ -105,6 +141,8 @@ export function setupMFARoutes(app, pool, authenticateToken) {
    */
   app.get('/api/auth/mfa/status', authenticateToken, async (req, res) => {
     try {
+      await ensureSchema();
+
       const result = await pool.query(
         'SELECT totp_enabled FROM public.user_mfa WHERE user_id = $1',
         [req.userId]
@@ -131,6 +169,8 @@ export function setupMFARoutes(app, pool, authenticateToken) {
     }
 
     try {
+      await ensureSchema();
+
       // Verify password
       const userResult = await pool.query(
         'SELECT password_hash FROM public.users WHERE id = $1',
@@ -177,6 +217,8 @@ export function setupMFARoutes(app, pool, authenticateToken) {
     }
 
     try {
+      await ensureSchema();
+
       // Check rate limiting
       const rateLimited = await checkMFARateLimit(pool, userId);
       if (rateLimited) {

@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS public.user_mfa_attempts (
   failed_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS public.user_oauth_providers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  provider text NOT NULL,
+  provider_id text NOT NULL,
+  display_name text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(user_id, provider)
+);
+
 CREATE TABLE IF NOT EXISTS public.clients (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -287,6 +298,8 @@ CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON public.user_roles (user_id)
 CREATE INDEX IF NOT EXISTS idx_user_mfa_user_id ON public.user_mfa (user_id);
 CREATE INDEX IF NOT EXISTS idx_user_mfa_attempts_user_id ON public.user_mfa_attempts (user_id);
 CREATE INDEX IF NOT EXISTS idx_user_mfa_attempts_failed_at ON public.user_mfa_attempts (failed_at);
+CREATE INDEX IF NOT EXISTS idx_user_oauth_providers_user_id ON public.user_oauth_providers (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_oauth_provider ON public.user_oauth_providers (provider, provider_id);
 CREATE INDEX IF NOT EXISTS idx_clients_user_id ON public.clients (user_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON public.invoices (user_id);
 CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON public.invoice_items (invoice_id);

@@ -47,7 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string) => {
     try {
       const response = await auth.register(email, password);
-      const { userId } = response.data;
+      const { userId, accessToken, refreshToken } = response.data;
+      if (accessToken) localStorage.setItem('accessToken', accessToken);
+      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('userId', userId);
       setUser({ id: userId });
       return { error: null };
@@ -61,7 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       const response = await auth.login(email, password);
-      const { userId } = response.data;
+      const { userId, accessToken, refreshToken } = response.data;
+      if (accessToken) localStorage.setItem('accessToken', accessToken);
+      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('userId', userId);
       setUser({ id: userId });
       return { error: null };

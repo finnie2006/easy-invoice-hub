@@ -1669,6 +1669,56 @@ setupOAuthRoutes(app, pool, authenticateToken, isAuthentikConfigured, getAuthori
 // ============================================
 // Start server
 // ============================================
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+const ensureRuntimeSchema = async () => {
+  // Keep runtime compatible even when a deployment missed the latest migration.
+  await pool.query(`
+    ALTER TABLE public.expenses
+    ADD COLUMN IF NOT EXISTS has_reverse_charge boolean NOT NULL DEFAULT false
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.btw_filing_fields (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      period text NOT NULL,
+      year integer NOT NULL,
+      quarter integer NOT NULL,
+      field_1a numeric(14,2) DEFAULT 0,
+      field_1b numeric(14,2) DEFAULT 0,
+      field_1c numeric(14,2) DEFAULT 0,
+      field_1d numeric(14,2) DEFAULT 0,
+      field_1e numeric(14,2) DEFAULT 0,
+      field_2a numeric(14,2) DEFAULT 0,
+      field_3a numeric(14,2) DEFAULT 0,
+      field_3b numeric(14,2) DEFAULT 0,
+      field_4a numeric(14,2) DEFAULT 0,
+      field_4b numeric(14,2) DEFAULT 0,
+      field_5a numeric(14,2) DEFAULT 0,
+      field_5b numeric(14,2) DEFAULT 0,
+      field_5c numeric(14,2) DEFAULT 0,
+      submitted boolean NOT NULL DEFAULT false,
+      submitted_at timestamptz,
+      notes text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(user_id, period)
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_btw_filing_user_period ON public.btw_filing_fields (user_id, period)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_btw_filing_year_quarter ON public.btw_filing_fields (year, quarter)');
+};
+
+const startServer = async () => {
+  try {
+    await ensureRuntimeSchema();
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to initialize runtime schema:', err);
+    process.exit(1);
+  }
+};
+
+startServer();

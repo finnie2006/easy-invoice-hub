@@ -91,6 +91,9 @@ export default function BtwFilingWizard({
       }
     } catch (error) {
       console.error('Failed to load filing data:', error);
+      // Fallback to calculated values when backend data is temporarily unavailable.
+      const calculated = calculateFields(year, quarter);
+      setFormData((prev) => ({ ...prev, ...calculated }));
     } finally {
       setIsLoading(false);
     }

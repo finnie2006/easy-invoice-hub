@@ -7,13 +7,30 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Handle token refresh on 403
+// Attach access token as fallback when cookies are unavailable.
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken');
+  if (token && !config.headers?.Authorization) {
+    if (typeof (config.headers as any)?.set === 'function') {
+      (config.headers as any).set('Authorization', `Bearer ${token}`);
+    } else {
+      config.headers = {
+        ...(config.headers || {}),
+        Authorization: `Bearer ${token}`,
+      } as any;
+    }
+  }
+  return config;
+});
+
+// Handle token refresh on auth failures.
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const status = error.response?.status;
 
-    if (error.response?.status === 403 && !originalRequest._retry) {
+    if ((status === 401 || status === 403) && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
@@ -25,6 +42,13 @@ api.interceptors.response.use(
         });
 
         if (response.ok) {
+          const refreshData = await response.json();
+          if (refreshData?.accessToken) {
+            localStorage.setItem('accessToken', refreshData.accessToken);
+          }
+          if (refreshData?.refreshToken) {
+            localStorage.setItem('refreshToken', refreshData.refreshToken);
+          }
           return api(originalRequest);
         }
       } catch (err) {

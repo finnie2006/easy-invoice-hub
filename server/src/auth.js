@@ -1,8 +1,26 @@
 import jwt from 'jsonwebtoken';
 import pool from './db.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key-change-in-production';
+function getRequiredSecret(name, insecureDefault) {
+  const value = (process.env[name] || '').trim();
+
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  if (value === insecureDefault) {
+    throw new Error(`Insecure ${name} value detected. Configure a unique random secret.`);
+  }
+
+  if (value.length < 32) {
+    console.warn(`[auth] ${name} is shorter than the recommended 32 characters.`);
+  }
+
+  return value;
+}
+
+const JWT_SECRET = getRequiredSecret('JWT_SECRET', 'your-secret-key-change-in-production');
+const JWT_REFRESH_SECRET = getRequiredSecret('JWT_REFRESH_SECRET', 'your-refresh-secret-key-change-in-production');
 const ACCESS_COOKIE_NAME = 'invoice_hub_access';
 const REFRESH_COOKIE_NAME = 'invoice_hub_refresh';
 

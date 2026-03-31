@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { appSettings as appSettingsApi, userRole as userRoleApi } from '@/api/client';
+import { appSettings as appSettingsApi, userRole as userRoleApi, adminUsers as adminUsersApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
@@ -15,6 +15,14 @@ export interface UserRole {
   user_id: string;
   role: 'admin' | 'user';
   created_at: string;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  created_at: string;
+  role: 'admin' | 'user';
+  company_name: string | null;
 }
 
 export function useAppSettings() {
@@ -61,6 +69,15 @@ export function useAppSettings() {
 
   const isAdmin = userRole?.role === 'admin';
 
+  const { data: adminUsers, isLoading: isLoadingAdminUsers } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: async () => {
+      const response = await adminUsersApi.getAll();
+      return (response.data || []) as AdminUser[];
+    },
+    enabled: !!user && isAdmin,
+  });
+
   // Update setting mutation
   const updateSettingMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: boolean | string }) => {
@@ -87,12 +104,37 @@ export function useAppSettings() {
     updateSettingMutation.mutate({ key, value });
   };
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      await adminUsersApi.delete(userId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast({
+        title: 'Gebruiker verwijderd',
+        description: 'Het account is succesvol verwijderd.',
+      });
+    },
+    onError: (error: unknown) => {
+      console.error('Error deleting user:', error);
+      toast({
+        title: 'Fout bij verwijderen',
+        description: 'De gebruiker kon niet worden verwijderd.',
+        variant: 'destructive',
+      });
+    },
+  });
+
   return {
     settings,
     isLoading: isLoadingSettings || isLoadingRole,
+    isLoadingAdminUsers,
     isAdmin,
     userRole,
+    adminUsers: adminUsers || [],
     updateSetting,
+    deleteUser: deleteUserMutation.mutate,
+    isDeletingUser: deleteUserMutation.isPending,
     isUpdating: updateSettingMutation.isPending,
   };
 }

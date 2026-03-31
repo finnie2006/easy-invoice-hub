@@ -200,6 +200,13 @@ export const userRole = {
     api.get('/api/user-role'),
 };
 
+export const adminUsers = {
+  getAll: () =>
+    api.get('/api/admin/users'),
+  delete: (id) =>
+    api.delete(`/api/admin/users/${id}`),
+};
+
 export const labels = {
   getAll: () =>
     api.get('/api/labels'),

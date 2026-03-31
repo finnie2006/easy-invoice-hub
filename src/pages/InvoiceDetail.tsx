@@ -127,11 +127,39 @@ export default function InvoiceDetail() {
 
       const pxPerMm = fullCanvas.width / A4_WIDTH_MM;
       const pageHeightPx = Math.floor(A4_HEIGHT_MM * pxPerMm);
+      const cloneRect = clone.getBoundingClientRect();
+      const cssPxToCanvasPx = fullCanvas.width / cloneRect.width;
+      const forcedBreakOffsets = Array.from(clone.querySelectorAll('[data-pdf-start-page]'))
+        .map((section) => {
+          const value = Number((section as HTMLElement).getAttribute('data-pdf-start-page') || 0);
+          if (value < 2) {
+            return null;
+          }
+
+          const sectionRect = (section as HTMLElement).getBoundingClientRect();
+          const topCssPx = sectionRect.top - cloneRect.top;
+          const topCanvasPx = Math.round(topCssPx * cssPxToCanvasPx);
+
+          if (topCanvasPx <= 0 || topCanvasPx >= fullCanvas.height) {
+            return null;
+          }
+
+          return topCanvasPx;
+        })
+        .filter((value): value is number => value !== null)
+        .sort((a, b) => a - b);
+
       let offsetY = 0;
       let pageIndex = 0;
 
       while (offsetY < fullCanvas.height) {
-        const sliceHeightPx = Math.min(pageHeightPx, fullCanvas.height - offsetY);
+        const defaultSliceHeightPx = Math.min(pageHeightPx, fullCanvas.height - offsetY);
+        const nextForcedBreak = forcedBreakOffsets.find((breakOffset) => breakOffset > offsetY);
+        const shouldBreakBeforeMarker =
+          nextForcedBreak !== undefined && nextForcedBreak < offsetY + defaultSliceHeightPx;
+        const sliceHeightPx = shouldBreakBeforeMarker
+          ? nextForcedBreak - offsetY
+          : defaultSliceHeightPx;
         const pageCanvas = document.createElement('canvas');
         pageCanvas.width = fullCanvas.width;
         pageCanvas.height = sliceHeightPx;

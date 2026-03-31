@@ -35,6 +35,172 @@ const AUTH_WINDOW_MS = Number(process.env.AUTH_WINDOW_MS || 15 * 60 * 1000);
 const AUTH_MAX_REQUESTS = Number(process.env.AUTH_MAX_REQUESTS || 30);
 const ALLOWED_BUCKETS = ['receipts', 'invoice-attachments', 'logos'];
 
+const PROFILE_UPDATABLE_FIELDS = [
+  'company_name',
+  'company_address',
+  'company_postal_code',
+  'company_city',
+  'company_country',
+  'kvk_number',
+  'btw_number',
+  'iban',
+  'default_hourly_rate',
+  'default_payment_terms',
+  'logo_url',
+  'use_company_branding',
+  'invoice_color_theme',
+  'panel_color_theme',
+  'payment_name',
+];
+
+const CLIENT_UPDATABLE_FIELDS = [
+  'company_name',
+  'contact_name',
+  'email',
+  'phone',
+  'address',
+  'postal_code',
+  'city',
+  'country',
+  'kvk_number',
+  'btw_number',
+  'notes',
+  'is_saved',
+];
+
+const INVOICE_UPDATABLE_FIELDS = [
+  'client_id',
+  'invoice_number',
+  'invoice_date',
+  'due_date',
+  'status',
+  'subtotal',
+  'total_btw',
+  'total',
+  'discount_type',
+  'discount_value',
+  'discount_amount',
+  'notes',
+  'notes_title',
+  'payment_reference',
+  'client_company_name',
+  'client_contact_name',
+  'client_address',
+  'client_postal_code',
+  'client_city',
+  'client_country',
+  'client_kvk_number',
+  'client_btw_number',
+];
+
+const INVOICE_ITEM_UPDATABLE_FIELDS = [
+  'description',
+  'quantity',
+  'unit',
+  'unit_price',
+  'btw_percentage',
+  'subtotal',
+  'btw_amount',
+  'total',
+  'discount_type',
+  'discount_value',
+  'sort_order',
+];
+
+const EXPENSE_UPDATABLE_FIELDS = [
+  'vendor_name',
+  'description',
+  'category',
+  'expense_date',
+  'amount_excl_btw',
+  'btw_amount',
+  'amount_incl_btw',
+  'btw_percentage',
+  'btw_period',
+  'receipt_url',
+  'notes',
+  'has_reverse_charge',
+];
+
+const PROJECT_UPDATABLE_FIELDS = [
+  'client_id',
+  'client_name',
+  'name',
+  'description',
+  'start_date',
+  'end_date',
+  'hourly_rate',
+  'status',
+];
+
+const TIME_ENTRY_UPDATABLE_FIELDS = [
+  'project_id',
+  'work_date',
+  'hours',
+  'start_time',
+  'end_time',
+  'is_overnight',
+  'description',
+];
+
+const BTW_PERIOD_UPDATABLE_FIELDS = [
+  'period',
+  'year',
+  'quarter',
+  'is_closed',
+  'notes',
+];
+
+const BUSINESS_ASSET_UPDATABLE_FIELDS = [
+  'name',
+  'purchase_date',
+  'purchase_price',
+  'residual_value',
+  'useful_life_years',
+  'category',
+  'is_active',
+  'notes',
+];
+
+const LABEL_UPDATABLE_FIELDS = [
+  'name',
+  'color',
+];
+
+const CALENDAR_EVENT_UPDATABLE_FIELDS = [
+  'label_id',
+  'title',
+  'description',
+  'start_time',
+  'end_time',
+  'all_day',
+  'location',
+  'external_id',
+  'external_feed_id',
+];
+
+const BTW_FILING_UPDATABLE_FIELDS = [
+  'period',
+  'year',
+  'quarter',
+  'field_1a',
+  'field_1b',
+  'field_1c',
+  'field_1d',
+  'field_1e',
+  'field_2a',
+  'field_3a',
+  'field_3b',
+  'field_4a',
+  'field_4b',
+  'field_5a',
+  'field_5b',
+  'field_5c',
+  'submitted',
+  'submitted_at',
+  'notes',
+];
+
 const parsedAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
@@ -140,6 +306,23 @@ async function requireAdmin(req, res, next) {
     console.error('Admin check failed:', err);
     res.status(500).json({ error: 'Failed to validate admin rights' });
   }
+}
+
+function buildValidatedUpdate(body, allowedFields) {
+  const requestedFields = Object.keys(body || {});
+
+  if (requestedFields.length === 0) {
+    return { error: 'No fields to update' };
+  }
+
+  const invalidFields = requestedFields.filter((field) => !allowedFields.includes(field));
+  if (invalidFields.length > 0) {
+    return { error: `Invalid update fields: ${invalidFields.join(', ')}` };
+  }
+
+  const values = requestedFields.map((field) => body[field]);
+  const setClause = requestedFields.map((field, i) => `${field} = $${i + 1}`).join(', ');
+  return { fields: requestedFields, values, setClause };
 }
 
 // ============================================
@@ -354,11 +537,13 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 
 // Update profile
 app.put('/api/profile', authenticateToken, async (req, res) => {
-  const fields = Object.keys(req.body).filter(key => key !== 'id' && key !== 'user_id' && key !== 'created_at');
-  const values = fields.map(key => req.body[key]);
-  values.push(req.userId);
+  const updatePayload = buildValidatedUpdate(req.body, PROFILE_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
 
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
+  const { fields, values, setClause } = updatePayload;
+  values.push(req.userId);
 
   try {
     const result = await pool.query(
@@ -411,12 +596,14 @@ app.post('/api/clients', authenticateToken, async (req, res) => {
 // Update client
 app.put('/api/clients/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter(key => key !== 'id' && key !== 'user_id' && key !== 'created_at');
-  const values = fields.map(key => req.body[key]);
+  const updatePayload = buildValidatedUpdate(req.body, CLIENT_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId);
   values.push(id);
-
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(
@@ -506,12 +693,14 @@ app.post('/api/invoices', authenticateToken, async (req, res) => {
 // Update invoice
 app.put('/api/invoices/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter(key => key !== 'id' && key !== 'user_id' && key !== 'created_at' && key !== 'items');
-  const values = fields.map(key => req.body[key]);
+  const updatePayload = buildValidatedUpdate(req.body, INVOICE_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId);
   values.push(id);
-
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(
@@ -573,11 +762,13 @@ app.post('/api/invoice-items', authenticateToken, async (req, res) => {
 // Update invoice item
 app.put('/api/invoice-items/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter(key => key !== 'id' && key !== 'invoice_id' && key !== 'created_at');
-  const values = fields.map(key => req.body[key]);
-  values.push(id);
+  const updatePayload = buildValidatedUpdate(req.body, INVOICE_ITEM_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
 
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
+  const { fields, values, setClause } = updatePayload;
+  values.push(id);
 
   try {
     // Verify item exists and belongs to user's invoice
@@ -654,12 +845,14 @@ app.post('/api/expenses', authenticateToken, async (req, res) => {
 // Update expense
 app.put('/api/expenses/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter(key => key !== 'id' && key !== 'user_id' && key !== 'created_at');
-  const values = fields.map(key => req.body[key]);
+  const updatePayload = buildValidatedUpdate(req.body, EXPENSE_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId);
   values.push(id);
-
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(
@@ -728,12 +921,14 @@ app.post('/api/projects', authenticateToken, async (req, res) => {
 // Update project
 app.put('/api/projects/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter(key => key !== 'id' && key !== 'user_id' && key !== 'created_at');
-  const values = fields.map(key => req.body[key]);
+  const updatePayload = buildValidatedUpdate(req.body, PROJECT_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId);
   values.push(id);
-
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(
@@ -809,12 +1004,14 @@ app.post('/api/time-entries', authenticateToken, async (req, res) => {
 // Update time entry
 app.put('/api/time-entries/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter(key => key !== 'id' && key !== 'user_id' && key !== 'created_at');
-  const values = fields.map(key => req.body[key]);
+  const updatePayload = buildValidatedUpdate(req.body, TIME_ENTRY_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId);
   values.push(id);
-
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(
@@ -883,12 +1080,14 @@ app.post('/api/btw-periods', authenticateToken, async (req, res) => {
 // Update BTW period
 app.put('/api/btw-periods/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter(key => key !== 'id' && key !== 'user_id' && key !== 'created_at');
-  const values = fields.map(key => req.body[key]);
+  const updatePayload = buildValidatedUpdate(req.body, BTW_PERIOD_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId);
   values.push(id);
-
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(
@@ -942,12 +1141,14 @@ app.post('/api/business-assets', authenticateToken, async (req, res) => {
 // Update business asset
 app.put('/api/business-assets/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter(key => key !== 'id' && key !== 'user_id' && key !== 'created_at');
-  const values = fields.map(key => req.body[key]);
+  const updatePayload = buildValidatedUpdate(req.body, BUSINESS_ASSET_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId);
   values.push(id);
-
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(
@@ -1044,6 +1245,81 @@ app.get('/api/user-role', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error fetching user role:', err);
     res.status(500).json({ error: 'Failed to fetch user role' });
+  }
+});
+
+app.get('/api/admin/users', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id,
+              u.email,
+              u.created_at,
+              COALESCE(ur.role, 'user') AS role,
+              p.company_name
+       FROM public.users u
+       LEFT JOIN public.user_roles ur ON ur.user_id = u.id
+       LEFT JOIN public.profiles p ON p.user_id = u.id
+       ORDER BY u.created_at DESC`
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching admin users:', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ error: 'Missing user id' });
+  }
+
+  if (id === req.userId) {
+    return res.status(400).json({ error: 'Admins cannot delete their own account from this screen' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const targetRoleResult = await client.query(
+      'SELECT role FROM public.user_roles WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1',
+      [id]
+    );
+
+    const targetRole = targetRoleResult.rows[0]?.role || 'user';
+    if (targetRole === 'admin') {
+      const adminCountResult = await client.query(
+        'SELECT COUNT(*)::int AS count FROM public.user_roles WHERE role = $1',
+        ['admin']
+      );
+      const adminCount = Number(adminCountResult.rows[0]?.count || 0);
+      if (adminCount <= 1) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Cannot delete the last admin account' });
+      }
+    }
+
+    const deleteResult = await client.query(
+      'DELETE FROM public.users WHERE id = $1 RETURNING id',
+      [id]
+    );
+
+    if (deleteResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await client.query('COMMIT');
+    return res.json({ success: true, deletedUserId: id });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error deleting admin user:', err);
+    return res.status(500).json({ error: 'Failed to delete user' });
+  } finally {
+    client.release();
   }
 });
 
@@ -1146,14 +1422,13 @@ app.post('/api/labels', authenticateToken, async (req, res) => {
 
 app.put('/api/labels/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter((key) => key !== 'id' && key !== 'user_id' && key !== 'created_at');
-  if (fields.length === 0) {
-    return res.status(400).json({ error: 'No fields to update' });
+  const updatePayload = buildValidatedUpdate(req.body, LABEL_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
   }
 
-  const values = fields.map((key) => req.body[key]);
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId, id);
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(
@@ -1221,14 +1496,13 @@ app.post('/api/calendar-events', authenticateToken, async (req, res) => {
 
 app.put('/api/calendar-events/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter((key) => key !== 'id' && key !== 'user_id' && key !== 'created_at');
-  if (fields.length === 0) {
-    return res.status(400).json({ error: 'No fields to update' });
+  const updatePayload = buildValidatedUpdate(req.body, CALENDAR_EVENT_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
   }
 
-  const values = fields.map((key) => req.body[key]);
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId, id);
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(
@@ -1596,12 +1870,14 @@ app.post('/api/btw-filing-fields', authenticateToken, async (req, res) => {
 // Update filing fields
 app.put('/api/btw-filing-fields/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const fields = Object.keys(req.body).filter(key => !['id', 'user_id', 'created_at'].includes(key));
-  const values = fields.map(key => req.body[key]);
+  const updatePayload = buildValidatedUpdate(req.body, BTW_FILING_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
   values.push(req.userId);
   values.push(id);
-
-  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
 
   try {
     const result = await pool.query(

@@ -4,12 +4,25 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Users, UserX, Building2, User } from 'lucide-react';
+import { Shield, Users, UserX, Building2, User, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminSettings() {
-  const { settings, isLoading, isAdmin, updateSetting, isUpdating } = useAppSettings();
+  const { user } = useAuth();
+  const {
+    settings,
+    isLoading,
+    isAdmin,
+    updateSetting,
+    isUpdating,
+    adminUsers,
+    deleteUser,
+    isDeletingUser,
+    isLoadingAdminUsers,
+  } = useAppSettings();
 
   if (isLoading) {
     return (
@@ -53,6 +66,12 @@ export default function AdminSettings() {
 
   const handleEnvironmentModeChange = (value: EnvironmentMode) => {
     updateSetting('environment_mode', value);
+  };
+
+  const handleDeleteUser = (userId: string, email: string) => {
+    const confirmed = window.confirm(`Weet je zeker dat je gebruiker ${email} wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.`);
+    if (!confirmed) return;
+    deleteUser(userId);
   };
 
   return (
@@ -164,6 +183,68 @@ export default function AdminSettings() {
             instellingen ook toegepast via de RLS-policies.
           </AlertDescription>
         </Alert>
+
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-muted-foreground" />
+            <Label className="font-medium">Gebruikersbeheer</Label>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Verwijder hier andere gebruikersaccounts als beheerder.
+          </p>
+
+          <div className="rounded-lg border">
+            <div className="grid grid-cols-12 gap-3 px-4 py-3 text-xs font-medium text-muted-foreground border-b bg-muted/30">
+              <div className="col-span-5">Gebruiker</div>
+              <div className="col-span-3">Rol</div>
+              <div className="col-span-4 text-right">Actie</div>
+            </div>
+
+            {isLoadingAdminUsers ? (
+              <div className="space-y-2 p-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <div className="divide-y">
+                {adminUsers.map((adminUser) => {
+                  const isCurrentUser = adminUser.id === user?.id;
+
+                  return (
+                    <div key={adminUser.id} className="grid grid-cols-12 gap-3 px-4 py-3 items-center">
+                      <div className="col-span-5 min-w-0">
+                        <p className="text-sm font-medium truncate">{adminUser.email}</p>
+                        {adminUser.company_name && (
+                          <p className="text-xs text-muted-foreground truncate">{adminUser.company_name}</p>
+                        )}
+                      </div>
+                      <div className="col-span-3">
+                        <Badge variant={adminUser.role === 'admin' ? 'default' : 'outline'}>
+                          {adminUser.role}
+                        </Badge>
+                      </div>
+                      <div className="col-span-4 text-right">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteUser(adminUser.id, adminUser.email)}
+                          disabled={isCurrentUser || isDeletingUser}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Verwijderen
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {adminUsers.length === 0 && (
+                  <p className="p-4 text-sm text-muted-foreground">Geen gebruikers gevonden.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

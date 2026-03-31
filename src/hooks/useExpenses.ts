@@ -17,6 +17,7 @@ export interface Expense {
   btw_period: string | null;
   receipt_url: string | null;
   notes: string | null;
+  has_reverse_charge: boolean | null;
   created_at: string;
   updated_at: string;
 }

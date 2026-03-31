@@ -23,10 +23,12 @@ import {
   Euro,
   AlertCircle,
   Calculator,
+  FileEdit,
 } from 'lucide-react';
 import { format, startOfQuarter, endOfQuarter, isAfter, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import AnnualTaxHelper from '@/components/tax/AnnualTaxHelper';
+import BtwFilingWizard from '@/components/tax/BtwFilingWizard';
 
 const quarterLabels: Record<number, string> = {
   1: 'Q1 (jan - mrt)',
@@ -44,6 +46,12 @@ export default function TaxFilings() {
   const [selectedQuarter, setSelectedQuarter] = useState('1');
   const [activeTab, setActiveTab] = useState('btw');
   const [annualYear, setAnnualYear] = useState(new Date().getFullYear());
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [selectedWizardPeriod, setSelectedWizardPeriod] = useState<{
+    period: string;
+    year: number;
+    quarter: number;
+  } | null>(null);
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
@@ -335,15 +343,32 @@ export default function TaxFilings() {
                               </span>
                             </div>
                           </div>
-                          <div className="flex items-center justify-end gap-2 pt-2 border-t">
-                            <Label htmlFor={`toggle-${period.id}`} className="text-sm cursor-pointer">
-                              Ingediend
-                            </Label>
-                            <Switch
-                              id={`toggle-${period.id}`}
-                              checked={period.is_closed}
-                              onCheckedChange={(checked) => togglePeriodClosed({ id: period.id, is_closed: checked })}
-                            />
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedWizardPeriod({
+                                  period: period.period,
+                                  year: period.year,
+                                  quarter: period.quarter,
+                                });
+                                setWizardOpen(true);
+                              }}
+                            >
+                              <FileEdit className="h-4 w-4 mr-1" />
+                              Aangifte
+                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor={`toggle-${period.id}`} className="text-sm cursor-pointer">
+                                Ingediend
+                              </Label>
+                              <Switch
+                                id={`toggle-${period.id}`}
+                                checked={period.is_closed}
+                                onCheckedChange={(checked) => togglePeriodClosed({ id: period.id, is_closed: checked })}
+                              />
+                            </div>
                           </div>
                         </div>
                       );
@@ -360,6 +385,7 @@ export default function TaxFilings() {
                           <TableHead className="text-right">BTW betaald</TableHead>
                           <TableHead className="text-right">Per saldo</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead className="text-center">Aangifte</TableHead>
                           <TableHead className="text-right">Ingediend</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -394,6 +420,22 @@ export default function TaxFilings() {
                                 <Badge variant={period.is_closed ? 'default' : 'secondary'}>
                                   {period.is_closed ? 'Afgesloten' : 'Open'}
                                 </Badge>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedWizardPeriod({
+                                      period: period.period,
+                                      year: period.year,
+                                      quarter: period.quarter,
+                                    });
+                                    setWizardOpen(true);
+                                  }}
+                                >
+                                  <FileEdit className="h-4 w-4" />
+                                </Button>
                               </TableCell>
                               <TableCell className="text-right">
                                 <Switch
@@ -437,6 +479,16 @@ export default function TaxFilings() {
           <AnnualTaxHelper selectedYear={annualYear} />
         </TabsContent>
       </Tabs>
+
+      {selectedWizardPeriod && (
+        <BtwFilingWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          year={selectedWizardPeriod.year}
+          quarter={selectedWizardPeriod.quarter}
+          period={selectedWizardPeriod.period}
+        />
+      )}
     </div>
   );
 }

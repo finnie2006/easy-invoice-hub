@@ -45,6 +45,7 @@ export default function Expenses() {
     category: 'overig',
     amount_incl_btw: 0,
     btw_percentage: 21,
+    has_reverse_charge: false,
   });
 
   // Check if selected date falls in a closed BTW period
@@ -150,6 +151,7 @@ export default function Expenses() {
       category: 'overig',
       amount_incl_btw: 0,
       btw_percentage: 21,
+      has_reverse_charge: false,
     });
   };
 
@@ -161,6 +163,7 @@ export default function Expenses() {
       category: expense.category,
       amount_incl_btw: Number(expense.amount_incl_btw),
       btw_percentage: expense.btw_percentage ?? 21,
+      has_reverse_charge: expense.has_reverse_charge ?? false,
     });
     setAmountInputMode('incl');
     setAmountInput(String(Number(expense.amount_incl_btw)));
@@ -181,11 +184,12 @@ export default function Expenses() {
       expense_date: format(expenseDate, 'yyyy-MM-dd'),
       amount_incl_btw: amountInclBtw,
       amount_excl_btw: amountExclBtw,
-      btw_amount: btwAmount,
+      btw_amount: formData.has_reverse_charge ? 0 : btwAmount, // Reverse charge expenses don't contribute to deductible VAT
       btw_percentage: formData.btw_percentage || 21,
       btw_period: selectedBtwPeriod || null,
       receipt_url: editingExpense?.receipt_url || null,
       notes: null,
+      has_reverse_charge: formData.has_reverse_charge || false,
     };
 
     if (editingExpense) {
@@ -239,7 +243,12 @@ export default function Expenses() {
 
   // Calculate totals
   const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount_incl_btw), 0);
-  const totalBtw = expenses.reduce((sum, exp) => sum + Number(exp.btw_amount || 0), 0);
+  const totalBtw = expenses
+    .filter(exp => !exp.has_reverse_charge)
+    .reduce((sum, exp) => sum + Number(exp.btw_amount || 0), 0);
+  const totalReverseChargeBtw = expenses
+    .filter(exp => exp.has_reverse_charge)
+    .reduce((sum, exp) => sum + Number(exp.btw_amount || 0), 0);
   const expensesWithReceipts = expenses.filter(exp => exp.receipt_url).length;
 
   if (isLoading) {
@@ -397,6 +406,26 @@ export default function Expenses() {
                 </div>
               </div>
 
+              {/* Reverse Charge Option */}
+              <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="reverse_charge"
+                    checked={formData.has_reverse_charge || false}
+                    onChange={(e) => setFormData(prev => ({ ...prev, has_reverse_charge: e.target.checked }))}
+                    className="rounded border border-input"
+                  />
+                  <label htmlFor="reverse_charge" className="text-sm font-medium cursor-pointer">
+                    Verlegingsregeling (Reverse Charge)
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  Gebruik dit voor diensten/goederen van buitenlandse leveranciers waarop geen BTW in rust, zoals Thomann (Duitsland). 
+                  De BTW wordt niet meegerekend in je aftrekbare BTW.
+                </p>
+              </div>
+
               {/* File Upload */}
               <div className="space-y-2">
                 <Label>Bon/Factuur uploaden</Label>
@@ -463,7 +492,7 @@ export default function Expenses() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Totale uitgaven</CardTitle>
@@ -481,6 +510,16 @@ export default function Expenses() {
           <CardContent>
             <div className="text-2xl font-bold text-success">
               {formatCurrency(totalBtw)}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Reverse Charge BTW</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">
+              {formatCurrency(totalReverseChargeBtw)}
             </div>
           </CardContent>
         </Card>
@@ -618,7 +657,12 @@ export default function Expenses() {
                       <p className="text-sm text-muted-foreground">{expense.description}</p>
                     )}
                     <div className="flex items-center justify-between">
-                      <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
+                        {expense.has_reverse_charge && (
+                          <Badge variant="secondary" className="text-xs">RC</Badge>
+                        )}
+                      </div>
                       <div className="text-right">
                         <div className="font-bold">{formatCurrency(Number(expense.amount_incl_btw))}</div>
                         <div className="text-xs text-muted-foreground">
@@ -655,7 +699,12 @@ export default function Expenses() {
                           {expense.description || '-'}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
+                            {expense.has_reverse_charge && (
+                              <Badge variant="secondary" title="Reverse Charge" className="text-xs">RC</Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div>{formatCurrency(Number(expense.amount_incl_btw))}</div>

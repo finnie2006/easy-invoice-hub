@@ -228,4 +228,18 @@ export const calendar = {
   },
 };
 
+// BTW Filing Fields
+export const btwFilingFields = {
+  getByPeriod: (period) =>
+    api.get(`/api/btw-filing-fields/${period}`),
+  getByYearQuarter: (year, quarter) =>
+    api.get(`/api/btw-filing-fields/year-quarter/${year}/${quarter}`),
+  upsert: (data) =>
+    api.post('/api/btw-filing-fields', data),
+  update: (id, data) =>
+    api.put(`/api/btw-filing-fields/${id}`, data),
+  submit: (id) =>
+    api.post(`/api/btw-filing-fields/${id}/submit`),
+};
+
 export default api;

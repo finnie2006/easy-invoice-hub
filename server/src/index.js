@@ -1512,6 +1512,131 @@ app.post('/api/invoices/:id/send-email', authenticateToken, async (req, res) => 
 });
 
 // ============================================
+// BTW Filing Fields Routes
+// ============================================
+
+// Get filing by period
+app.get('/api/btw-filing-fields/:period', authenticateToken, async (req, res) => {
+  const { period } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM public.btw_filing_fields WHERE user_id = $1 AND period = $2',
+      [req.userId, period]
+    );
+    res.json(result.rows[0] || null);
+  } catch (err) {
+    console.error('Error fetching BTW filing fields:', err);
+    res.status(500).json({ error: 'Failed to fetch BTW filing fields' });
+  }
+});
+
+// Get filing by year and quarter
+app.get('/api/btw-filing-fields/year-quarter/:year/:quarter', authenticateToken, async (req, res) => {
+  const { year, quarter } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM public.btw_filing_fields WHERE user_id = $1 AND year = $2 AND quarter = $3',
+      [req.userId, parseInt(year), parseInt(quarter)]
+    );
+    res.json(result.rows[0] || null);
+  } catch (err) {
+    console.error('Error fetching BTW filing fields:', err);
+    res.status(500).json({ error: 'Failed to fetch BTW filing fields' });
+  }
+});
+
+// Upsert filing fields
+app.post('/api/btw-filing-fields', authenticateToken, async (req, res) => {
+  const {
+    period, year, quarter,
+    field_1a, field_1b, field_1c, field_1d, field_1e,
+    field_2a, field_3a, field_3b, field_4a, field_4b,
+    field_5a, field_5b, field_5c,
+    submitted, submitted_at, notes
+  } = req.body;
+
+  try {
+    // Try to update first
+    const updateResult = await pool.query(
+      `UPDATE public.btw_filing_fields 
+       SET field_1a=$2, field_1b=$3, field_1c=$4, field_1d=$5, field_1e=$6,
+           field_2a=$7, field_3a=$8, field_3b=$9, field_4a=$10, field_4b=$11,
+           field_5a=$12, field_5b=$13, field_5c=$14,
+           submitted=$15, submitted_at=$16, notes=$17, updated_at=NOW()
+       WHERE user_id=$1 AND period=$18
+       RETURNING *`,
+      [req.userId, field_1a, field_1b, field_1c, field_1d, field_1e,
+       field_2a, field_3a, field_3b, field_4a, field_4b,
+       field_5a, field_5b, field_5c, submitted, submitted_at, notes, period]
+    );
+
+    if (updateResult.rows.length > 0) {
+      return res.json(updateResult.rows[0]);
+    }
+
+    // If not found, insert
+    const insertResult = await pool.query(
+      `INSERT INTO public.btw_filing_fields 
+       (user_id, period, year, quarter, field_1a, field_1b, field_1c, field_1d, field_1e,
+        field_2a, field_3a, field_3b, field_4a, field_4b, field_5a, field_5b, field_5c,
+        submitted, submitted_at, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+       RETURNING *`,
+      [req.userId, period, year, quarter, field_1a, field_1b, field_1c, field_1d, field_1e,
+       field_2a, field_3a, field_3b, field_4a, field_4b, field_5a, field_5b, field_5c,
+       submitted, submitted_at, notes]
+    );
+    res.status(201).json(insertResult.rows[0]);
+  } catch (err) {
+    console.error('Error upserting BTW filing fields:', err);
+    res.status(500).json({ error: 'Failed to save BTW filing fields' });
+  }
+});
+
+// Update filing fields
+app.put('/api/btw-filing-fields/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const fields = Object.keys(req.body).filter(key => !['id', 'user_id', 'created_at'].includes(key));
+  const values = fields.map(key => req.body[key]);
+  values.push(req.userId);
+  values.push(id);
+
+  const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
+
+  try {
+    const result = await pool.query(
+      `UPDATE public.btw_filing_fields SET ${setClause}, updated_at=NOW() WHERE user_id = $${fields.length + 1} AND id = $${fields.length + 2} RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'BTW filing not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating BTW filing fields:', err);
+    res.status(500).json({ error: 'Failed to update BTW filing fields' });
+  }
+});
+
+// Submit filing
+app.post('/api/btw-filing-fields/:id/submit', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `UPDATE public.btw_filing_fields 
+       SET submitted=true, submitted_at=NOW(), updated_at=NOW()
+       WHERE user_id = $1 AND id = $2
+       RETURNING *`,
+      [req.userId, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'BTW filing not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error submitting BTW filing:', err);
+    res.status(500).json({ error: 'Failed to submit BTW filing' });
+  }
+});
+
+// ============================================
 // Health check
 // ============================================
 app.get('/api/health', (req, res) => {

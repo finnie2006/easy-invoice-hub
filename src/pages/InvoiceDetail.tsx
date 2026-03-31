@@ -88,86 +88,84 @@ export default function InvoiceDetail() {
     if (!invoiceRef.current || !invoice) return;
 
     setIsGeneratingPdf(true);
+    let clone: HTMLElement | null = null;
+
     try {
       const element = invoiceRef.current;
-      
+
       // A4 dimensions
       const A4_WIDTH_MM = 210;
       const A4_HEIGHT_MM = 297;
-      const MARGIN_MM = 0;
-      const CONTENT_WIDTH_MM = A4_WIDTH_MM - (MARGIN_MM * 2);
-      const CONTENT_HEIGHT_MM = A4_HEIGHT_MM - (MARGIN_MM * 2);
       const a4WidthPx = 794;
       const SCALE = 2;
-      const SECTION_GAP_MM = 0;
-      
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
       // Clone element for PDF generation
-      const clone = element.cloneNode(true) as HTMLElement;
+      clone = element.cloneNode(true) as HTMLElement;
       clone.style.width = `${a4WidthPx}px`;
       clone.style.position = 'absolute';
       clone.style.left = '-9999px';
       clone.style.top = '0';
       clone.style.backgroundColor = '#ffffff';
       document.body.appendChild(clone);
-      
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // Find all sections
-      const sections = Array.from(
-        clone.querySelectorAll('[data-pdf-section]')
-      ) as HTMLElement[];
 
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      let currentY = MARGIN_MM;
-      let currentPage = 1;
-
-      for (const section of sections) {
-        const startOnPage = Number(section.getAttribute('data-pdf-start-page') || 0);
-        const stickToBottom = section.hasAttribute('data-pdf-stick-bottom');
-
-        if (startOnPage > 0) {
-          while (currentPage < startOnPage) {
-            pdf.addPage();
-            currentPage += 1;
-            currentY = MARGIN_MM;
-          }
-        }
-
-        const canvas = await html2canvas(section, {
-          scale: SCALE,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          width: a4WidthPx,
-          windowWidth: a4WidthPx,
-        });
-
-        const widthPx = canvas.width / SCALE;
-        const heightPx = canvas.height / SCALE;
-        const scaleFactor = CONTENT_WIDTH_MM / widthPx;
-        const heightMM = heightPx * scaleFactor;
-
-        const remainingSpace = A4_HEIGHT_MM - MARGIN_MM - currentY;
-
-        // If section won't fit on current page, add new page
-        if (heightMM > remainingSpace && currentY > MARGIN_MM) {
-          pdf.addPage();
-          currentPage += 1;
-          currentY = MARGIN_MM;
-        }
-
-        // Footer-like sections should sit at the page bottom to match preview layout.
-        const drawY = stickToBottom
-          ? Math.max(currentY, A4_HEIGHT_MM - MARGIN_MM - heightMM)
-          : currentY;
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        pdf.addImage(imgData, 'JPEG', MARGIN_MM, drawY, CONTENT_WIDTH_MM, heightMM);
-        currentY = drawY + heightMM + SECTION_GAP_MM;
+      // Ensure custom fonts are loaded before capture to avoid text reflow in the PDF.
+      if (document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
       }
 
-      // Remove clone
-      document.body.removeChild(clone);
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const fullCanvas = await html2canvas(clone, {
+        scale: SCALE,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: a4WidthPx,
+        windowWidth: a4WidthPx,
+      });
+
+      const pxPerMm = fullCanvas.width / A4_WIDTH_MM;
+      const pageHeightPx = Math.floor(A4_HEIGHT_MM * pxPerMm);
+      let offsetY = 0;
+      let pageIndex = 0;
+
+      while (offsetY < fullCanvas.height) {
+        const sliceHeightPx = Math.min(pageHeightPx, fullCanvas.height - offsetY);
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = fullCanvas.width;
+        pageCanvas.height = sliceHeightPx;
+
+        const ctx = pageCanvas.getContext('2d');
+        if (!ctx) {
+          throw new Error('Kon PDF-canvas niet voorbereiden');
+        }
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        ctx.drawImage(
+          fullCanvas,
+          0,
+          offsetY,
+          fullCanvas.width,
+          sliceHeightPx,
+          0,
+          0,
+          fullCanvas.width,
+          sliceHeightPx,
+        );
+
+        const sliceHeightMm = sliceHeightPx / pxPerMm;
+        const imgData = pageCanvas.toDataURL('image/jpeg', 0.97);
+
+        if (pageIndex > 0) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH_MM, sliceHeightMm);
+        offsetY += sliceHeightPx;
+        pageIndex += 1;
+      }
 
       pdf.save(`Factuur-${invoice.invoice_number}.pdf`);
 
@@ -183,6 +181,10 @@ export default function InvoiceDetail() {
         variant: 'destructive',
       });
     } finally {
+      if (clone && clone.parentNode) {
+        clone.parentNode.removeChild(clone);
+      }
+
       setIsGeneratingPdf(false);
     }
   };

@@ -55,28 +55,6 @@ function AppContent() {
   return (
     <AppLayout>
       <Routes>
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <Routes>
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="*" element={<AuthPage />} />
-      </Routes>
-    );
-  }
-
-  return (
-    <AppLayout>
-      <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/invoices" element={<Invoices />} />

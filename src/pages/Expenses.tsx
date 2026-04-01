@@ -137,6 +137,12 @@ export default function Expenses() {
     return { amountInclBtw, amountExclBtw, btwAmount };
   };
 
+  useEffect(() => {
+    if (formData.has_reverse_charge) {
+      setAmountInputMode('excl');
+    }
+  }, [formData.has_reverse_charge]);
+
   const resetForm = () => {
     setSelectedFile(null);
     setAmountInput('');
@@ -165,8 +171,13 @@ export default function Expenses() {
       btw_percentage: expense.btw_percentage ?? 21,
       has_reverse_charge: expense.has_reverse_charge ?? false,
     });
-    setAmountInputMode('incl');
-    setAmountInput(String(Number(expense.amount_incl_btw)));
+    if (expense.has_reverse_charge) {
+      setAmountInputMode('excl');
+      setAmountInput(String(Number(expense.amount_excl_btw ?? 0)));
+    } else {
+      setAmountInputMode('incl');
+      setAmountInput(String(Number(expense.amount_incl_btw)));
+    }
     setExpenseDate(new Date(expense.expense_date));
     setSelectedBtwPeriod(expense.btw_period || '');
     setDialogOpen(true);
@@ -357,15 +368,20 @@ export default function Expenses() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="amount">
-                      Bedrag {amountInputMode === 'incl' ? 'incl.' : 'excl.'} BTW (€) *
+                      {formData.has_reverse_charge
+                        ? 'Betaald bedrag excl. BTW (€) *'
+                        : `Bedrag ${amountInputMode === 'incl' ? 'incl.' : 'excl.'} BTW (€) *`
+                      }
                     </Label>
-                    <button
-                      type="button"
-                      onClick={() => setAmountInputMode(prev => prev === 'incl' ? 'excl' : 'incl')}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Wissel naar {amountInputMode === 'incl' ? 'excl.' : 'incl.'} BTW
-                    </button>
+                    {!formData.has_reverse_charge && (
+                      <button
+                        type="button"
+                        onClick={() => setAmountInputMode(prev => prev === 'incl' ? 'excl' : 'incl')}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Wissel naar {amountInputMode === 'incl' ? 'excl.' : 'incl.'} BTW
+                      </button>
+                    )}
                   </div>
                   <Input
                     id="amount"
@@ -379,11 +395,11 @@ export default function Expenses() {
                   />
                   {amountInput && (
                     <p className="text-xs text-muted-foreground">
-                      {amountInputMode === 'incl' 
-                        ? `Excl. BTW: ${formatCurrency(calculateAmounts().amountExclBtw)}`
-                        : `Incl. BTW: ${formatCurrency(calculateAmounts().amountInclBtw)}`
-                      }
-                      {' · '}BTW: {formatCurrency(calculateAmounts().btwAmount)}
+                      {formData.has_reverse_charge ? (
+                        `Betaald (excl.): ${formatCurrency(calculateAmounts().amountExclBtw)} · Fictieve BTW: ${formatCurrency(calculateAmounts().btwAmount)} · Totaal incl. BTW: ${formatCurrency(calculateAmounts().amountInclBtw)}`
+                      ) : (
+                        `${amountInputMode === 'incl' ? `Excl. BTW: ${formatCurrency(calculateAmounts().amountExclBtw)}` : `Incl. BTW: ${formatCurrency(calculateAmounts().amountInclBtw)}`} · BTW: ${formatCurrency(calculateAmounts().btwAmount)}`
+                      )}
                     </p>
                   )}
                 </div>
@@ -422,6 +438,7 @@ export default function Expenses() {
                 </div>
                 <p className="text-xs text-muted-foreground ml-6">
                   Gebruik dit voor diensten/goederen van buitenlandse leveranciers waarop geen BTW in rust, zoals Thomann (Duitsland). 
+                  Je vult dan het betaalde bedrag excl. BTW in; het systeem berekent automatisch het totaal incl. BTW voor je administratie.
                   De BTW wordt niet meegerekend in je aftrekbare BTW.
                 </p>
               </div>

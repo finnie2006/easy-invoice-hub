@@ -1,6 +1,7 @@
 import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/hooks/useProfile';
+import { useTheme } from '@/hooks/useTheme';
 import {
   Sidebar,
   SidebarContent,
@@ -25,6 +26,8 @@ import {
   Briefcase,
   FolderKanban,
   FileCheck,
+  Moon,
+  Sun,
 } from 'lucide-react';
 
 const menuItems = [
@@ -76,9 +79,12 @@ export function AppSidebar() {
   const location = useLocation();
   const { signOut, user } = useAuth();
   const { appName, profile } = useProfile();
+  const { theme, setTheme } = useTheme();
 
   const themeKey = profile?.panel_color_theme || 'default';
   const themeStyles = panelThemeStyles[themeKey] || panelThemeStyles.default;
+
+  const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
 
   return (
     <Sidebar
@@ -118,10 +124,31 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4" style={{ borderTop: `1px solid ${themeStyles.border}` }}>
-        <div className="text-xs text-sidebar-foreground/60 mb-2 truncate">
+      <SidebarFooter className="p-4 space-y-2" style={{ borderTop: `1px solid ${themeStyles.border}` }}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setTheme(nextTheme)}
+          className="w-full justify-start text-sidebar-foreground hover:text-sidebar-foreground"
+          style={{ ['--hover-bg' as string]: themeStyles.accent }}
+          title={`Thema: ${theme}`}
+        >
+          {theme === 'dark' ? (
+            <Sun className="h-4 w-4 mr-2" />
+          ) : (
+            <Moon className="h-4 w-4 mr-2" />
+          )}
+          <span>
+            {theme === 'light' && 'Licht'}
+            {theme === 'dark' && 'Donker'}
+            {theme === 'system' && 'Systeem'}
+          </span>
+        </Button>
+        
+        <div className="text-xs text-sidebar-foreground/60 truncate">
           {user?.email}
         </div>
+        
         <Button
           variant="ghost"
           size="sm"

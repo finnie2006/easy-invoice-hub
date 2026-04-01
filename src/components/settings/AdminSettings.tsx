@@ -9,6 +9,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useState } from 'react';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 
 export default function AdminSettings() {
   const { user } = useAuth();
@@ -23,6 +34,9 @@ export default function AdminSettings() {
     isDeletingUser,
     isLoadingAdminUsers,
   } = useAppSettings();
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<{ id: string; email: string } | null>(null);
 
   if (isLoading) {
     return (
@@ -69,9 +83,16 @@ export default function AdminSettings() {
   };
 
   const handleDeleteUser = (userId: string, email: string) => {
-    const confirmed = window.confirm(`Weet je zeker dat je gebruiker ${email} wilt verwijderen? Deze actie kan niet ongedaan worden gemaakt.`);
-    if (!confirmed) return;
-    deleteUser(userId);
+    setUserToDelete({ id: userId, email });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (userToDelete) {
+      deleteUser(userToDelete.id);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+    }
   };
 
   return (
@@ -246,6 +267,28 @@ export default function AdminSettings() {
           </div>
         </div>
       </CardContent>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Gebruiker verwijderen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Weet je zeker dat je gebruiker <strong>{userToDelete?.email}</strong> wilt verwijderen? 
+              Dit is een permanente actie die niet ongedaan kan worden gemaakt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingUser}>Annuleren</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeletingUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingUser ? 'Verwijderen...' : 'Verwijderen'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

@@ -826,14 +826,14 @@ app.get('/api/expenses', authenticateToken, async (req, res) => {
 
 // Create expense
 app.post('/api/expenses', authenticateToken, async (req, res) => {
-  const { vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes } = req.body;
+  const { vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes, has_reverse_charge } = req.body;
 
   try {
     const result = await pool.query(
-      `INSERT INTO public.expenses (user_id, vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO public.expenses (user_id, vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes, has_reverse_charge)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [req.userId, vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes]
+      [req.userId, vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes, has_reverse_charge ?? false]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

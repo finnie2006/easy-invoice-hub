@@ -195,7 +195,8 @@ export default function Expenses() {
       expense_date: format(expenseDate, 'yyyy-MM-dd'),
       amount_incl_btw: amountInclBtw,
       amount_excl_btw: amountExclBtw,
-      btw_amount: formData.has_reverse_charge ? 0 : btwAmount, // Reverse charge expenses don't contribute to deductible VAT
+      // Keep reverse-charge VAT stored so it can be reported separately from deductible VAT.
+      btw_amount: btwAmount,
       btw_percentage: formData.btw_percentage || 21,
       btw_period: selectedBtwPeriod || null,
       receipt_url: editingExpense?.receipt_url || null,

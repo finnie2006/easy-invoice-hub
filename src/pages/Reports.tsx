@@ -20,6 +20,7 @@ import {
 } from "date-fns";
 import { nl } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { getExpenseDeductibleVat, getExpensePaidAmount, getExpenseReverseChargeVat } from "@/lib/expense-vat";
 
 type Period = "year" | "q1" | "q2" | "q3" | "q4";
 
@@ -85,20 +86,21 @@ export default function Reports() {
   const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.total), 0);
 
   // Calculate expense stats
-  const totalExpenses = periodExpenses.reduce((sum, exp) => sum + Number(exp.amount_incl_btw), 0);
+  const totalExpenses = periodExpenses.reduce((sum, exp) => sum + getExpensePaidAmount(exp), 0);
   const totalExpensesExclBtw = periodExpenses.reduce((sum, exp) => sum + Number(exp.amount_excl_btw || 0), 0);
-  const totalExpensesVat = periodExpenses.reduce((sum, exp) => sum + Number(exp.btw_amount || 0), 0);
+  const reverseChargeVat = periodExpenses.reduce((sum, exp) => sum + getExpenseReverseChargeVat(exp), 0);
+  const totalExpensesVat = periodExpenses.reduce((sum, exp) => sum + getExpenseDeductibleVat(exp), 0);
 
   // Calculate expenses by category
   const expensesByCategory = EXPENSE_CATEGORIES.map((cat) => {
     const categoryExpenses = periodExpenses.filter((exp) => exp.category === cat.value);
-    const total = categoryExpenses.reduce((sum, exp) => sum + Number(exp.amount_incl_btw), 0);
+    const total = categoryExpenses.reduce((sum, exp) => sum + getExpensePaidAmount(exp), 0);
     return { ...cat, total, count: categoryExpenses.length };
   }).filter((cat) => cat.total > 0);
 
   // Profit/Loss
   const profit = totalRevenueExclBtw - totalExpensesExclBtw;
-  const vatToPay = totalRevenueVat - totalExpensesVat;
+  const vatToPay = (totalRevenueVat + reverseChargeVat) - totalExpensesVat;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("nl-NL", {

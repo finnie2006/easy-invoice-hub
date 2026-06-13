@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { format, startOfYear, endOfYear, isAfter, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { getExpensePaidAmount } from '@/lib/expense-vat';
 
 export default function Dashboard() {
   const { invoices, overdueInvoices, isLoading: loadingInvoices } = useInvoices();
@@ -47,7 +48,7 @@ export default function Dashboard() {
     .reduce((sum, inv) => sum + Number(inv.total), 0);
 
   const totalExpenses = yearExpenses
-    .reduce((sum, exp) => sum + Number(exp.amount_incl_btw), 0);
+    .reduce((sum, exp) => sum + getExpensePaidAmount(exp), 0);
 
   const profit = totalRevenue - totalExpenses;
 
@@ -274,7 +275,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-destructive">
-                        -{formatCurrency(Number(expense.amount_incl_btw))}
+                        -{formatCurrency(getExpensePaidAmount(expense))}
                       </p>
                       <Badge variant="outline" className="mt-1">
                         {expense.category}

@@ -12,9 +12,10 @@ import { Badge } from '@/components/ui/badge';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search, AlertTriangle, Pencil } from 'lucide-react';
+import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search, AlertTriangle, Pencil, Globe2 } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { calculateExpenseVatAmounts, getExpensePaidAmount } from '@/lib/expense-vat';
 export default function Expenses() {
   const { expenses, isLoading, createExpense, updateExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
   const { isPeriodClosed, getBtwPeriodForDate, getNextAvailablePeriod } = useBtwPeriods();
@@ -117,24 +118,12 @@ export default function Expenses() {
 
   // Calculate amounts based on input mode
   const calculateAmounts = () => {
-    const inputAmount = parseFloat(amountInput) || 0;
-    const btwPercentage = formData.btw_percentage || 21;
-    
-    let amountInclBtw: number;
-    let amountExclBtw: number;
-    let btwAmount: number;
-    
-    if (amountInputMode === 'incl') {
-      amountInclBtw = inputAmount;
-      amountExclBtw = inputAmount / (1 + btwPercentage / 100);
-      btwAmount = amountInclBtw - amountExclBtw;
-    } else {
-      amountExclBtw = inputAmount;
-      btwAmount = amountExclBtw * (btwPercentage / 100);
-      amountInclBtw = amountExclBtw + btwAmount;
-    }
-    
-    return { amountInclBtw, amountExclBtw, btwAmount };
+    return calculateExpenseVatAmounts({
+      inputAmount: parseFloat(amountInput) || 0,
+      inputMode: amountInputMode,
+      btwPercentage: formData.btw_percentage || 21,
+      hasReverseCharge: formData.has_reverse_charge || false,
+    });
   };
 
   useEffect(() => {
@@ -195,7 +184,6 @@ export default function Expenses() {
       expense_date: format(expenseDate, 'yyyy-MM-dd'),
       amount_incl_btw: amountInclBtw,
       amount_excl_btw: amountExclBtw,
-      // Keep reverse-charge VAT stored so it can be reported separately from deductible VAT.
       btw_amount: btwAmount,
       btw_percentage: formData.btw_percentage || 21,
       btw_period: selectedBtwPeriod || null,
@@ -254,7 +242,7 @@ export default function Expenses() {
   };
 
   // Calculate totals
-  const totalExpenses = expenses.reduce((sum, exp) => sum + Number(exp.amount_incl_btw), 0);
+  const totalExpenses = expenses.reduce((sum, exp) => sum + getExpensePaidAmount(exp), 0);
   const totalBtw = expenses
     .filter(exp => !exp.has_reverse_charge)
     .reduce((sum, exp) => sum + Number(exp.btw_amount || 0), 0);
@@ -370,7 +358,7 @@ export default function Expenses() {
                   <div className="flex items-center justify-between">
                     <Label htmlFor="amount">
                       {formData.has_reverse_charge
-                        ? 'Betaald bedrag excl. BTW (€) *'
+                        ? 'Betaald bedrag op EU-factuur (€) *'
                         : `Bedrag ${amountInputMode === 'incl' ? 'incl.' : 'excl.'} BTW (€) *`
                       }
                     </Label>
@@ -397,7 +385,7 @@ export default function Expenses() {
                   {amountInput && (
                     <p className="text-xs text-muted-foreground">
                       {formData.has_reverse_charge ? (
-                        `Betaald (excl.): ${formatCurrency(calculateAmounts().amountExclBtw)} · Fictieve BTW: ${formatCurrency(calculateAmounts().btwAmount)} · Totaal incl. BTW: ${formatCurrency(calculateAmounts().amountInclBtw)}`
+                        `Betaald: ${formatCurrency(calculateAmounts().amountInclBtw)} · Nederlandse BTW voor aangifte: ${formatCurrency(calculateAmounts().btwAmount)}`
                       ) : (
                         `${amountInputMode === 'incl' ? `Excl. BTW: ${formatCurrency(calculateAmounts().amountExclBtw)}` : `Incl. BTW: ${formatCurrency(calculateAmounts().amountInclBtw)}`} · BTW: ${formatCurrency(calculateAmounts().btwAmount)}`
                       )}
@@ -423,7 +411,7 @@ export default function Expenses() {
                 </div>
               </div>
 
-              {/* Reverse Charge Option */}
+              {/* EU reverse-charge purchase option */}
               <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
                 <div className="flex items-center gap-2">
                   <input
@@ -434,13 +422,15 @@ export default function Expenses() {
                     className="rounded border border-input"
                   />
                   <label htmlFor="reverse_charge" className="text-sm font-medium cursor-pointer">
-                    Verlegingsregeling (Reverse Charge)
+                    <span className="inline-flex items-center gap-2">
+                      <Globe2 className="h-4 w-4" />
+                      EU-aankoop met btw verlegd
+                    </span>
                   </label>
                 </div>
                 <p className="text-xs text-muted-foreground ml-6">
-                  Gebruik dit voor diensten/goederen van buitenlandse leveranciers waarop geen BTW in rust, zoals Thomann (Duitsland). 
-                  Je vult dan het betaalde bedrag excl. BTW in; het systeem berekent automatisch het totaal incl. BTW voor je administratie.
-                  De BTW wordt niet meegerekend in je aftrekbare BTW.
+                  Gebruik dit bijvoorbeeld voor zakelijke aankopen in Duitsland waarbij je Nederlandse btw-id op de factuur staat en de leverancier 0% btw rekent.
+                  Je vult het betaalde factuurbedrag in; het systeem berekent de Nederlandse btw en neemt die zowel op als aan te geven btw als voorbelasting.
                 </p>
               </div>
 
@@ -533,7 +523,7 @@ export default function Expenses() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Reverse Charge BTW</CardTitle>
+            <CardTitle className="text-sm font-medium">BTW verlegd</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">
@@ -678,13 +668,13 @@ export default function Expenses() {
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
                         {expense.has_reverse_charge && (
-                          <Badge variant="secondary" className="text-xs">RC</Badge>
+                          <Badge variant="secondary" className="text-xs">EU</Badge>
                         )}
                       </div>
                       <div className="text-right">
-                        <div className="font-bold">{formatCurrency(Number(expense.amount_incl_btw))}</div>
+                        <div className="font-bold">{formatCurrency(getExpensePaidAmount(expense))}</div>
                         <div className="text-xs text-muted-foreground">
-                          BTW: {formatCurrency(Number(expense.btw_amount || 0))}
+                          {expense.has_reverse_charge ? 'Btw verlegd' : 'BTW'}: {formatCurrency(Number(expense.btw_amount || 0))}
                         </div>
                       </div>
                     </div>
@@ -720,14 +710,14 @@ export default function Expenses() {
                           <div className="flex items-center gap-2">
                             <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
                             {expense.has_reverse_charge && (
-                              <Badge variant="secondary" title="Reverse Charge" className="text-xs">RC</Badge>
+                              <Badge variant="secondary" title="EU-aankoop met btw verlegd" className="text-xs">EU</Badge>
                             )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div>{formatCurrency(Number(expense.amount_incl_btw))}</div>
+                          <div>{formatCurrency(getExpensePaidAmount(expense))}</div>
                           <div className="text-xs text-muted-foreground">
-                            BTW: {formatCurrency(Number(expense.btw_amount || 0))}
+                            {expense.has_reverse_charge ? 'Btw verlegd' : 'BTW'}: {formatCurrency(Number(expense.btw_amount || 0))}
                           </div>
                         </TableCell>
                         <TableCell className="text-center">

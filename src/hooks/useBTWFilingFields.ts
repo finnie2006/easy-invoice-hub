@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useInvoices } from './useInvoices';
 import { useExpenses } from './useExpenses';
+import { getExpenseDeductibleVat, getExpenseReverseChargeVat } from '@/lib/expense-vat';
 
 export interface BTWFilingFields {
   id: string;
@@ -40,7 +41,7 @@ export type BTWFilingFieldsInsert = Omit<
 export const BTW_FIELDS = {
   '1a': { label: 'Omzetbelasting leveringen binnen NL', section: 'ontvangen' },
   '1b': {
-    label: 'Omzetbelasting intracommunautaire leveringen',
+    label: 'Te betalen BTW over EU-aankopen (btw verlegd)',
     section: 'ontvangen',
   },
   '1c': { label: 'Omzetbelasting export van goederen', section: 'ontvangen' },
@@ -53,7 +54,7 @@ export const BTW_FIELDS = {
     section: 'ontvangen',
   },
   '2a': {
-    label: 'Aftrekbare belasting diensten/goederen buitenland',
+    label: 'Voorbelasting EU-aankopen (btw verlegd)',
     section: 'aftrekbaar',
   },
   '3a': {
@@ -65,7 +66,7 @@ export const BTW_FIELDS = {
     section: 'aftrekbaar',
   },
   '4a': {
-    label: 'Aftrekbare belasting aankopen goederen/diensten NL',
+    label: 'Voorbelasting aankopen NL',
     section: 'aftrekbaar',
   },
   '4b': {
@@ -167,22 +168,25 @@ export function useBTWFilingFields() {
       (sum, inv) => sum + Number(inv.total_btw),
       0
     );
-    const field_1b = 0; // User would enter manually
+    const reverseChargeBtw = periodExpenses.reduce(
+      (sum, exp) => sum + getExpenseReverseChargeVat(exp),
+      0
+    );
+
+    const field_1b = reverseChargeBtw;
     const field_1c = 0; // User would enter manually
     const field_1d = 0; // User would enter manually
     const field_1e = 0; // User would enter manually
 
     // Calculate deductible VAT (2a-4b)
-    const field_2a = periodExpenses
-      .filter((exp) => exp.has_reverse_charge)
-      .reduce((sum, exp) => sum + Number(exp.btw_amount || 0), 0);
+    const field_2a = reverseChargeBtw;
 
     const field_3a = 0; // User would enter manually
     const field_3b = 0; // User would enter manually
 
     const field_4a = periodExpenses
       .filter((exp) => !exp.has_reverse_charge)
-      .reduce((sum, exp) => sum + Number(exp.btw_amount || 0), 0);
+      .reduce((sum, exp) => sum + getExpenseDeductibleVat(exp), 0);
 
     const field_4b = 0; // User would enter manually
 

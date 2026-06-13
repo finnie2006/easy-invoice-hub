@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { format, startOfQuarter, endOfQuarter, isAfter, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { getExpenseDeductibleVat, getExpenseReverseChargeVat } from '@/lib/expense-vat';
 import AnnualTaxHelper from '@/components/tax/AnnualTaxHelper';
 import BtwFilingWizard from '@/components/tax/BtwFilingWizard';
 
@@ -102,8 +103,9 @@ export default function TaxFilings() {
       return isAfter(date, quarterStart) && isBefore(date, quarterEnd);
     });
 
-    const revenueVat = periodInvoices.reduce((sum, inv) => sum + Number(inv.total_btw), 0);
-    const expenseVat = periodExpenses.reduce((sum, exp) => sum + Number(exp.btw_amount || 0), 0);
+    const reverseChargeVat = periodExpenses.reduce((sum, exp) => sum + getExpenseReverseChargeVat(exp), 0);
+    const revenueVat = periodInvoices.reduce((sum, inv) => sum + Number(inv.total_btw), 0) + reverseChargeVat;
+    const expenseVat = periodExpenses.reduce((sum, exp) => sum + getExpenseDeductibleVat(exp), 0);
     const vatToPay = revenueVat - expenseVat;
 
     return {

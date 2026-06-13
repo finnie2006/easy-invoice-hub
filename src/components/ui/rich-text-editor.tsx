@@ -109,7 +109,6 @@ export function RichTextEditor({ value, onChange, placeholder, className, id }: 
           "min-h-[80px] px-3 py-2 text-sm outline-none",
           "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground empty:before:pointer-events-none"
         )}
-        dangerouslySetInnerHTML={{ __html: value || "" }}
         suppressContentEditableWarning
       />
     </div>

@@ -4,11 +4,13 @@ import { Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { completeOAuthSignIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -76,8 +78,9 @@ export default function AuthCallback() {
             return;
           }
 
-          // Persist only user identifier; auth tokens are stored in httpOnly cookies.
-          localStorage.setItem('userId', data.userId);
+          // Auth tokens are stored in httpOnly cookies; update context immediately
+          // so the app does not render the login route until the next refresh.
+          completeOAuthSignIn(data.userId);
 
           // Show welcome message for new users
           if (data.isNewUser) {
@@ -122,7 +125,7 @@ export default function AuthCallback() {
     };
 
     handleCallback();
-  }, [searchParams, navigate, toast]);
+  }, [searchParams, navigate, toast, completeOAuthSignIn]);
 
   if (loading) {
     return (

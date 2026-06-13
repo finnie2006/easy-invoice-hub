@@ -347,8 +347,8 @@ export function useInvoices() {
   });
 
   const updateInvoiceStatus = useMutation({
-    mutationFn: async ({ id, status, paid_at }: { id: string; status: string; paid_at?: string }) => {
-      await invoicesApi.update(id, { status, paid_at: paid_at || null });
+    mutationFn: async ({ id, status }: { id: string; status: string; paid_at?: string }) => {
+      await invoicesApi.update(id, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });

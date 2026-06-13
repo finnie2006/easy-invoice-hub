@@ -1,6 +1,8 @@
 import axios, { AxiosHeaders } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || '/';
+const API_BASE_URL = API_URL.replace(/\/$/, '');
+export const AUTH_SESSION_EXPIRED_EVENT = 'auth:session-expired';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -31,7 +33,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const response = await fetch(`${API_URL}/api/auth/refresh`, {
+        const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -51,6 +53,11 @@ api.interceptors.response.use(
       } catch (err) {
         console.error('Token refresh failed:', err);
       }
+
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userId');
+      window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
     }
 
     return Promise.reject(error);

@@ -127,8 +127,35 @@ export default function InvoiceDetail() {
 
       const pxPerMm = fullCanvas.width / A4_WIDTH_MM;
       const pageHeightPx = Math.floor(A4_HEIGHT_MM * pxPerMm);
+      const trailingBlankTolerancePx = Math.ceil(pxPerMm * 2);
       const cloneRect = clone.getBoundingClientRect();
       const cssPxToCanvasPx = fullCanvas.width / cloneRect.width;
+      const fullCanvasCtx = fullCanvas.getContext('2d');
+      const isBlankCanvasSlice = (startY: number, heightPx: number) => {
+        if (!fullCanvasCtx || heightPx <= 0) {
+          return false;
+        }
+
+        const imageData = fullCanvasCtx.getImageData(
+          0,
+          startY,
+          fullCanvas.width,
+          Math.max(1, Math.floor(heightPx)),
+        ).data;
+
+        for (let i = 0; i < imageData.length; i += 4) {
+          const alpha = imageData[i + 3];
+          const red = imageData[i];
+          const green = imageData[i + 1];
+          const blue = imageData[i + 2];
+
+          if (alpha > 8 && (red < 248 || green < 248 || blue < 248)) {
+            return false;
+          }
+        }
+
+        return true;
+      };
       const forcedBreakOffsets = Array.from(clone.querySelectorAll('[data-pdf-start-page]'))
         .map((section) => {
           const value = Number((section as HTMLElement).getAttribute('data-pdf-start-page') || 0);
@@ -153,6 +180,14 @@ export default function InvoiceDetail() {
       let pageIndex = 0;
 
       while (offsetY < fullCanvas.height) {
+        const remainingHeightPx = fullCanvas.height - offsetY;
+        if (
+          remainingHeightPx <= trailingBlankTolerancePx &&
+          isBlankCanvasSlice(offsetY, remainingHeightPx)
+        ) {
+          break;
+        }
+
         const defaultSliceHeightPx = Math.min(pageHeightPx, fullCanvas.height - offsetY);
         const nextForcedBreak = forcedBreakOffsets.find((breakOffset) => breakOffset > offsetY);
         const shouldBreakBeforeMarker =

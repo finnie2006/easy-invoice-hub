@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
-import { auth } from '@/api/client';
+import { AUTH_SESSION_EXPIRED_EVENT, auth } from '@/api/client';
 import type { AxiosError } from 'axios';
 
 interface AuthUser {
@@ -18,9 +18,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const clearStoredAuth = () => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('userId');
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const clearSession = useCallback(() => {
+    clearStoredAuth();
+    setUser(null);
+  }, []);
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -38,12 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       })
       .catch(() => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('userId');
+        clearStoredAuth();
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, clearSession);
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, clearSession);
+  }, [clearSession]);
 
   const signUp = async (email: string, password: string) => {
     try {
@@ -83,9 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Logout failed:', err);
     }
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('userId');
+    clearStoredAuth();
     setUser(null);
   };
 

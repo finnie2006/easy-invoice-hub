@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { AUTH_SESSION_EXPIRED_EVENT, auth } from '@/api/client';
 import type { AxiosError } from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface AuthUser {
   id: string;
@@ -25,13 +26,15 @@ const clearStoredAuth = () => {
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   const clearSession = useCallback(() => {
     clearStoredAuth();
+    queryClient.clear();
     setUser(null);
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
@@ -97,8 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error('Logout failed:', err);
     }
-    clearStoredAuth();
-    setUser(null);
+    clearSession();
   };
 
   const completeOAuthSignIn = useCallback((userId: string, accessToken?: string, refreshToken?: string) => {

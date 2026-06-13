@@ -13,7 +13,7 @@ interface AuthContextType {
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
-  completeOAuthSignIn: (userId: string) => void;
+  completeOAuthSignIn: (userId: string, accessToken?: string, refreshToken?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -89,7 +89,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  const completeOAuthSignIn = useCallback((userId: string) => {
+  const completeOAuthSignIn = useCallback((userId: string, accessToken?: string, refreshToken?: string) => {
+    if (accessToken) localStorage.setItem('accessToken', accessToken);
+    if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('userId', userId);
     setUser({ id: userId });
   }, []);

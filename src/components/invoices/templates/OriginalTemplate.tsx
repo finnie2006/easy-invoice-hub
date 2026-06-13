@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
 import { InvoiceTemplateProps } from './types';
 
 const colorThemes = {
@@ -21,6 +22,7 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
   const hasItemDiscounts = invoice.items?.some(item => item.discount_type && item.discount_value > 0);
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
+  const sanitizedNotes = sanitizeRichTextHtml(invoice.notes);
 
   return (
     <div className="bg-white text-gray-900 p-12 min-h-[1123px] flex flex-col text-sm" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -127,10 +129,10 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      {invoice.notes && (
+      {sanitizedNotes && (
         <div data-pdf-section data-pdf-start-page="2" className="mb-8">
           <p className="text-xs uppercase tracking-wide mb-3" style={{ color: theme.accent }}>{invoice.notes_title || 'Opmerkingen'}</p>
-          <div className="pl-4 text-sm text-gray-600 whitespace-pre-wrap" style={{ borderLeft: `2px solid ${theme.border}` }} dangerouslySetInnerHTML={{ __html: invoice.notes }} />
+          <div className="pl-4 text-sm text-gray-600 whitespace-pre-wrap" style={{ borderLeft: `2px solid ${theme.border}` }} dangerouslySetInnerHTML={{ __html: sanitizedNotes }} />
         </div>
       )}
 

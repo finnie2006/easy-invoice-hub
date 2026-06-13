@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
 import { InvoiceTemplateProps } from './types';
 
 export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
@@ -9,6 +10,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
 
   const hasItemDiscounts = invoice.items?.some(item => item.discount_type && item.discount_value > 0);
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
+  const sanitizedNotes = sanitizeRichTextHtml(invoice.notes);
 
   return (
     <div className="bg-white text-black min-h-[1123px] flex flex-col" style={{ fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif' }}>
@@ -130,10 +132,10 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
           </div>
         </div>
 
-        {invoice.notes && (
+        {sanitizedNotes && (
           <div data-pdf-section data-pdf-start-page="2" className="text-sm mb-6">
             <p className="font-bold text-slate-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
-            <div className="text-slate-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
+            <div className="text-slate-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: sanitizedNotes }} />
           </div>
         )}
 

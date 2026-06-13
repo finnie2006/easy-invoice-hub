@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { btwFilingFields as btwFilingFieldsApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -79,6 +80,10 @@ export const BTW_FIELDS = {
   },
 };
 
+const getErrorMessage = (error: unknown) => {
+  return error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
+};
+
 export function useBTWFilingFields() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -86,11 +91,11 @@ export function useBTWFilingFields() {
   const { invoices } = useInvoices();
   const { expenses } = useExpenses();
 
-  const getByPeriod = async (period: string) => {
+  const getByPeriod = useCallback(async (period: string) => {
     if (!user) return null;
     const response = await btwFilingFieldsApi.getByPeriod(period);
     return response.data as BTWFilingFields | null;
-  };
+  }, [user]);
 
   const upsert = useMutation({
     mutationFn: async (data: BTWFilingFieldsInsert) => {
@@ -105,10 +110,10 @@ export function useBTWFilingFields() {
         description: 'Uw BTW-aangifte is opgeslagen.',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Fout bij opslaan',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     },
@@ -127,17 +132,17 @@ export function useBTWFilingFields() {
         description: 'Uw BTW-aangifte is ingediend.',
       });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast({
         title: 'Fout bij indienen',
-        description: error.message,
+        description: getErrorMessage(error),
         variant: 'destructive',
       });
     },
   });
 
   // Calculate fields automatically based on invoices and expenses
-  const calculateFields = (year: number, quarter: number) => {
+  const calculateFields = useCallback((year: number, quarter: number) => {
     const quarterStart = new Date(year, (quarter - 1) * 3, 1);
     const quarterEnd = new Date(year, (quarter - 1) * 3 + 3, 0);
 
@@ -202,7 +207,7 @@ export function useBTWFilingFields() {
       field_5b,
       field_5c,
     };
-  };
+  }, [expenses, invoices]);
 
   return {
     getByPeriod,

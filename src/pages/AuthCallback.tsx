@@ -1,21 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { getSafeOAuthReturnTo } from '@/lib/auth-redirect';
+
+interface OAuthCallbackResponse {
+  accessToken?: string;
+  refreshToken?: string;
+  userId?: string;
+  email?: string;
+  isNewUser?: boolean;
+}
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { completeOAuthSignIn } = useAuth();
+  const hasHandledCallback = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const handleCallback = async () => {
+      if (hasHandledCallback.current) {
+        return;
+      }
+      hasHandledCallback.current = true;
+
       try {
         // Check for OAuth callback
         const code = searchParams.get('code');
@@ -30,6 +45,9 @@ export default function AuthCallback() {
             description: errorMessage,
             variant: 'destructive',
           });
+          window.setTimeout(() => {
+            navigate('/auth', { replace: true });
+          }, 3000);
           setLoading(false);
           return;
         }
@@ -39,11 +57,17 @@ export default function AuthCallback() {
           // Retrieve state from session storage (set during OAuth initiation)
           const sessionState = sessionStorage.getItem('oauth_state');
           const oauthMode = sessionStorage.getItem('oauth_mode') || 'login';
+          const returnTo = getSafeOAuthReturnTo(sessionStorage.getItem('oauth_return_to'));
           sessionStorage.removeItem('oauth_state');
           sessionStorage.removeItem('oauth_mode');
+          sessionStorage.removeItem('oauth_return_to');
 
           if (!sessionState) {
-            throw new Error('Invalid session state - please try again');
+            throw new Error('Ongeldige Authentik sessie. Probeer opnieuw in te loggen.');
+          }
+
+          if (!state || state !== sessionState) {
+            throw new Error('Authentik sessie kon niet worden gevalideerd. Probeer opnieuw in te loggen.');
           }
 
           const callbackEndpoint = oauthMode === 'link'
@@ -63,11 +87,11 @@ export default function AuthCallback() {
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'OAuth callback failed');
+            const errorData = await response.json().catch(() => null) as { error?: string } | null;
+            throw new Error(errorData?.error || 'Authentik callback kon niet worden verwerkt');
           }
 
-          const data = await response.json();
+          const data = await response.json() as OAuthCallbackResponse;
 
           if (oauthMode === 'link') {
             toast({
@@ -78,9 +102,11 @@ export default function AuthCallback() {
             return;
           }
 
-          // Auth tokens are stored in httpOnly cookies; update context immediately
-          // so the app does not render the login route until the next refresh.
-          completeOAuthSignIn(data.userId);
+          if (!data.userId) {
+            throw new Error('Authentik login is gelukt, maar de gebruiker kon niet worden bepaald.');
+          }
+
+          completeOAuthSignIn(data.userId, data.accessToken, data.refreshToken);
 
           // Show welcome message for new users
           if (data.isNewUser) {
@@ -95,8 +121,7 @@ export default function AuthCallback() {
             });
           }
 
-          // Redirect to dashboard
-          navigate('/', { replace: true });
+          navigate(returnTo, { replace: true });
           return;
         }
 

@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
 import { InvoiceTemplateProps } from './types';
 
 export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
@@ -8,6 +9,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
   };
 
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
+  const sanitizedNotes = sanitizeRichTextHtml(invoice.notes);
 
   return (
     <div className="bg-white text-black p-12 min-h-[1123px] flex flex-col text-sm" style={{ fontFamily: 'Georgia, serif' }}>
@@ -92,9 +94,9 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
       </div>
 
-      {invoice.notes && (
+      {sanitizedNotes && (
         <div data-pdf-section data-pdf-start-page="2" className="mb-8 text-gray-600">
-          <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
+          <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: sanitizedNotes }} />
         </div>
       )}
 

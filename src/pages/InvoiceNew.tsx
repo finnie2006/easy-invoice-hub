@@ -14,6 +14,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { DiscountInput } from '@/components/invoices/DiscountInput';
 import { Loader2, Plus, Trash2, FileText, ArrowLeft } from 'lucide-react';
 import { format, addDays } from 'date-fns';
+import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
 
 interface InvoiceItemForm extends InvoiceItemInsert {
   id: string;
@@ -167,6 +168,7 @@ export default function InvoiceNew() {
     if (items.some(item => !item.description)) return;
 
     try {
+      const sanitizedNotes = sanitizeRichTextHtml(notes);
       await createInvoice({
         invoice: {
           invoice_number: invoiceNumber,
@@ -181,7 +183,7 @@ export default function InvoiceNew() {
           client_country: clientData.country || null,
           client_kvk_number: clientData.kvk_number || null,
           client_btw_number: clientData.btw_number || null,
-          notes: notes || null,
+          notes: sanitizedNotes || null,
           notes_title: notesTitle || 'Opmerkingen',
           payment_reference: paymentReference || invoiceNumber,
           status: 'draft',

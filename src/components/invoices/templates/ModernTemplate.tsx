@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
+import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
 import { InvoiceTemplateProps } from './types';
 
 export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
@@ -11,6 +12,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
   const hasInvoiceDiscount = invoice.discount_type && invoice.discount_amount > 0;
   const companyAddressLine = [profile?.company_postal_code, profile?.company_city].filter(Boolean).join(' ');
   const clientAddressLine = [invoice.client_postal_code, invoice.client_city].filter(Boolean).join(' ');
+  const sanitizedNotes = sanitizeRichTextHtml(invoice.notes);
 
   return (
     <div className="bg-white text-black min-h-[1123px] flex flex-col text-[13px] leading-relaxed" style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}>
@@ -143,10 +145,10 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
 
         {/* Notes */}
-        {invoice.notes && (
+        {sanitizedNotes && (
           <div data-pdf-section data-pdf-start-page="2" className="mb-6 text-sm">
             <p className="font-semibold text-gray-900 mb-2">{invoice.notes_title || 'Opmerkingen'}</p>
-            <div className="text-gray-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: invoice.notes }} />
+            <div className="text-gray-600 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: sanitizedNotes }} />
           </div>
         )}
       </div>

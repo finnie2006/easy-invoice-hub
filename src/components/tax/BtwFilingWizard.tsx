@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useBTWFilingFields, BTW_FIELDS } from '@/hooks/useBTWFilingFields';
 import {
   Dialog,
@@ -58,13 +58,7 @@ export default function BtwFilingWizard({
     field_5c: 0,
   });
 
-  useEffect(() => {
-    if (open) {
-      loadFilingData();
-    }
-  }, [open, period]);
-
-  const loadFilingData = async () => {
+  const loadFilingData = useCallback(async () => {
     setIsLoading(true);
     try {
       const existing = await getByPeriod(period);
@@ -97,7 +91,13 @@ export default function BtwFilingWizard({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [calculateFields, getByPeriod, period, quarter, year]);
+
+  useEffect(() => {
+    if (open) {
+      loadFilingData();
+    }
+  }, [loadFilingData, open]);
 
   const handleInputChange = (field: string, value: string) => {
     const numValue = parseFloat(value) || 0;

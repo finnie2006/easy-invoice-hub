@@ -136,7 +136,7 @@
   /* Hide all non-print elements */
   body > *:not(#root),
   [data-sidebar],
-  .print\\:hidden,
+  .print\:hidden,
   header,
   nav,
   aside,
@@ -161,15 +161,15 @@
   }
 
   /* Make the invoice card full width without shadows */
-  .print\\:shadow-none {
+  .print\:shadow-none {
     box-shadow: none !important;
   }
 
-  .print\\:border-none {
+  .print\:border-none {
     border: none !important;
   }
 
-  .print\\:p-0 {
+  .print\:p-0 {
     padding: 0 !important;
   }
 

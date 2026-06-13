@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || '/';
 
@@ -10,15 +10,12 @@ const api = axios.create({
 // Attach access token as fallback when cookies are unavailable.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
-  if (token && !config.headers?.Authorization) {
-    if (typeof (config.headers as any)?.set === 'function') {
-      (config.headers as any).set('Authorization', `Bearer ${token}`);
-    } else {
-      config.headers = {
-        ...(config.headers || {}),
-        Authorization: `Bearer ${token}`,
-      } as any;
+  if (token) {
+    const headers = AxiosHeaders.from(config.headers);
+    if (!headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`);
     }
+    config.headers = headers;
   }
   return config;
 });

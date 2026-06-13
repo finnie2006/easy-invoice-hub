@@ -3,6 +3,7 @@ import { useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Bold, Italic, Underline, List, ListOrdered } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
+import { sanitizeRichTextHtml } from "@/lib/sanitize-html";
 
 interface RichTextEditorProps {
   value: string;
@@ -18,8 +19,12 @@ export function RichTextEditor({ value, onChange, placeholder, className, id }: 
 
   const handleInput = useCallback(() => {
     if (editorRef.current) {
+      const sanitizedValue = sanitizeRichTextHtml(editorRef.current.innerHTML);
+      if (sanitizedValue !== editorRef.current.innerHTML) {
+        editorRef.current.innerHTML = sanitizedValue;
+      }
       isInternalChange.current = true;
-      onChange(editorRef.current.innerHTML);
+      onChange(sanitizedValue);
     }
   }, [onChange]);
 
@@ -29,8 +34,9 @@ export function RichTextEditor({ value, onChange, placeholder, className, id }: 
       isInternalChange.current = false;
       return;
     }
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value || "";
+    const sanitizedValue = sanitizeRichTextHtml(value);
+    if (editorRef.current && editorRef.current.innerHTML !== sanitizedValue) {
+      editorRef.current.innerHTML = sanitizedValue;
     }
   }, [value]);
 

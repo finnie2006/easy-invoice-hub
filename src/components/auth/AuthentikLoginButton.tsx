@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { getOAuthReturnToFromLocation } from '@/lib/auth-redirect';
 
 export function AuthentikLoginButton() {
+  const location = useLocation();
   const [oauthEnabled, setOauthEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,16 +35,20 @@ export function AuthentikLoginButton() {
       const response = await fetch('/api/auth/oauth/authorize', {
         method: 'POST',
       });
+      const data = await response.json().catch(() => null) as { url?: string; state?: string; error?: string } | null;
 
       if (!response.ok) {
-        throw new Error('Failed to get authorization URL');
+        throw new Error(data?.error || 'Authentik login kon niet worden gestart');
       }
 
-      const data = await response.json();
+      if (!data?.url || !data.state) {
+        throw new Error('Authentik gaf geen geldige login-URL terug');
+      }
 
       // Store state for CSRF validation on callback
-      sessionStorage.setItem('oauth_state', data.state || '');
+      sessionStorage.setItem('oauth_state', data.state);
       sessionStorage.setItem('oauth_mode', 'login');
+      sessionStorage.setItem('oauth_return_to', getOAuthReturnToFromLocation(location));
 
       // Redirect to Authentik
       window.location.href = data.url;

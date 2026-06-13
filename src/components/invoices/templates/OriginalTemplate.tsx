@@ -130,7 +130,7 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {sanitizedNotes && (
-        <div data-pdf-section data-pdf-start-page="2" className="mb-8">
+        <div data-pdf-section className="mb-8">
           <p className="text-xs uppercase tracking-wide mb-3" style={{ color: theme.accent }}>{invoice.notes_title || 'Opmerkingen'}</p>
           <div className="pl-4 text-sm text-gray-600 whitespace-pre-wrap" style={{ borderLeft: `2px solid ${theme.border}` }} dangerouslySetInnerHTML={{ __html: sanitizedNotes }} />
         </div>

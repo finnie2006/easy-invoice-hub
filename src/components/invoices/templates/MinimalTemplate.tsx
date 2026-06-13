@@ -95,7 +95,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
       </div>
 
       {sanitizedNotes && (
-        <div data-pdf-section data-pdf-start-page="2" className="mb-8 text-gray-600">
+        <div data-pdf-section className="mb-8 text-gray-600">
           <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: sanitizedNotes }} />
         </div>
       )}

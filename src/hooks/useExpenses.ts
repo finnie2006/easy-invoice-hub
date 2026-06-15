@@ -18,6 +18,7 @@ export interface Expense {
   receipt_url: string | null;
   notes: string | null;
   has_reverse_charge: boolean | null;
+  reverse_charge_type: 'domestic' | 'eu' | 'non_eu' | null;
   created_at: string;
   updated_at: string;
 }

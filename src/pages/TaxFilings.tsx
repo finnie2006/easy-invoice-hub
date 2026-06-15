@@ -25,9 +25,14 @@ import {
   Calculator,
   FileEdit,
 } from 'lucide-react';
-import { format, startOfQuarter, endOfQuarter, isAfter, isBefore } from 'date-fns';
+import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import { getExpenseDeductibleVat, getExpenseReverseChargeVat } from '@/lib/expense-vat';
+import {
+  calculateBtwFilingAmounts,
+  isDateInBtwQuarter,
+  isExpenseInBtwPeriod,
+  isInvoiceRelevantForBtw,
+} from '@/lib/btw-filing';
 import AnnualTaxHelper from '@/components/tax/AnnualTaxHelper';
 import BtwFilingWizard from '@/components/tax/BtwFilingWizard';
 
@@ -84,36 +89,19 @@ export default function TaxFilings() {
 
   // Calculate stats for each period
   const getQuarterStats = (year: number, quarter: number) => {
-    const quarterStart = startOfQuarter(new Date(year, (quarter - 1) * 3, 1));
-    const quarterEnd = endOfQuarter(new Date(year, (quarter - 1) * 3, 1));
-    const periodString = `${year}-Q${quarter}`;
-
     const periodInvoices = invoices.filter((inv) => {
-      const date = new Date(inv.invoice_date);
-      return inv.status === 'paid' && isAfter(date, quarterStart) && isBefore(date, quarterEnd);
+      return isInvoiceRelevantForBtw(inv.status) && isDateInBtwQuarter(inv.invoice_date, year, quarter);
     });
 
-    // Filter expenses by btw_period if available, otherwise by expense_date
-    const periodExpenses = expenses.filter((exp) => {
-      if (exp.btw_period) {
-        return exp.btw_period === periodString;
-      }
-      // Fallback for expenses without btw_period
-      const date = new Date(exp.expense_date);
-      return isAfter(date, quarterStart) && isBefore(date, quarterEnd);
-    });
-
-    const reverseChargeVat = periodExpenses.reduce((sum, exp) => sum + getExpenseReverseChargeVat(exp), 0);
-    const revenueVat = periodInvoices.reduce((sum, inv) => sum + Number(inv.total_btw), 0) + reverseChargeVat;
-    const expenseVat = periodExpenses.reduce((sum, exp) => sum + getExpenseDeductibleVat(exp), 0);
-    const vatToPay = revenueVat - expenseVat;
+    const periodExpenses = expenses.filter((exp) => isExpenseInBtwPeriod(exp, year, quarter));
+    const filingAmounts = calculateBtwFilingAmounts(year, quarter, invoices, expenses);
 
     return {
       invoiceCount: periodInvoices.length,
       expenseCount: periodExpenses.length,
-      revenueVat,
-      expenseVat,
-      vatToPay,
+      revenueVat: filingAmounts.field_5a,
+      expenseVat: filingAmounts.field_5b,
+      vatToPay: filingAmounts.field_5c,
     };
   };
 
@@ -237,7 +225,7 @@ export default function TaxFilings() {
                 <div className="p-4 rounded-lg bg-muted/50">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                     <TrendingUp className="h-4 w-4" />
-                    BTW ontvangen
+                    Verschuldigde btw
                   </div>
                   <div className="text-xl font-bold">{formatCurrency(currentPeriodStats.revenueVat)}</div>
                   <div className="text-xs text-muted-foreground">{currentPeriodStats.invoiceCount} facturen</div>
@@ -245,7 +233,7 @@ export default function TaxFilings() {
                 <div className="p-4 rounded-lg bg-muted/50">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
                     <TrendingDown className="h-4 w-4" />
-                    BTW betaald
+                    Voorbelasting
                   </div>
                   <div className="text-xl font-bold text-success">{formatCurrency(currentPeriodStats.expenseVat)}</div>
                   <div className="text-xs text-muted-foreground">{currentPeriodStats.expenseCount} uitgaven</div>
@@ -331,11 +319,11 @@ export default function TaxFilings() {
                           </div>
                           <div className="grid grid-cols-2 gap-2 text-sm">
                             <div>
-                              <span className="text-muted-foreground">BTW ontvangen:</span>
+                              <span className="text-muted-foreground">Verschuldigde btw:</span>
                               <span className="ml-2 font-medium">{formatCurrency(stats.revenueVat)}</span>
                             </div>
                             <div>
-                              <span className="text-muted-foreground">BTW betaald:</span>
+                              <span className="text-muted-foreground">Voorbelasting:</span>
                               <span className="ml-2 font-medium text-success">{formatCurrency(stats.expenseVat)}</span>
                             </div>
                             <div className="col-span-2">
@@ -383,8 +371,8 @@ export default function TaxFilings() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Periode</TableHead>
-                          <TableHead className="text-right">BTW ontvangen</TableHead>
-                          <TableHead className="text-right">BTW betaald</TableHead>
+                          <TableHead className="text-right">Verschuldigde btw</TableHead>
+                          <TableHead className="text-right">Voorbelasting</TableHead>
                           <TableHead className="text-right">Per saldo</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead className="text-center">Aangifte</TableHead>

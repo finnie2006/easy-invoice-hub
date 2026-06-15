@@ -140,6 +140,7 @@ const EXPENSE_UPDATABLE_FIELDS = [
   'receipt_url',
   'notes',
   'has_reverse_charge',
+  'reverse_charge_type',
 ];
 
 const PROJECT_UPDATABLE_FIELDS = [
@@ -201,10 +202,20 @@ const CALENDAR_EVENT_UPDATABLE_FIELDS = [
   'external_feed_id',
 ];
 
-const BTW_FILING_UPDATABLE_FIELDS = [
-  'period',
-  'year',
-  'quarter',
+const BTW_FILING_TURNOVER_FIELDS = [
+  'turnover_1a',
+  'turnover_1b',
+  'turnover_1c',
+  'turnover_1e',
+  'turnover_2a',
+  'turnover_3a',
+  'turnover_3b',
+  'turnover_3c',
+  'turnover_4a',
+  'turnover_4b',
+];
+
+const BTW_FILING_VAT_FIELDS = [
   'field_1a',
   'field_1b',
   'field_1c',
@@ -213,11 +224,24 @@ const BTW_FILING_UPDATABLE_FIELDS = [
   'field_2a',
   'field_3a',
   'field_3b',
+  'field_3c',
   'field_4a',
   'field_4b',
   'field_5a',
   'field_5b',
   'field_5c',
+];
+
+const BTW_FILING_AMOUNT_FIELDS = [
+  ...BTW_FILING_TURNOVER_FIELDS,
+  ...BTW_FILING_VAT_FIELDS,
+];
+
+const BTW_FILING_UPDATABLE_FIELDS = [
+  'period',
+  'year',
+  'quarter',
+  ...BTW_FILING_AMOUNT_FIELDS,
   'submitted',
   'submitted_at',
   'notes',
@@ -944,14 +968,14 @@ app.get('/api/expenses', authenticateToken, async (req, res) => {
 
 // Create expense
 app.post('/api/expenses', authenticateToken, async (req, res) => {
-  const { vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes, has_reverse_charge } = req.body;
+  const { vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes, has_reverse_charge, reverse_charge_type } = req.body;
 
   try {
     const result = await pool.query(
-      `INSERT INTO public.expenses (user_id, vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes, has_reverse_charge)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO public.expenses (user_id, vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes, has_reverse_charge, reverse_charge_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [req.userId, vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes, has_reverse_charge ?? false]
+      [req.userId, vendor_name, description, category, expense_date, amount_excl_btw, btw_amount, amount_incl_btw, btw_percentage, btw_period, receipt_url, notes, has_reverse_charge ?? false, has_reverse_charge ? (reverse_charge_type || 'eu') : null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -2037,25 +2061,46 @@ app.get('/api/btw-filing-fields/year-quarter/:year/:quarter', authenticateToken,
 app.post('/api/btw-filing-fields', authenticateToken, async (req, res) => {
   const {
     period, year, quarter,
-    field_1a, field_1b, field_1c, field_1d, field_1e,
-    field_2a, field_3a, field_3b, field_4a, field_4b,
-    field_5a, field_5b, field_5c,
     submitted, submitted_at, notes
   } = req.body;
+  const amountValues = BTW_FILING_AMOUNT_FIELDS.map((field) => req.body[field] ?? 0);
+  const updateSetClause = BTW_FILING_AMOUNT_FIELDS
+    .map((field, index) => `${field}=$${index + 2}`)
+    .join(', ');
+  const submittedIndex = amountValues.length + 2;
+  const submittedAtIndex = amountValues.length + 3;
+  const notesIndex = amountValues.length + 4;
+  const periodIndex = amountValues.length + 5;
+  const insertColumns = [
+    'user_id',
+    'period',
+    'year',
+    'quarter',
+    ...BTW_FILING_AMOUNT_FIELDS,
+    'submitted',
+    'submitted_at',
+    'notes',
+  ];
+  const insertPlaceholders = insertColumns
+    .map((_, index) => `$${index + 1}`)
+    .join(', ');
 
   try {
     // Try to update first
     const updateResult = await pool.query(
       `UPDATE public.btw_filing_fields 
-       SET field_1a=$2, field_1b=$3, field_1c=$4, field_1d=$5, field_1e=$6,
-           field_2a=$7, field_3a=$8, field_3b=$9, field_4a=$10, field_4b=$11,
-           field_5a=$12, field_5b=$13, field_5c=$14,
-           submitted=$15, submitted_at=$16, notes=$17, updated_at=NOW()
-       WHERE user_id=$1 AND period=$18
+       SET ${updateSetClause},
+           submitted=$${submittedIndex}, submitted_at=$${submittedAtIndex}, notes=$${notesIndex}, updated_at=NOW()
+       WHERE user_id=$1 AND period=$${periodIndex}
        RETURNING *`,
-      [req.userId, field_1a, field_1b, field_1c, field_1d, field_1e,
-       field_2a, field_3a, field_3b, field_4a, field_4b,
-       field_5a, field_5b, field_5c, submitted, submitted_at, notes, period]
+      [
+        req.userId,
+        ...amountValues,
+        submitted ?? false,
+        submitted_at ?? null,
+        notes ?? null,
+        period,
+      ]
     );
 
     if (updateResult.rows.length > 0) {
@@ -2065,14 +2110,19 @@ app.post('/api/btw-filing-fields', authenticateToken, async (req, res) => {
     // If not found, insert
     const insertResult = await pool.query(
       `INSERT INTO public.btw_filing_fields 
-       (user_id, period, year, quarter, field_1a, field_1b, field_1c, field_1d, field_1e,
-        field_2a, field_3a, field_3b, field_4a, field_4b, field_5a, field_5b, field_5c,
-        submitted, submitted_at, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+       (${insertColumns.join(', ')})
+       VALUES (${insertPlaceholders})
        RETURNING *`,
-      [req.userId, period, year, quarter, field_1a, field_1b, field_1c, field_1d, field_1e,
-       field_2a, field_3a, field_3b, field_4a, field_4b, field_5a, field_5b, field_5c,
-       submitted, submitted_at, notes]
+      [
+        req.userId,
+        period,
+        year,
+        quarter,
+        ...amountValues,
+        submitted ?? false,
+        submitted_at ?? null,
+        notes ?? null,
+      ]
     );
     res.status(201).json(insertResult.rows[0]);
   } catch (err) {
@@ -2195,6 +2245,18 @@ const ensureRuntimeSchema = async () => {
   `);
 
   await pool.query(`
+    ALTER TABLE public.expenses
+    ADD COLUMN IF NOT EXISTS reverse_charge_type text
+  `);
+
+  await pool.query(`
+    UPDATE public.expenses
+    SET reverse_charge_type = 'eu'
+    WHERE has_reverse_charge = true
+      AND reverse_charge_type IS NULL
+  `);
+
+  await pool.query(`
     ALTER TABLE public.btw_periods
     ADD COLUMN IF NOT EXISTS submitted_at timestamptz
   `);
@@ -2211,6 +2273,16 @@ const ensureRuntimeSchema = async () => {
       period text NOT NULL,
       year integer NOT NULL,
       quarter integer NOT NULL,
+      turnover_1a numeric(14,2) DEFAULT 0,
+      turnover_1b numeric(14,2) DEFAULT 0,
+      turnover_1c numeric(14,2) DEFAULT 0,
+      turnover_1e numeric(14,2) DEFAULT 0,
+      turnover_2a numeric(14,2) DEFAULT 0,
+      turnover_3a numeric(14,2) DEFAULT 0,
+      turnover_3b numeric(14,2) DEFAULT 0,
+      turnover_3c numeric(14,2) DEFAULT 0,
+      turnover_4a numeric(14,2) DEFAULT 0,
+      turnover_4b numeric(14,2) DEFAULT 0,
       field_1a numeric(14,2) DEFAULT 0,
       field_1b numeric(14,2) DEFAULT 0,
       field_1c numeric(14,2) DEFAULT 0,
@@ -2219,6 +2291,7 @@ const ensureRuntimeSchema = async () => {
       field_2a numeric(14,2) DEFAULT 0,
       field_3a numeric(14,2) DEFAULT 0,
       field_3b numeric(14,2) DEFAULT 0,
+      field_3c numeric(14,2) DEFAULT 0,
       field_4a numeric(14,2) DEFAULT 0,
       field_4b numeric(14,2) DEFAULT 0,
       field_5a numeric(14,2) DEFAULT 0,
@@ -2232,6 +2305,13 @@ const ensureRuntimeSchema = async () => {
       UNIQUE(user_id, period)
     )
   `);
+
+  for (const field of BTW_FILING_AMOUNT_FIELDS) {
+    await pool.query(`
+      ALTER TABLE public.btw_filing_fields
+      ADD COLUMN IF NOT EXISTS ${field} numeric(14,2) DEFAULT 0
+    `);
+  }
 
   await pool.query('CREATE INDEX IF NOT EXISTS idx_btw_filing_user_period ON public.btw_filing_fields (user_id, period)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_btw_filing_year_quarter ON public.btw_filing_fields (year, quarter)');

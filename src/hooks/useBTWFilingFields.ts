@@ -5,27 +5,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useInvoices } from './useInvoices';
 import { useExpenses } from './useExpenses';
-import { getExpenseDeductibleVat, getExpenseReverseChargeVat } from '@/lib/expense-vat';
+import {
+  BTW_QUESTIONS,
+  BtwFilingAmounts,
+  calculateBtwFilingAmounts,
+} from '@/lib/btw-filing';
 
-export interface BTWFilingFields {
+export interface BTWFilingFields extends BtwFilingAmounts {
   id: string;
   user_id: string;
   period: string;
   year: number;
   quarter: number;
-  field_1a: number;
-  field_1b: number;
-  field_1c: number;
-  field_1d: number;
-  field_1e: number;
-  field_2a: number;
-  field_3a: number;
-  field_3b: number;
-  field_4a: number;
-  field_4b: number;
-  field_5a: number;
-  field_5b: number;
-  field_5c: number;
   submitted: boolean;
   submitted_at: string | null;
   notes: string | null;
@@ -38,48 +29,7 @@ export type BTWFilingFieldsInsert = Omit<
   'id' | 'user_id' | 'created_at' | 'updated_at'
 >;
 
-export const BTW_FIELDS = {
-  '1a': { label: 'Omzetbelasting leveringen binnen NL', section: 'ontvangen' },
-  '1b': {
-    label: 'Te betalen BTW over EU-aankopen (btw verlegd)',
-    section: 'ontvangen',
-  },
-  '1c': { label: 'Omzetbelasting export van goederen', section: 'ontvangen' },
-  '1d': {
-    label: 'Omzetbelasting diensten buiten NL',
-    section: 'ontvangen',
-  },
-  '1e': {
-    label: 'Omzetbelasting diensten waarvan klant schuldenaar',
-    section: 'ontvangen',
-  },
-  '2a': {
-    label: 'Voorbelasting EU-aankopen (btw verlegd)',
-    section: 'aftrekbaar',
-  },
-  '3a': {
-    label: 'Aftrekbare belasting intracommunautaire aankopen',
-    section: 'aftrekbaar',
-  },
-  '3b': {
-    label: 'Aftrekbare belasting import van goederen',
-    section: 'aftrekbaar',
-  },
-  '4a': {
-    label: 'Voorbelasting aankopen NL',
-    section: 'aftrekbaar',
-  },
-  '4b': {
-    label: 'Aftrekbare belasting andere zaken',
-    section: 'aftrekbaar',
-  },
-  '5a': { label: 'Totaal ontvangen omzetbelasting', section: 'totaal' },
-  '5b': { label: 'Totaal aftrekbare belasting', section: 'totaal' },
-  '5c': {
-    label: 'Verschuldigde omzetbelasting',
-    section: 'totaal',
-  },
-};
+export const BTW_FIELDS = BTW_QUESTIONS;
 
 const getErrorMessage = (error: unknown) => {
   return error instanceof Error ? error.message : 'Er is een onbekende fout opgetreden.';
@@ -142,75 +92,9 @@ export function useBTWFilingFields() {
     },
   });
 
-  // Calculate fields automatically based on invoices and expenses
+  // Calculate official Dutch VAT return fields from available invoice and expense data.
   const calculateFields = useCallback((year: number, quarter: number) => {
-    const quarterStart = new Date(year, (quarter - 1) * 3, 1);
-    const quarterEnd = new Date(year, (quarter - 1) * 3 + 3, 0);
-
-    // Filter invoices for quarter
-    const periodInvoices = invoices.filter((inv) => {
-      const invDate = new Date(inv.invoice_date);
-      return (
-        invDate >= quarterStart &&
-        invDate <= quarterEnd &&
-        inv.status === 'paid'
-      );
-    });
-
-    // Filter expenses for quarter
-    const periodExpenses = expenses.filter((exp) => {
-      const expDate = new Date(exp.expense_date);
-      return expDate >= quarterStart && expDate <= quarterEnd;
-    });
-
-    // Calculate received VAT (1a-1e)
-    const field_1a = periodInvoices.reduce(
-      (sum, inv) => sum + Number(inv.total_btw),
-      0
-    );
-    const reverseChargeBtw = periodExpenses.reduce(
-      (sum, exp) => sum + getExpenseReverseChargeVat(exp),
-      0
-    );
-
-    const field_1b = reverseChargeBtw;
-    const field_1c = 0; // User would enter manually
-    const field_1d = 0; // User would enter manually
-    const field_1e = 0; // User would enter manually
-
-    // Calculate deductible VAT (2a-4b)
-    const field_2a = reverseChargeBtw;
-
-    const field_3a = 0; // User would enter manually
-    const field_3b = 0; // User would enter manually
-
-    const field_4a = periodExpenses
-      .filter((exp) => !exp.has_reverse_charge)
-      .reduce((sum, exp) => sum + getExpenseDeductibleVat(exp), 0);
-
-    const field_4b = 0; // User would enter manually
-
-    // Calculate totals (5a-5c)
-    const field_5a = field_1a + field_1b + field_1c + field_1d + field_1e;
-    const field_5b =
-      field_2a + field_3a + field_3b + field_4a + field_4b;
-    const field_5c = field_5a - field_5b;
-
-    return {
-      field_1a,
-      field_1b,
-      field_1c,
-      field_1d,
-      field_1e,
-      field_2a,
-      field_3a,
-      field_3b,
-      field_4a,
-      field_4b,
-      field_5a,
-      field_5b,
-      field_5c,
-    };
+    return calculateBtwFilingAmounts(year, quarter, invoices, expenses);
   }, [expenses, invoices]);
 
   return {

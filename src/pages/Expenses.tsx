@@ -47,7 +47,14 @@ export default function Expenses() {
     amount_incl_btw: 0,
     btw_percentage: 21,
     has_reverse_charge: false,
+    reverse_charge_type: 'eu',
   });
+
+  const getReverseChargeTypeLabel = (type?: string | null) => {
+    if (type === 'domestic') return 'Binnenland';
+    if (type === 'non_eu') return 'Buiten EU';
+    return 'EU';
+  };
 
   // Check if selected date falls in a closed BTW period
   useEffect(() => {
@@ -147,6 +154,7 @@ export default function Expenses() {
       amount_incl_btw: 0,
       btw_percentage: 21,
       has_reverse_charge: false,
+      reverse_charge_type: 'eu',
     });
   };
 
@@ -159,6 +167,7 @@ export default function Expenses() {
       amount_incl_btw: Number(expense.amount_incl_btw),
       btw_percentage: expense.btw_percentage ?? 21,
       has_reverse_charge: expense.has_reverse_charge ?? false,
+      reverse_charge_type: expense.reverse_charge_type || 'eu',
     });
     if (expense.has_reverse_charge) {
       setAmountInputMode('excl');
@@ -190,6 +199,7 @@ export default function Expenses() {
       receipt_url: editingExpense?.receipt_url || null,
       notes: null,
       has_reverse_charge: formData.has_reverse_charge || false,
+      reverse_charge_type: formData.has_reverse_charge ? (formData.reverse_charge_type || 'eu') : null,
     };
 
     if (editingExpense) {
@@ -358,7 +368,7 @@ export default function Expenses() {
                   <div className="flex items-center justify-between">
                     <Label htmlFor="amount">
                       {formData.has_reverse_charge
-                        ? 'Betaald bedrag op EU-factuur (€) *'
+                        ? 'Betaald bedrag op factuur (€) *'
                         : `Bedrag ${amountInputMode === 'incl' ? 'incl.' : 'excl.'} BTW (€) *`
                       }
                     </Label>
@@ -411,27 +421,48 @@ export default function Expenses() {
                 </div>
               </div>
 
-              {/* EU reverse-charge purchase option */}
+              {/* Reverse-charge purchase option */}
               <div className="space-y-3 p-3 bg-muted/50 rounded-lg border">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     id="reverse_charge"
                     checked={formData.has_reverse_charge || false}
-                    onChange={(e) => setFormData(prev => ({ ...prev, has_reverse_charge: e.target.checked }))}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      has_reverse_charge: e.target.checked,
+                      reverse_charge_type: e.target.checked ? (prev.reverse_charge_type || 'eu') : null,
+                    }))}
                     className="rounded border border-input"
                   />
                   <label htmlFor="reverse_charge" className="text-sm font-medium cursor-pointer">
                     <span className="inline-flex items-center gap-2">
                       <Globe2 className="h-4 w-4" />
-                      EU-aankoop met btw verlegd
+                      Aankoop met btw verlegd
                     </span>
                   </label>
                 </div>
-                <p className="text-xs text-muted-foreground ml-6">
-                  Gebruik dit bijvoorbeeld voor zakelijke aankopen in Duitsland waarbij je Nederlandse btw-id op de factuur staat en de leverancier 0% btw rekent.
-                  Je vult het betaalde factuurbedrag in; het systeem berekent de Nederlandse btw en neemt die zowel op als aan te geven btw als voorbelasting.
-                </p>
+                {formData.has_reverse_charge && (
+                  <div className="ml-6 grid gap-2">
+                    <Label htmlFor="reverse_charge_type">Waar hoort deze verlegging in de btw-aangifte?</Label>
+                    <Select
+                      value={formData.reverse_charge_type || 'eu'}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, reverse_charge_type: value as 'domestic' | 'eu' | 'non_eu' }))}
+                    >
+                      <SelectTrigger id="reverse_charge_type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="domestic">Binnenland - rubriek 2a</SelectItem>
+                        <SelectItem value="non_eu">Buiten EU - rubriek 4a</SelectItem>
+                        <SelectItem value="eu">EU - rubriek 4b</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      De berekende btw wordt ook meegenomen als voorbelasting bij 5b als deze aftrekbaar is.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* File Upload */}
@@ -668,7 +699,9 @@ export default function Expenses() {
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
                         {expense.has_reverse_charge && (
-                          <Badge variant="secondary" className="text-xs">EU</Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {getReverseChargeTypeLabel(expense.reverse_charge_type)}
+                          </Badge>
                         )}
                       </div>
                       <div className="text-right">
@@ -710,7 +743,9 @@ export default function Expenses() {
                           <div className="flex items-center gap-2">
                             <Badge variant="outline">{getCategoryLabel(expense.category)}</Badge>
                             {expense.has_reverse_charge && (
-                              <Badge variant="secondary" title="EU-aankoop met btw verlegd" className="text-xs">EU</Badge>
+                              <Badge variant="secondary" title="Aankoop met btw verlegd" className="text-xs">
+                                {getReverseChargeTypeLabel(expense.reverse_charge_type)}
+                              </Badge>
                             )}
                           </div>
                         </TableCell>

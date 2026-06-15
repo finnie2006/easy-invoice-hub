@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useBTWFilingFields, BTW_FIELDS } from '@/hooks/useBTWFilingFields';
+import { useBTWFilingFields } from '@/hooks/useBTWFilingFields';
+import {
+  BTW_QUESTIONS,
+  BtwFilingAmounts,
+  BtwQuestionKey,
+  ZERO_BTW_FILING_AMOUNTS,
+  recalculateBtwFilingTotals,
+} from '@/lib/btw-filing';
 import {
   Dialog,
   DialogContent,
@@ -24,11 +31,62 @@ interface BtwFilingWizardProps {
   period: string;
 }
 
+const sections: Record<
+  'domestic' | 'reverse-charge' | 'foreign-sales' | 'foreign-purchases',
+  { title: string; description: string; fields: BtwQuestionKey[] }
+> = {
+  domestic: {
+    title: '1. Prestaties binnenland',
+    description: 'Binnenlandse omzet, btw bij hoog/laag tarief, privegebruik en 0%-omzet.',
+    fields: ['1a', '1b', '1c', '1d', '1e'],
+  },
+  'reverse-charge': {
+    title: '2. Verleggingsregelingen binnenland',
+    description: 'Binnenlandse leveringen of diensten waarbij btw naar u is verlegd.',
+    fields: ['2a'],
+  },
+  'foreign-sales': {
+    title: '3. Prestaties naar of in het buitenland',
+    description: 'Buitenlandse omzet die in deze Nederlandse aangifte moet worden vermeld.',
+    fields: ['3a', '3b', '3c'],
+  },
+  'foreign-purchases': {
+    title: '4. Prestaties vanuit het buitenland aan u geleverd',
+    description: 'Aankopen uit het buitenland waarbij u Nederlandse btw aangeeft.',
+    fields: ['4a', '4b'],
+  },
+};
+
+const tabs = [
+  { value: 'domestic', label: 'Binnenland' },
+  { value: 'reverse-charge', label: 'Verlegd' },
+  { value: 'foreign-sales', label: 'Buitenland omzet' },
+  { value: 'foreign-purchases', label: 'Buitenland inkoop' },
+  { value: 'totals', label: 'Voorbelasting' },
+] as const;
+
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('nl-NL', {
     style: 'currency',
     currency: 'EUR',
+    maximumFractionDigits: 0,
   }).format(amount);
+};
+
+const normalizeAmounts = (data?: Partial<BtwFilingAmounts> | null): BtwFilingAmounts => {
+  const amounts = { ...ZERO_BTW_FILING_AMOUNTS };
+  (Object.keys(amounts) as Array<keyof BtwFilingAmounts>).forEach((key) => {
+    amounts[key] = Number(data?.[key] ?? 0);
+  });
+  return recalculateBtwFilingTotals(amounts);
+};
+
+const getTurnoverKey = (field: BtwQuestionKey) => {
+  return `turnover_${field}` as keyof BtwFilingAmounts;
+};
+
+const getVatKey = (field: BtwQuestionKey) => {
+  return `field_${field}` as keyof BtwFilingAmounts;
 };
 
 export default function BtwFilingWizard({
@@ -39,55 +97,23 @@ export default function BtwFilingWizard({
   period,
 }: BtwFilingWizardProps) {
   const { getByPeriod, upsert, calculateFields } = useBTWFilingFields();
-  const [activeStep, setActiveStep] = useState<'ontvangen' | 'aftrekbaar' | 'totaal'>('ontvangen');
+  const [activeStep, setActiveStep] = useState<(typeof tabs)[number]['value']>('domestic');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    field_1a: 0,
-    field_1b: 0,
-    field_1c: 0,
-    field_1d: 0,
-    field_1e: 0,
-    field_2a: 0,
-    field_3a: 0,
-    field_3b: 0,
-    field_4a: 0,
-    field_4b: 0,
-    field_5a: 0,
-    field_5b: 0,
-    field_5c: 0,
-  });
+  const [formData, setFormData] = useState<BtwFilingAmounts>(() => ({ ...ZERO_BTW_FILING_AMOUNTS }));
 
   const loadFilingData = useCallback(async () => {
     setIsLoading(true);
     try {
       const existing = await getByPeriod(period);
       if (existing) {
-        setFormData({
-          field_1a: existing.field_1a,
-          field_1b: existing.field_1b,
-          field_1c: existing.field_1c,
-          field_1d: existing.field_1d,
-          field_1e: existing.field_1e,
-          field_2a: existing.field_2a,
-          field_3a: existing.field_3a,
-          field_3b: existing.field_3b,
-          field_4a: existing.field_4a,
-          field_4b: existing.field_4b,
-          field_5a: existing.field_5a,
-          field_5b: existing.field_5b,
-          field_5c: existing.field_5c,
-        });
+        setFormData(normalizeAmounts(existing));
       } else {
-        // Load calculated values
-        const calculated = calculateFields(year, quarter);
-        setFormData((prev) => ({ ...prev, ...calculated }));
+        setFormData(calculateFields(year, quarter));
       }
     } catch (error) {
       console.error('Failed to load filing data:', error);
-      // Fallback to calculated values when backend data is temporarily unavailable.
-      const calculated = calculateFields(year, quarter);
-      setFormData((prev) => ({ ...prev, ...calculated }));
+      setFormData(calculateFields(year, quarter));
     } finally {
       setIsLoading(false);
     }
@@ -99,31 +125,12 @@ export default function BtwFilingWizard({
     }
   }, [loadFilingData, open]);
 
-  const handleInputChange = (field: string, value: string) => {
-    const numValue = parseFloat(value) || 0;
-    const updatedData = {
-      ...formData,
+  const handleInputChange = (field: keyof BtwFilingAmounts, value: string) => {
+    const numValue = value === '' ? 0 : parseInt(value, 10) || 0;
+    setFormData((prev) => recalculateBtwFilingTotals({
+      ...prev,
       [field]: numValue,
-    };
-
-    // Recalculate totals
-    updatedData.field_5a =
-      updatedData.field_1a +
-      updatedData.field_1b +
-      updatedData.field_1c +
-      updatedData.field_1d +
-      updatedData.field_1e;
-
-    updatedData.field_5b =
-      updatedData.field_2a +
-      updatedData.field_3a +
-      updatedData.field_3b +
-      updatedData.field_4a +
-      updatedData.field_4b;
-
-    updatedData.field_5c = updatedData.field_5a - updatedData.field_5b;
-
-    setFormData(updatedData);
+    }));
   };
 
   const handleSave = async () => {
@@ -146,39 +153,85 @@ export default function BtwFilingWizard({
     }
   };
 
-  const renderFieldInput = (fieldKey: string, value: number) => {
-    const fieldInfo = BTW_FIELDS[fieldKey as keyof typeof BTW_FIELDS];
-    const isTotal = ['5a', '5b', '5c'].includes(fieldKey);
+  const renderNumberInput = (
+    id: string,
+    field: keyof BtwFilingAmounts,
+    value: number,
+    label: string
+  ) => (
+    <div className="space-y-2">
+      <Label htmlFor={id} className="text-sm">{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        step="1"
+        value={value}
+        onChange={(event) => handleInputChange(field, event.target.value)}
+        placeholder="0"
+      />
+    </div>
+  );
+
+  const renderQuestion = (field: BtwQuestionKey) => {
+    const info = BTW_QUESTIONS[field];
+    const turnoverKey = getTurnoverKey(field);
+    const vatKey = getVatKey(field);
 
     return (
-      <div key={fieldKey} className="space-y-2">
-        <Label htmlFor={fieldKey} className="text-sm">
-          {fieldKey}. {fieldInfo?.label}
-        </Label>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">€</span>
-          <Input
-            id={fieldKey}
-            type="number"
-            step="0.01"
-            min="0"
-            value={value}
-            onChange={(e) => handleInputChange(fieldKey, e.target.value)}
-            disabled={isTotal}
-            className="flex-1"
-            placeholder="0,00"
-          />
+      <div key={field} className="grid gap-3 rounded-md border p-4 md:grid-cols-[minmax(0,1fr)_150px_150px]">
+        <div className="space-y-1">
+          <p className="font-medium">{field}. {info.label}</p>
+          <p className="text-sm text-muted-foreground">
+            {info.hasTurnover && info.hasVat
+              ? 'Vul omzet exclusief btw en het btw-bedrag in hele euro\'s in.'
+              : info.hasTurnover
+                ? 'Vul de omzet exclusief btw in hele euro\'s in.'
+                : 'Vul alleen het btw-bedrag in hele euro\'s in.'}
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {formatCurrency(value)}
-        </p>
+        {info.hasTurnover ? (
+          renderNumberInput(
+            `${field}-turnover`,
+            turnoverKey,
+            Number(formData[turnoverKey] || 0),
+            'Omzet'
+          )
+        ) : (
+          <div className="hidden md:block" />
+        )}
+        {info.hasVat ? (
+          renderNumberInput(
+            `${field}-vat`,
+            vatKey,
+            Number(formData[vatKey] || 0),
+            'Btw'
+          )
+        ) : (
+          <div className="hidden md:block" />
+        )}
       </div>
+    );
+  };
+
+  const renderSection = (sectionKey: keyof typeof sections) => {
+    const section = sections[sectionKey];
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{section.title}</CardTitle>
+          <CardDescription>{section.description}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {section.fields.map(renderQuestion)}
+        </CardContent>
+      </Card>
     );
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>BTW-aangifte wizard</DialogTitle>
           <DialogDescription>
@@ -194,137 +247,82 @@ export default function BtwFilingWizard({
           <div className="space-y-6">
             <Alert>
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Informatie</AlertTitle>
+              <AlertTitle>Gebaseerd op de Belastingdienst-rubrieken</AlertTitle>
               <AlertDescription>
-                De waarden zijn automatisch berekend op basis van uw facturen en
-                uitgaven. U kunt deze waarden aanpassen indien nodig.
+                Automatisch ingevulde waarden gebruiken de gegevens die in deze app bekend zijn. Controleer buitenlandse omzet,
+                privegebruik, binnenlandse verlegging en bijzondere tarieven altijd handmatig.
               </AlertDescription>
             </Alert>
 
-            <Tabs
-              value={activeStep}
-              onValueChange={(v) =>
-                setActiveStep(v as 'ontvangen' | 'aftrekbaar' | 'totaal')
-              }
-            >
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="ontvangen">Ontvangen BTW</TabsTrigger>
-                <TabsTrigger value="aftrekbaar">Aftrekbare BTW</TabsTrigger>
-                <TabsTrigger value="totaal">Totaal</TabsTrigger>
+            <Tabs value={activeStep} onValueChange={(value) => setActiveStep(value as typeof activeStep)}>
+              <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+                {tabs.map((tab) => (
+                  <TabsTrigger key={tab.value} value={tab.value}>
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
 
-              <TabsContent value="ontvangen" className="space-y-4 mt-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      Ontvangen omzetbelasting
-                    </CardTitle>
-                    <CardDescription>
-                      BTW die u heeft ontvangen van klanten
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid gap-4">
-                      {renderFieldInput('1a', formData.field_1a)}
-                      {renderFieldInput('1b', formData.field_1b)}
-                      {renderFieldInput('1c', formData.field_1c)}
-                      {renderFieldInput('1d', formData.field_1d)}
-                      {renderFieldInput('1e', formData.field_1e)}
-                    </div>
-                    <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Totaal ontvangen BTW (5a)
-                      </p>
-                      <p className="text-2xl font-bold text-primary">
-                        {formatCurrency(formData.field_5a)}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+              <TabsContent value="domestic" className="space-y-4 mt-6">
+                {renderSection('domestic')}
               </TabsContent>
 
-              <TabsContent value="aftrekbaar" className="space-y-4 mt-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      Aftrekbare omzetbelasting
-                    </CardTitle>
-                    <CardDescription>
-                      BTW die u mag aftrekken van uw aankopen
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid gap-4">
-                      {renderFieldInput('2a', formData.field_2a)}
-                      {renderFieldInput('3a', formData.field_3a)}
-                      {renderFieldInput('3b', formData.field_3b)}
-                      {renderFieldInput('4a', formData.field_4a)}
-                      {renderFieldInput('4b', formData.field_4b)}
-                    </div>
-                    <div className="p-4 rounded-lg bg-success/10 border border-success/20">
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Totaal aftrekbare BTW (5b)
-                      </p>
-                      <p className="text-2xl font-bold text-success">
-                        {formatCurrency(formData.field_5b)}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+              <TabsContent value="reverse-charge" className="space-y-4 mt-6">
+                {renderSection('reverse-charge')}
               </TabsContent>
 
-              <TabsContent value="totaal" className="space-y-4 mt-6">
+              <TabsContent value="foreign-sales" className="space-y-4 mt-6">
+                {renderSection('foreign-sales')}
+              </TabsContent>
+
+              <TabsContent value="foreign-purchases" className="space-y-4 mt-6">
+                {renderSection('foreign-purchases')}
+              </TabsContent>
+
+              <TabsContent value="totals" className="space-y-4 mt-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Saldo</CardTitle>
+                    <CardTitle className="text-lg">5. Voorbelasting en totaal</CardTitle>
                     <CardDescription>
-                      Te betalen of terug te vorderen bedrag
+                      5a wordt berekend uit rubrieken 1 t/m 4. 5b is de aftrekbare voorbelasting.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid gap-4">
-                      <div className="p-4 rounded-lg bg-muted/50">
-                        <p className="text-sm text-muted-foreground mb-1">
-                          Totaal ontvangen BTW (5a)
-                        </p>
-                        <p className="text-2xl font-bold text-primary">
-                          {formatCurrency(formData.field_5a)}
-                        </p>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-3 rounded-md border p-4 md:grid-cols-[minmax(0,1fr)_160px]">
+                      <div>
+                        <p className="font-medium">5a. Verschuldigde btw</p>
+                        <p className="text-sm text-muted-foreground">Totaal btw uit rubrieken 1 t/m 4.</p>
                       </div>
+                      <p className="text-right text-2xl font-bold">{formatCurrency(formData.field_5a)}</p>
+                    </div>
 
-                      <div className="flex justify-center">
-                        <span className="text-2xl font-bold text-muted-foreground">−</span>
-                      </div>
-
-                      <div className="p-4 rounded-lg bg-muted/50">
-                        <p className="text-sm text-muted-foreground mb-1">
-                          Totaal aftrekbare BTW (5b)
-                        </p>
-                        <p className="text-2xl font-bold text-success">
-                          {formatCurrency(formData.field_5b)}
+                    <div className="grid gap-3 rounded-md border p-4 md:grid-cols-[minmax(0,1fr)_160px]">
+                      <div>
+                        <p className="font-medium">5b. Voorbelasting</p>
+                        <p className="text-sm text-muted-foreground">
+                          Nederlandse btw op zakelijke inkopen en aftrekbare verlegde btw.
                         </p>
                       </div>
+                      {renderNumberInput('5b-vat', 'field_5b', formData.field_5b, 'Btw')}
+                    </div>
 
-                      <div className="flex justify-center">
-                        <span className="text-2xl font-bold text-muted-foreground">=</span>
-                      </div>
-
-                      <div
-                        className={`p-4 rounded-lg border-2 flex items-start gap-4 ${
-                          formData.field_5c > 0
-                            ? 'bg-warning/10 border-warning'
-                            : formData.field_5c < 0
+                    <div
+                      className={`rounded-md border-2 p-4 ${
+                        formData.field_5c > 0
+                          ? 'bg-warning/10 border-warning'
+                          : formData.field_5c < 0
                             ? 'bg-success/10 border-success'
                             : 'bg-muted/50 border-muted-foreground/20'
-                        }`}
-                      >
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
                         <CheckCircle2
                           className={`h-6 w-6 flex-shrink-0 mt-1 ${
                             formData.field_5c > 0
                               ? 'text-warning'
                               : formData.field_5c < 0
-                              ? 'text-success'
-                              : 'text-muted-foreground'
+                                ? 'text-success'
+                                : 'text-muted-foreground'
                           }`}
                         />
                         <div className="flex-1">
@@ -332,8 +330,8 @@ export default function BtwFilingWizard({
                             {formData.field_5c > 0
                               ? 'Te betalen'
                               : formData.field_5c < 0
-                              ? 'Terug te vorderen'
-                              : 'Geen verschuldigde belasting'}
+                                ? 'Terug te vragen'
+                                : 'Geen saldo'}
                           </p>
                           <p className="text-3xl font-bold">
                             {formatCurrency(Math.abs(formData.field_5c))}
@@ -348,8 +346,8 @@ export default function BtwFilingWizard({
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Controleer uw gegevens</AlertTitle>
                   <AlertDescription>
-                    Controleer alle bedragen goed voordat u de aangifte aanvaard.
-                    U bent zelf verantwoordelijk voor de juistheid van de gegevens.
+                    De aangifte zelf dient u nog in via Mijn Belastingdienst Zakelijk. Rond bedragen af op hele euro's en
+                    controleer rubrieken die niet volledig uit facturen of uitgaven zijn af te leiden.
                   </AlertDescription>
                 </Alert>
               </TabsContent>

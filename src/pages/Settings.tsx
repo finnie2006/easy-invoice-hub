@@ -9,6 +9,7 @@ import { Loader2, Save, Building2, Palette } from 'lucide-react';
 import AdminSettings from '@/components/settings/AdminSettings';
 import SystemSettings from '@/components/settings/SystemSettings';
 import { MFASettings } from '@/components/settings/MFASettings';
+import { PushNotificationSettings } from '@/components/settings/PushNotificationSettings';
 export default function Settings() {
   const { profile, isLoading, updateProfile, isUpdating, appName } = useProfile();
   const [formData, setFormData] = useState<Partial<Profile>>({});
@@ -255,6 +256,8 @@ export default function Settings() {
           </CardContent>
         </Card>
       </form>
+
+      <PushNotificationSettings />
 
       {/* Admin Settings */}
       <AdminSettings />

@@ -199,6 +199,17 @@ export const appSettings = {
     api.put('/api/app-settings', { settings }),
 };
 
+export const pushNotifications = {
+  getConfig: () =>
+    api.get('/api/push/config'),
+  subscribe: (subscription) =>
+    api.post('/api/push/subscriptions', { subscription }),
+  unsubscribe: (endpoint) =>
+    api.delete('/api/push/subscriptions', { data: { endpoint } }),
+  sendTest: () =>
+    api.post('/api/push/test'),
+};
+
 export const userRole = {
   getCurrent: () =>
     api.get('/api/user-role'),

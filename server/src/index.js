@@ -9,6 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
 import nodemailer from 'nodemailer';
+import webpush from 'web-push';
 import pool from './db.js';
 import {
   authenticateToken,
@@ -28,12 +29,31 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
+const configuredVapidPublicKey = process.env.VAPID_PUBLIC_KEY || '';
+const configuredVapidPrivateKey = process.env.VAPID_PRIVATE_KEY || '';
+const hasConfiguredVapidKeys = Boolean(configuredVapidPublicKey && configuredVapidPrivateKey);
+const generatedVapidKeys = hasConfiguredVapidKeys
+  ? null
+  : webpush.generateVAPIDKeys();
+const VAPID_PUBLIC_KEY = hasConfiguredVapidKeys ? configuredVapidPublicKey : generatedVapidKeys.publicKey;
+const VAPID_PRIVATE_KEY = hasConfiguredVapidKeys ? configuredVapidPrivateKey : generatedVapidKeys.privateKey;
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+const parsedPushCheckInterval = Number(process.env.PUSH_CHECK_INTERVAL_MINUTES || 60);
+const PUSH_CHECK_INTERVAL_MINUTES = Number.isFinite(parsedPushCheckInterval) && parsedPushCheckInterval > 0
+  ? parsedPushCheckInterval
+  : 60;
 const UPLOAD_ROOT = path.resolve(process.cwd(), 'uploads');
 const BODY_LIMIT = process.env.BODY_LIMIT || '1mb';
 const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 10);
 const AUTH_WINDOW_MS = Number(process.env.AUTH_WINDOW_MS || 15 * 60 * 1000);
 const AUTH_MAX_REQUESTS = Number(process.env.AUTH_MAX_REQUESTS || 30);
 const ALLOWED_BUCKETS = ['receipts', 'invoice-attachments', 'logos'];
+
+webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+if (!hasConfiguredVapidKeys) {
+  console.warn('VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are not set. Using temporary push keys for this server process.');
+}
 
 const PROFILE_UPDATABLE_FIELDS = [
   'company_name',
@@ -148,6 +168,8 @@ const BTW_PERIOD_UPDATABLE_FIELDS = [
   'year',
   'quarter',
   'is_closed',
+  'submitted_at',
+  'closed_at',
   'notes',
 ];
 
@@ -306,6 +328,100 @@ async function requireAdmin(req, res, next) {
     console.error('Admin check failed:', err);
     res.status(500).json({ error: 'Failed to validate admin rights' });
   }
+}
+
+let overduePushCheckRunning = false;
+let queuedOverduePushCheck = null;
+
+function buildOverdueInvoicePayload(invoice) {
+  const clientName = invoice.client_company_name || invoice.client_contact_name || 'Onbekende klant';
+  const amount = Number(invoice.total || 0).toLocaleString('nl-NL', {
+    style: 'currency',
+    currency: 'EUR',
+  });
+
+  return {
+    title: 'Factuur over betalingstermijn',
+    body: `${invoice.invoice_number || 'Factuur'} voor ${clientName} staat nog op verzonden (${amount}).`,
+    tag: `invoice-overdue-${invoice.id}`,
+    url: `/invoices/${invoice.id}`,
+    icon: '/pwa-icon.svg',
+    badge: '/favicon.svg',
+  };
+}
+
+async function sendPushNotification(subscriptionRow, payload) {
+  try {
+    await webpush.sendNotification(subscriptionRow.subscription, JSON.stringify(payload));
+    return true;
+  } catch (err) {
+    const statusCode = err?.statusCode;
+    if (statusCode === 404 || statusCode === 410) {
+      await pool.query(
+        'DELETE FROM public.push_subscriptions WHERE id = $1',
+        [subscriptionRow.subscription_id || subscriptionRow.id]
+      );
+      return false;
+    }
+
+    console.error('Error sending push notification:', err);
+    return false;
+  }
+}
+
+async function sendOverdueInvoicePushNotifications() {
+  if (overduePushCheckRunning) return;
+  overduePushCheckRunning = true;
+
+  try {
+    const result = await pool.query(`
+      SELECT
+        ps.id AS subscription_id,
+        ps.user_id,
+        ps.subscription,
+        i.id,
+        i.invoice_number,
+        i.client_company_name,
+        i.client_contact_name,
+        i.total,
+        i.due_date
+      FROM public.push_subscriptions ps
+      JOIN public.invoices i ON i.user_id = ps.user_id
+      LEFT JOIN public.invoice_push_notifications_sent sent
+        ON sent.invoice_id = i.id
+       AND sent.push_subscription_id = ps.id
+      WHERE ps.overdue_invoice_reminders_enabled = true
+        AND i.status = 'sent'
+        AND i.due_date < CURRENT_DATE
+        AND sent.id IS NULL
+      ORDER BY i.due_date ASC
+      LIMIT 200
+    `);
+
+    for (const row of result.rows) {
+      const sent = await sendPushNotification(row, buildOverdueInvoicePayload(row));
+      if (sent) {
+        await pool.query(
+          `INSERT INTO public.invoice_push_notifications_sent (user_id, invoice_id, push_subscription_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (invoice_id, push_subscription_id) DO NOTHING`,
+          [row.user_id, row.id, row.subscription_id]
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Error checking overdue invoice push notifications:', err);
+  } finally {
+    overduePushCheckRunning = false;
+  }
+}
+
+function queueOverdueInvoiceCheck(delayMs = 5000) {
+  if (queuedOverduePushCheck) return;
+  queuedOverduePushCheck = setTimeout(() => {
+    queuedOverduePushCheck = null;
+    sendOverdueInvoicePushNotifications();
+  }, delayMs);
 }
 
 function buildValidatedUpdate(body, allowedFields) {
@@ -683,6 +799,7 @@ app.post('/api/invoices', authenticateToken, async (req, res) => {
        RETURNING *`,
       [req.userId, client_id, invoice_number, invoice_date, due_date, status, subtotal, total_btw, total, discount_type, discount_value, discount_amount, notes, notes_title, payment_reference, client_company_name, client_contact_name, client_address, client_postal_code, client_city, client_country, client_kvk_number, client_btw_number]
     );
+    queueOverdueInvoiceCheck();
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Error creating invoice:', err);
@@ -708,6 +825,7 @@ app.put('/api/invoices/:id', authenticateToken, async (req, res) => {
       values
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Invoice not found' });
+    queueOverdueInvoiceCheck();
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating invoice:', err);
@@ -1061,14 +1179,14 @@ app.get('/api/btw-periods', authenticateToken, async (req, res) => {
 
 // Create BTW period
 app.post('/api/btw-periods', authenticateToken, async (req, res) => {
-  const { period, year, quarter, is_closed, notes } = req.body;
+  const { period, year, quarter, is_closed, submitted_at, closed_at, notes } = req.body;
 
   try {
     const result = await pool.query(
-      `INSERT INTO public.btw_periods (user_id, period, year, quarter, is_closed, notes)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO public.btw_periods (user_id, period, year, quarter, is_closed, submitted_at, closed_at, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [req.userId, period, year, quarter, is_closed, notes]
+      [req.userId, period, year, quarter, is_closed ?? false, submitted_at || null, closed_at || null, notes || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -1384,6 +1502,102 @@ app.put('/api/app-settings', authenticateToken, requireAdmin, async (req, res) =
     res.status(500).json({ error: 'Failed to update app settings' });
   } finally {
     client.release();
+  }
+});
+
+// ============================================
+// Push Notification Routes
+// ============================================
+
+app.get('/api/push/config', authenticateToken, async (req, res) => {
+  res.json({
+    enabled: Boolean(VAPID_PUBLIC_KEY),
+    publicKey: VAPID_PUBLIC_KEY,
+    persistentKeys: hasConfiguredVapidKeys,
+    checkIntervalMinutes: PUSH_CHECK_INTERVAL_MINUTES,
+  });
+});
+
+app.post('/api/push/subscriptions', authenticateToken, async (req, res) => {
+  const { subscription } = req.body || {};
+
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    return res.status(400).json({ error: 'Valid push subscription is required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO public.push_subscriptions (user_id, endpoint, subscription, user_agent, overdue_invoice_reminders_enabled)
+       VALUES ($1, $2, $3::jsonb, $4, true)
+       ON CONFLICT (endpoint)
+       DO UPDATE SET
+         user_id = EXCLUDED.user_id,
+         subscription = EXCLUDED.subscription,
+         user_agent = EXCLUDED.user_agent,
+         overdue_invoice_reminders_enabled = true,
+         last_seen_at = now(),
+         updated_at = now()
+       RETURNING id, endpoint, overdue_invoice_reminders_enabled`,
+      [req.userId, subscription.endpoint, JSON.stringify(subscription), req.get('user-agent') || null]
+    );
+
+    queueOverdueInvoiceCheck();
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error saving push subscription:', err);
+    res.status(500).json({ error: 'Failed to save push subscription' });
+  }
+});
+
+app.delete('/api/push/subscriptions', authenticateToken, async (req, res) => {
+  const { endpoint } = req.body || {};
+  if (!endpoint) {
+    return res.status(400).json({ error: 'Endpoint is required' });
+  }
+
+  try {
+    await pool.query(
+      'DELETE FROM public.push_subscriptions WHERE user_id = $1 AND endpoint = $2',
+      [req.userId, endpoint]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting push subscription:', err);
+    res.status(500).json({ error: 'Failed to delete push subscription' });
+  }
+});
+
+app.post('/api/push/test', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, user_id, subscription
+       FROM public.push_subscriptions
+       WHERE user_id = $1
+         AND overdue_invoice_reminders_enabled = true`,
+      [req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No active push subscription found' });
+    }
+
+    let sentCount = 0;
+    for (const row of result.rows) {
+      const sent = await sendPushNotification(row, {
+        title: 'MijnZaak testmelding',
+        body: 'Pushmeldingen staan goed ingesteld op dit apparaat.',
+        tag: 'push-test',
+        url: '/settings',
+        icon: '/pwa-icon.svg',
+        badge: '/favicon.svg',
+      });
+      if (sent) sentCount += 1;
+    }
+
+    res.json({ success: true, sentCount });
+  } catch (err) {
+    console.error('Error sending test push notification:', err);
+    res.status(500).json({ error: 'Failed to send test push notification' });
   }
 });
 
@@ -1948,8 +2162,46 @@ setupOAuthRoutes(app, pool, authenticateToken, isAuthentikConfigured, getAuthori
 const ensureRuntimeSchema = async () => {
   // Keep runtime compatible even when a deployment missed the latest migration.
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      endpoint text NOT NULL UNIQUE,
+      subscription jsonb NOT NULL,
+      user_agent text,
+      overdue_invoice_reminders_enabled boolean NOT NULL DEFAULT true,
+      last_seen_at timestamptz NOT NULL DEFAULT now(),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.invoice_push_notifications_sent (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      invoice_id uuid NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+      push_subscription_id uuid NOT NULL REFERENCES public.push_subscriptions(id) ON DELETE CASCADE,
+      sent_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE(invoice_id, push_subscription_id)
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON public.push_subscriptions (user_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_invoice_push_sent_user_invoice ON public.invoice_push_notifications_sent (user_id, invoice_id)');
+
+  await pool.query(`
     ALTER TABLE public.expenses
     ADD COLUMN IF NOT EXISTS has_reverse_charge boolean NOT NULL DEFAULT false
+  `);
+
+  await pool.query(`
+    ALTER TABLE public.btw_periods
+    ADD COLUMN IF NOT EXISTS submitted_at timestamptz
+  `);
+
+  await pool.query(`
+    ALTER TABLE public.btw_periods
+    ADD COLUMN IF NOT EXISTS closed_at timestamptz
   `);
 
   await pool.query(`
@@ -1991,6 +2243,8 @@ const startServer = async () => {
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
+    sendOverdueInvoicePushNotifications();
+    setInterval(sendOverdueInvoicePushNotifications, PUSH_CHECK_INTERVAL_MINUTES * 60 * 1000);
   } catch (err) {
     console.error('Failed to initialize runtime schema:', err);
     process.exit(1);

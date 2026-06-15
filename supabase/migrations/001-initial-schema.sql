@@ -201,6 +201,8 @@ CREATE TABLE IF NOT EXISTS public.btw_periods (
   year integer,
   quarter integer,
   is_closed boolean DEFAULT false,
+  submitted_at timestamptz,
+  closed_at timestamptz,
   notes text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()

@@ -139,6 +139,19 @@ DB_PASSWORD=your_password
 # JWT (genereer willekeurige strings!)
 JWT_SECRET=your-secret-key-change-in-production
 JWT_REFRESH_SECRET=your-refresh-secret-key-change-in-production
+
+# PWA pushmeldingen
+VAPID_SUBJECT=mailto:admin@your-domain.tld
+VAPID_PUBLIC_KEY=your_vapid_public_key
+VAPID_PRIVATE_KEY=your_vapid_private_key
+PUSH_CHECK_INTERVAL_MINUTES=60
+```
+
+Genereer vaste VAPID keys voor pushmeldingen:
+
+```bash
+cd server
+npx web-push generate-vapid-keys
 ```
 
 ### Frontend (.env in root)

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MijnZaak app icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B3D91" />
+      <stop offset="100%" stop-color="#16A34A" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <rect x="116" y="88" width="280" height="336" rx="44" fill="#FFFFFF" />
+  <rect x="160" y="150" width="192" height="30" rx="15" fill="#0B3D91" />
+  <rect x="160" y="222" width="142" height="24" rx="12" fill="#94A3B8" />
+  <rect x="160" y="278" width="174" height="24" rx="12" fill="#94A3B8" />
+  <path d="M172 374l54-54 36 36 84-84" fill="none" stroke="#16A34A" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

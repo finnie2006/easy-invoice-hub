@@ -1,7 +1,9 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "easy-invoice-hub",
   "private": true,
   "version": "0.0.0",
+  "description": "Self-hosted invoicing and administration app for freelancers and small businesses.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

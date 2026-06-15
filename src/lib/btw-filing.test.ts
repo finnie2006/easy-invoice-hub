@@ -56,6 +56,37 @@ describe('btw filing calculations', () => {
     expect(result.field_5c).toBe(0);
   });
 
+  it('rounds VAT return fields in the entrepreneur’s favour', () => {
+    const result = calculateBtwFilingAmounts(
+      2026,
+      2,
+      [
+        {
+          invoice_date: '2026-06-13',
+          status: 'sent',
+          subtotal: 380,
+          total_btw: 79.8,
+        },
+      ],
+      [
+        {
+          expense_date: '2026-06-10',
+          amount_excl_btw: 108.69,
+          btw_amount: 22.82,
+          has_reverse_charge: true,
+          reverse_charge_type: 'eu',
+          btw_period: '2026-Q2',
+        },
+      ]
+    );
+
+    expect(result.field_1a).toBe(79);
+    expect(result.field_4b).toBe(22);
+    expect(result.field_5a).toBe(101);
+    expect(result.field_5b).toBe(23);
+    expect(result.field_5c).toBe(78);
+  });
+
   it('books domestic reverse-charge purchases to 2a', () => {
     const result = calculateBtwFilingAmounts(
       2026,

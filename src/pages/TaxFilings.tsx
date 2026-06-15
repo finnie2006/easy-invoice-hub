@@ -95,6 +95,16 @@ export default function TaxFilings() {
 
     const periodExpenses = expenses.filter((exp) => isExpenseInBtwPeriod(exp, year, quarter));
     const filingAmounts = calculateBtwFilingAmounts(year, quarter, invoices, expenses);
+    const salesVat =
+      filingAmounts.field_1a +
+      filingAmounts.field_1b +
+      filingAmounts.field_1c;
+    const reverseChargeVat =
+      filingAmounts.field_2a +
+      filingAmounts.field_4a +
+      filingAmounts.field_4b;
+    const otherVat =
+      filingAmounts.field_1d;
 
     return {
       invoiceCount: periodInvoices.length,
@@ -102,6 +112,9 @@ export default function TaxFilings() {
       revenueVat: filingAmounts.field_5a,
       expenseVat: filingAmounts.field_5b,
       vatToPay: filingAmounts.field_5c,
+      salesVat,
+      reverseChargeVat,
+      otherVat,
     };
   };
 
@@ -228,7 +241,14 @@ export default function TaxFilings() {
                     Verschuldigde btw
                   </div>
                   <div className="text-xl font-bold">{formatCurrency(currentPeriodStats.revenueVat)}</div>
-                  <div className="text-xs text-muted-foreground">{currentPeriodStats.invoiceCount} facturen</div>
+                  <div className="text-xs text-muted-foreground">
+                    {currentPeriodStats.invoiceCount} facturen · {formatCurrency(currentPeriodStats.salesVat)} verkoop
+                  </div>
+                  {currentPeriodStats.reverseChargeVat > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      {formatCurrency(currentPeriodStats.reverseChargeVat)} verlegd
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 rounded-lg bg-muted/50">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -236,7 +256,14 @@ export default function TaxFilings() {
                     Voorbelasting
                   </div>
                   <div className="text-xl font-bold text-success">{formatCurrency(currentPeriodStats.expenseVat)}</div>
-                  <div className="text-xs text-muted-foreground">{currentPeriodStats.expenseCount} uitgaven</div>
+                  <div className="text-xs text-muted-foreground">
+                    {currentPeriodStats.expenseCount} uitgaven
+                  </div>
+                  {currentPeriodStats.reverseChargeVat > 0 && (
+                    <div className="text-xs text-muted-foreground">
+                      incl. {formatCurrency(currentPeriodStats.reverseChargeVat)} verlegd
+                    </div>
+                  )}
                 </div>
                 <div className="p-4 rounded-lg bg-muted/50">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -321,10 +348,19 @@ export default function TaxFilings() {
                             <div>
                               <span className="text-muted-foreground">Verschuldigde btw:</span>
                               <span className="ml-2 font-medium">{formatCurrency(stats.revenueVat)}</span>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Verkoop {formatCurrency(stats.salesVat)}
+                                {stats.reverseChargeVat > 0 && ` · verlegd ${formatCurrency(stats.reverseChargeVat)}`}
+                              </p>
                             </div>
                             <div>
                               <span className="text-muted-foreground">Voorbelasting:</span>
                               <span className="ml-2 font-medium text-success">{formatCurrency(stats.expenseVat)}</span>
+                              {stats.reverseChargeVat > 0 && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  incl. verlegd {formatCurrency(stats.reverseChargeVat)}
+                                </p>
+                              )}
                             </div>
                             <div className="col-span-2">
                               <span className="text-muted-foreground">Per saldo:</span>
@@ -401,8 +437,21 @@ export default function TaxFilings() {
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-right">{formatCurrency(stats.revenueVat)}</TableCell>
-                              <TableCell className="text-right text-success">{formatCurrency(stats.expenseVat)}</TableCell>
+                              <TableCell className="text-right">
+                                <div>{formatCurrency(stats.revenueVat)}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Verkoop {formatCurrency(stats.salesVat)}
+                                  {stats.reverseChargeVat > 0 && ` · verlegd ${formatCurrency(stats.reverseChargeVat)}`}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right text-success">
+                                <div>{formatCurrency(stats.expenseVat)}</div>
+                                {stats.reverseChargeVat > 0 && (
+                                  <div className="text-xs text-muted-foreground">
+                                    incl. verlegd {formatCurrency(stats.reverseChargeVat)}
+                                  </div>
+                                )}
+                              </TableCell>
                               <TableCell className={`text-right font-bold ${stats.vatToPay >= 0 ? 'text-warning' : 'text-success'}`}>
                                 {formatCurrency(stats.vatToPay)}
                               </TableCell>

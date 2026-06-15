@@ -28,6 +28,19 @@ describe('expense VAT calculations', () => {
     });
   });
 
+  it('accepts numeric strings returned by the database', () => {
+    expect(calculateExpenseVatAmounts({
+      inputAmount: '108.69',
+      inputMode: 'excl',
+      btwPercentage: '21.00',
+      hasReverseCharge: true,
+    })).toEqual({
+      amountInclBtw: 108.69,
+      amountExclBtw: 108.69,
+      btwAmount: 22.82,
+    });
+  });
+
   it('uses the net amount as paid amount for old reverse-charge records', () => {
     expect(getExpensePaidAmount({
       amount_excl_btw: 1000,

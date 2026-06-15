@@ -7,9 +7,9 @@ export interface ExpenseVatAmounts {
 }
 
 interface ExpenseVatCalculationInput {
-  inputAmount: number;
+  inputAmount: number | string;
   inputMode: ExpenseAmountInputMode;
-  btwPercentage: number;
+  btwPercentage: number | string;
   hasReverseCharge: boolean;
 }
 
@@ -28,8 +28,10 @@ export const calculateExpenseVatAmounts = ({
   btwPercentage,
   hasReverseCharge,
 }: ExpenseVatCalculationInput): ExpenseVatAmounts => {
-  const safeAmount = Number.isFinite(inputAmount) ? inputAmount : 0;
-  const safeBtwPercentage = Number.isFinite(btwPercentage) ? btwPercentage : 0;
+  const parsedAmount = Number(inputAmount);
+  const parsedBtwPercentage = Number(btwPercentage);
+  const safeAmount = Number.isFinite(parsedAmount) ? parsedAmount : 0;
+  const safeBtwPercentage = Number.isFinite(parsedBtwPercentage) ? parsedBtwPercentage : 0;
 
   if (hasReverseCharge) {
     const amountExclBtw = safeAmount;

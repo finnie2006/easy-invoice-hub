@@ -180,6 +180,19 @@ export const VAT_AMOUNT_KEYS: Array<keyof BtwFilingAmounts> = [
 
 export const INPUT_VAT_KEY: keyof BtwFilingAmounts = 'field_5b';
 
+const TURNOVER_KEYS: Array<keyof BtwFilingAmounts> = [
+  'turnover_1a',
+  'turnover_1b',
+  'turnover_1c',
+  'turnover_1e',
+  'turnover_2a',
+  'turnover_3a',
+  'turnover_3b',
+  'turnover_3c',
+  'turnover_4a',
+  'turnover_4b',
+];
+
 export const getPeriodString = (year: number, quarter: number) => `${year}-Q${quarter}`;
 
 export const isInvoiceRelevantForBtw = (status: string) => {
@@ -211,9 +224,15 @@ export const isExpenseInBtwPeriod = (expense: BtwExpense, year: number, quarter:
   return isDateInBtwQuarter(expense.expense_date, year, quarter);
 };
 
-export const roundBtwReturnAmount = (amount: number) => Math.round(amount);
+export const roundPayableBtwInYourFavor = (amount: number) => Math.floor(amount);
 
-const addAmount = (current: number, amount: number) => roundBtwReturnAmount(current + amount);
+export const roundDeductibleBtwInYourFavor = (amount: number) => Math.ceil(amount);
+
+const roundTurnoverAmount = (amount: number) => {
+  return amount >= 0 ? Math.floor(amount) : Math.ceil(amount);
+};
+
+const addAmount = (current: number, amount: number) => current + amount;
 
 const classifyDomesticInvoice = (invoice: BtwInvoice): '1a' | '1b' | '1c' | '1e' => {
   const subtotal = Number(invoice.subtotal) || 0;
@@ -229,15 +248,27 @@ const classifyDomesticInvoice = (invoice: BtwInvoice): '1a' | '1b' | '1c' | '1e'
 export const recalculateBtwFilingTotals = (
   amounts: BtwFilingAmounts
 ): BtwFilingAmounts => {
-  const field_5a = roundBtwReturnAmount(
-    VAT_AMOUNT_KEYS.reduce((sum, key) => sum + Number(amounts[key] || 0), 0)
+  const roundedAmounts = { ...amounts };
+
+  TURNOVER_KEYS.forEach((key) => {
+    roundedAmounts[key] = roundTurnoverAmount(Number(amounts[key] || 0));
+  });
+
+  VAT_AMOUNT_KEYS.forEach((key) => {
+    roundedAmounts[key] = roundPayableBtwInYourFavor(Number(amounts[key] || 0));
+  });
+
+  const field_5a = VAT_AMOUNT_KEYS.reduce(
+    (sum, key) => sum + Number(roundedAmounts[key] || 0),
+    0
   );
-  const field_5b = roundBtwReturnAmount(Number(amounts.field_5b || 0));
+  const field_5b = roundDeductibleBtwInYourFavor(Number(amounts.field_5b || 0));
+
   return {
-    ...amounts,
+    ...roundedAmounts,
     field_5a,
     field_5b,
-    field_5c: roundBtwReturnAmount(field_5a - field_5b),
+    field_5c: field_5a - field_5b,
   };
 };
 

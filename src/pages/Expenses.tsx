@@ -56,6 +56,11 @@ export default function Expenses() {
     return 'EU';
   };
 
+  const getBtwPercentage = () => {
+    const percentage = Number(formData.btw_percentage ?? 21);
+    return Number.isFinite(percentage) ? percentage : 21;
+  };
+
   // Check if selected date falls in a closed BTW period
   useEffect(() => {
     const period = getBtwPeriodForDate(expenseDate);
@@ -128,7 +133,7 @@ export default function Expenses() {
     return calculateExpenseVatAmounts({
       inputAmount: parseFloat(amountInput) || 0,
       inputMode: amountInputMode,
-      btwPercentage: formData.btw_percentage || 21,
+      btwPercentage: getBtwPercentage(),
       hasReverseCharge: formData.has_reverse_charge || false,
     });
   };
@@ -165,7 +170,7 @@ export default function Expenses() {
       description: expense.description || '',
       category: expense.category,
       amount_incl_btw: Number(expense.amount_incl_btw),
-      btw_percentage: expense.btw_percentage ?? 21,
+      btw_percentage: Number(expense.btw_percentage ?? 21),
       has_reverse_charge: expense.has_reverse_charge ?? false,
       reverse_charge_type: expense.reverse_charge_type || 'eu',
     });
@@ -194,7 +199,7 @@ export default function Expenses() {
       amount_incl_btw: amountInclBtw,
       amount_excl_btw: amountExclBtw,
       btw_amount: btwAmount,
-      btw_percentage: formData.btw_percentage || 21,
+      btw_percentage: getBtwPercentage(),
       btw_period: selectedBtwPeriod || null,
       receipt_url: editingExpense?.receipt_url || null,
       notes: null,

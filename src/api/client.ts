@@ -136,6 +136,17 @@ export const expenses = {
     api.delete(`/api/expenses/${id}`),
 };
 
+export const otherIncome = {
+  getAll: () =>
+    api.get('/api/other-income'),
+  create: (data) =>
+    api.post('/api/other-income', data),
+  update: (id, data) =>
+    api.put(`/api/other-income/${id}`, data),
+  delete: (id) =>
+    api.delete(`/api/other-income/${id}`),
+};
+
 // Projects
 export const projects = {
   getAll: () =>

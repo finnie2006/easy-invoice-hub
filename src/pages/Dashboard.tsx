@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useExpenses } from '@/hooks/useExpenses';
+import { useOtherIncome } from '@/hooks/useOtherIncome';
 import { useProfile } from '@/hooks/useProfile';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ import { getExpensePaidAmount } from '@/lib/expense-vat';
 export default function Dashboard() {
   const { invoices, overdueInvoices, isLoading: loadingInvoices } = useInvoices();
   const { expenses, isLoading: loadingExpenses } = useExpenses();
+  const { otherIncome, isLoading: loadingOtherIncome } = useOtherIncome();
   const { profile, isLoading: loadingProfile } = useProfile();
 
   const now = new Date();
@@ -39,9 +41,17 @@ export default function Dashboard() {
     return isAfter(date, yearStart) && isBefore(date, yearEnd);
   });
 
-  const totalRevenue = yearInvoices
+  const yearOtherIncome = otherIncome.filter(income => {
+    const date = new Date(income.income_date);
+    return isAfter(date, yearStart) && isBefore(date, yearEnd);
+  });
+
+  const invoiceRevenue = yearInvoices
     .filter(inv => inv.status === 'paid')
     .reduce((sum, inv) => sum + Number(inv.total), 0);
+  const otherIncomeRevenue = yearOtherIncome
+    .reduce((sum, income) => sum + Number(income.amount), 0);
+  const totalRevenue = invoiceRevenue + otherIncomeRevenue;
 
   const totalPendingRevenue = yearInvoices
     .filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled')
@@ -59,7 +69,7 @@ export default function Dashboard() {
     }).format(amount);
   };
 
-  const isLoading = loadingInvoices || loadingExpenses || loadingProfile;
+  const isLoading = loadingInvoices || loadingExpenses || loadingOtherIncome || loadingProfile;
 
   // Check if profile is incomplete
   const profileIncomplete = !profile?.company_name || !profile?.kvk_number;
@@ -73,12 +83,20 @@ export default function Dashboard() {
             Welkom terug{profile?.company_name ? `, ${profile.company_name}` : ''}
           </p>
         </div>
-        <Button asChild className="w-full sm:w-auto">
-          <Link to="/invoices/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Nieuwe factuur
-          </Link>
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button variant="outline" asChild className="w-full sm:w-auto">
+            <Link to="/income">
+              <Plus className="h-4 w-4 mr-2" />
+              Nieuwe inkomst
+            </Link>
+          </Button>
+          <Button asChild className="w-full sm:w-auto">
+            <Link to="/invoices/new">
+              <Plus className="h-4 w-4 mr-2" />
+              Nieuwe factuur
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Alerts */}
@@ -132,7 +150,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-success">{formatCurrency(totalRevenue)}</div>
             <p className="text-xs text-muted-foreground">
-              Betaalde facturen in {now.getFullYear()}
+              {formatCurrency(invoiceRevenue)} facturen · {formatCurrency(otherIncomeRevenue)} zonder factuur
             </p>
           </CardContent>
         </Card>

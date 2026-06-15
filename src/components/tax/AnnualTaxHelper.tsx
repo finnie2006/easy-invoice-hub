@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useExpenses } from '@/hooks/useExpenses';
+import { useOtherIncome } from '@/hooks/useOtherIncome';
 import { useBusinessAssets, BusinessAssetInsert, ASSET_CATEGORIES } from '@/hooks/useBusinessAssets';
 import { useAnnualTaxData, TAX_CONSTANTS } from '@/hooks/useAnnualTaxData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,6 +39,7 @@ interface AnnualTaxHelperProps {
 export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) {
   const { invoices } = useInvoices();
   const { expenses } = useExpenses();
+  const { otherIncome } = useOtherIncome();
   const { assets, createAsset, deleteAsset, isCreating, getDepreciationForYear, getBookValueEndOfYear } = useBusinessAssets();
   const { taxData, upsertTaxData, isSaving, getTaxConstants } = useAnnualTaxData(selectedYear);
 
@@ -122,7 +124,14 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
     return isAfter(date, yearStart) && isBefore(date, yearEnd);
   });
 
-  const totalRevenueExclBtw = paidInvoices.reduce((sum, inv) => sum + Number(inv.subtotal), 0);
+  const yearOtherIncome = otherIncome.filter((income) => {
+    const date = new Date(income.income_date);
+    return isAfter(date, yearStart) && isBefore(date, yearEnd);
+  });
+
+  const invoiceRevenueExclBtw = paidInvoices.reduce((sum, inv) => sum + Number(inv.subtotal), 0);
+  const otherIncomeRevenue = yearOtherIncome.reduce((sum, income) => sum + Number(income.amount), 0);
+  const totalRevenueExclBtw = invoiceRevenueExclBtw + otherIncomeRevenue;
   const totalExpensesExclBtw = yearExpenses.reduce((sum, exp) => sum + Number(exp.amount_excl_btw || 0), 0);
 
   // Depreciation
@@ -171,9 +180,15 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
           <Table>
             <TableBody>
               <TableRow>
-                <TableCell className="font-medium">Omzet (excl. BTW)</TableCell>
+                <TableCell className="font-medium">Omzet uit facturen (excl. BTW)</TableCell>
                 <TableCell className="text-right text-success font-medium">
-                  {formatCurrency(totalRevenueExclBtw)}
+                  {formatCurrency(invoiceRevenueExclBtw)}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-medium">Inkomsten zonder factuur</TableCell>
+                <TableCell className="text-right text-success font-medium">
+                  {formatCurrency(otherIncomeRevenue)}
                 </TableCell>
               </TableRow>
               <TableRow>
@@ -208,7 +223,7 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
           <div className="mt-4 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground flex gap-2">
             <Info className="h-4 w-4 shrink-0 mt-0.5" />
             <span>
-              Gebaseerd op {paidInvoices.length} betaalde facturen en {yearExpenses.length} uitgaven in {selectedYear}.
+              Gebaseerd op {paidInvoices.length} betaalde facturen, {yearOtherIncome.length} inkomsten zonder factuur en {yearExpenses.length} uitgaven in {selectedYear}.
             </span>
           </div>
         </CardContent>

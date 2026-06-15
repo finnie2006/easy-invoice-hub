@@ -143,6 +143,15 @@ const EXPENSE_UPDATABLE_FIELDS = [
   'reverse_charge_type',
 ];
 
+const OTHER_INCOME_UPDATABLE_FIELDS = [
+  'source_name',
+  'description',
+  'category',
+  'income_date',
+  'amount',
+  'notes',
+];
+
 const PROJECT_UPDATABLE_FIELDS = [
   'client_id',
   'client_name',
@@ -1021,6 +1030,78 @@ app.delete('/api/expenses/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error deleting expense:', err);
     res.status(500).json({ error: 'Failed to delete expense' });
+  }
+});
+
+// ============================================
+// Other Income Routes
+// ============================================
+
+app.get('/api/other-income', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM public.other_income WHERE user_id = $1 ORDER BY income_date DESC, created_at DESC',
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching other income:', err);
+    res.status(500).json({ error: 'Failed to fetch other income' });
+  }
+});
+
+app.post('/api/other-income', authenticateToken, async (req, res) => {
+  const { source_name, description, category, income_date, amount, notes } = req.body;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO public.other_income (user_id, source_name, description, category, income_date, amount, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [req.userId, source_name, description, category, income_date, amount, notes]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating other income:', err);
+    res.status(500).json({ error: 'Failed to create other income' });
+  }
+});
+
+app.put('/api/other-income/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const updatePayload = buildValidatedUpdate(req.body, OTHER_INCOME_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
+  values.push(req.userId);
+  values.push(id);
+
+  try {
+    const result = await pool.query(
+      `UPDATE public.other_income SET ${setClause}, updated_at=NOW() WHERE user_id = $${fields.length + 1} AND id = $${fields.length + 2} RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Income not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating other income:', err);
+    res.status(500).json({ error: 'Failed to update other income' });
+  }
+});
+
+app.delete('/api/other-income/:id', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM public.other_income WHERE id = $1 AND user_id = $2 RETURNING id',
+      [req.params.id, req.userId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Income not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting other income:', err);
+    res.status(500).json({ error: 'Failed to delete other income' });
   }
 });
 
@@ -2315,6 +2396,24 @@ const ensureRuntimeSchema = async () => {
 
   await pool.query('CREATE INDEX IF NOT EXISTS idx_btw_filing_user_period ON public.btw_filing_fields (user_id, period)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_btw_filing_year_quarter ON public.btw_filing_fields (year, quarter)');
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.other_income (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      source_name text NOT NULL,
+      description text,
+      category text NOT NULL DEFAULT 'overig',
+      income_date date NOT NULL,
+      amount numeric(14,2) NOT NULL DEFAULT 0,
+      notes text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_other_income_user_id ON public.other_income (user_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_other_income_income_date ON public.other_income (income_date)');
 };
 
 const startServer = async () => {

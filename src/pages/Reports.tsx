@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useExpenses, EXPENSE_CATEGORIES } from "@/hooks/useExpenses";
+import { useOtherIncome } from "@/hooks/useOtherIncome";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,6 +28,7 @@ type Period = "year" | "q1" | "q2" | "q3" | "q4";
 export default function Reports() {
   const { invoices, isLoading: loadingInvoices } = useInvoices();
   const { expenses, isLoading: loadingExpenses } = useExpenses();
+  const { otherIncome, isLoading: loadingOtherIncome } = useOtherIncome();
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [period, setPeriod] = useState<Period>("year");
 
@@ -77,11 +79,17 @@ export default function Reports() {
     return isAfter(date, start) && isBefore(date, end);
   });
 
+  const periodOtherIncome = otherIncome.filter((income) => {
+    const date = new Date(income.income_date);
+    return isAfter(date, start) && isBefore(date, end);
+  });
+
   // Calculate invoice stats
   const paidInvoices = periodInvoices.filter((inv) => inv.status === "paid");
   const unpaidInvoices = periodInvoices.filter((inv) => inv.status !== "paid" && inv.status !== "draft");
-  const totalRevenue = paidInvoices.reduce((sum, inv) => sum + Number(inv.total), 0);
-  const totalRevenueExclBtw = paidInvoices.reduce((sum, inv) => sum + Number(inv.subtotal), 0);
+  const invoiceRevenueExclBtw = paidInvoices.reduce((sum, inv) => sum + Number(inv.subtotal), 0);
+  const otherIncomeRevenue = periodOtherIncome.reduce((sum, income) => sum + Number(income.amount), 0);
+  const totalRevenueExclBtw = invoiceRevenueExclBtw + otherIncomeRevenue;
   const totalRevenueVat = paidInvoices.reduce((sum, inv) => sum + Number(inv.total_btw), 0);
   const totalUnpaid = unpaidInvoices.reduce((sum, inv) => sum + Number(inv.total), 0);
 
@@ -130,18 +138,24 @@ export default function Reports() {
         return isAfter(date, monthStart) && isBefore(date, monthEnd);
       });
 
+      const monthOtherIncome = periodOtherIncome.filter((income) => {
+        const date = new Date(income.income_date);
+        return isAfter(date, monthStart) && isBefore(date, monthEnd);
+      });
+
       const revenue = monthInvoices.reduce((sum, inv) => sum + Number(inv.subtotal), 0);
+      const additionalIncome = monthOtherIncome.reduce((sum, income) => sum + Number(income.amount), 0);
       const expenses = monthExpenses.reduce((sum, exp) => sum + Number(exp.amount_excl_btw || 0), 0);
 
       return {
         month: format(monthStart, "MMM", { locale: nl }),
-        omzet: revenue,
+        omzet: revenue + additionalIncome,
         kosten: expenses,
       };
     });
-  }, [paidInvoices, periodExpenses, selectedYear, period]);
+  }, [paidInvoices, periodExpenses, periodOtherIncome, selectedYear, period]);
 
-  const isLoading = loadingInvoices || loadingExpenses;
+  const isLoading = loadingInvoices || loadingExpenses || loadingOtherIncome;
 
   // Available years
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
@@ -200,7 +214,9 @@ export default function Reports() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-success">{formatCurrency(totalRevenueExclBtw)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{paidInvoices.length} betaalde facturen</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatCurrency(invoiceRevenueExclBtw)} facturen · {formatCurrency(otherIncomeRevenue)} zonder factuur
+            </p>
           </CardContent>
         </Card>
 
@@ -298,8 +314,12 @@ export default function Reports() {
             <Table>
               <TableBody>
                 <TableRow>
-                  <TableCell className="font-medium">Omzet excl. BTW</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totalRevenueExclBtw)}</TableCell>
+                  <TableCell className="font-medium">Omzet uit facturen excl. BTW</TableCell>
+                  <TableCell className="text-right">{formatCurrency(invoiceRevenueExclBtw)}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell className="font-medium">Inkomsten zonder factuur</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{formatCurrency(otherIncomeRevenue)}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="font-medium">BTW over omzet</TableCell>

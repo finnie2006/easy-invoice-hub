@@ -12,6 +12,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import {
@@ -82,11 +83,22 @@ export function AppSidebar() {
   const { signOut, user } = useAuth();
   const { appName, profile } = useProfile();
   const { theme, setTheme } = useTheme();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const themeKey = profile?.panel_color_theme || 'default';
   const themeStyles = panelThemeStyles[themeKey] || panelThemeStyles.default;
 
   const nextTheme = theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light';
+  const closeMobileSidebar = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
+  const handleSignOut = () => {
+    closeMobileSidebar();
+    signOut();
+  };
 
   return (
     <Sidebar
@@ -96,7 +108,7 @@ export function AppSidebar() {
       } as React.CSSProperties}
     >
       <SidebarHeader className="p-4" style={{ borderBottom: `1px solid ${themeStyles.border}` }}>
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2" onClick={closeMobileSidebar}>
           <div className="p-1.5 bg-sidebar-primary rounded-lg">
             <Briefcase className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
@@ -114,7 +126,7 @@ export function AppSidebar() {
                     asChild
                     isActive={location.pathname === item.url}
                   >
-                    <Link to={item.url}>
+                    <Link to={item.url} onClick={closeMobileSidebar}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </Link>
@@ -154,7 +166,7 @@ export function AppSidebar() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={signOut}
+          onClick={handleSignOut}
           className="w-full justify-start text-sidebar-foreground hover:text-sidebar-foreground"
           style={{ ['--hover-bg' as string]: themeStyles.accent }}
         >

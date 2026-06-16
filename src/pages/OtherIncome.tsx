@@ -333,32 +333,25 @@ export default function OtherIncomePage() {
               <p>Nog geen inkomsten zonder factuur</p>
               <p className="text-sm">Voeg bijvoorbeeld een contante klus toe</p>
             </div>
+          ) : filteredIncome.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>Geen resultaten gevonden</p>
+              <p className="text-sm">Pas je filters aan om inkomsten te zien</p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Datum</TableHead>
-                  <TableHead>Bron</TableHead>
-                  <TableHead>Omschrijving</TableHead>
-                  <TableHead>Categorie</TableHead>
-                  <TableHead className="text-right">Bedrag</TableHead>
-                  <TableHead className="w-[96px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="block md:hidden space-y-3">
                 {filteredIncome.map((income) => (
-                  <TableRow key={income.id}>
-                    <TableCell>{format(new Date(income.income_date), 'd MMM yyyy', { locale: nl })}</TableCell>
-                    <TableCell className="font-medium">{income.source_name}</TableCell>
-                    <TableCell className="text-muted-foreground">{income.description || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{getCategoryLabel(income.category)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium text-success">
-                      {formatCurrency(Number(income.amount))}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
+                  <div key={income.id} className="p-4 rounded-lg bg-muted/50 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">{income.source_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {format(new Date(income.income_date), 'd MMM yyyy', { locale: nl })}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(income)} title="Bewerken">
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -372,11 +365,68 @@ export default function OtherIncomePage() {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
+                    </div>
+                    {income.description && (
+                      <p className="text-sm text-muted-foreground">{income.description}</p>
+                    )}
+                    <div className="flex items-center justify-between gap-3">
+                      <Badge variant="outline" className="min-w-0 max-w-[65%] truncate">
+                        {getCategoryLabel(income.category)}
+                      </Badge>
+                      <span className="shrink-0 font-medium text-success">
+                        {formatCurrency(Number(income.amount))}
+                      </span>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Datum</TableHead>
+                      <TableHead>Bron</TableHead>
+                      <TableHead>Omschrijving</TableHead>
+                      <TableHead>Categorie</TableHead>
+                      <TableHead className="text-right">Bedrag</TableHead>
+                      <TableHead className="w-[96px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredIncome.map((income) => (
+                      <TableRow key={income.id}>
+                        <TableCell>{format(new Date(income.income_date), 'd MMM yyyy', { locale: nl })}</TableCell>
+                        <TableCell className="font-medium">{income.source_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{income.description || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{getCategoryLabel(income.category)}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium text-success">
+                          {formatCurrency(Number(income.amount))}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => handleEdit(income)} title="Bewerken">
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeleteConfirmIncome(income)}
+                              title="Verwijderen"
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useExpenses, Expense, ExpenseInsert, EXPENSE_CATEGORIES } from '@/hooks/useExpenses';
 import { useBtwPeriods } from '@/hooks/useBtwPeriods';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +20,7 @@ import { calculateExpenseVatAmounts, getExpensePaidAmount } from '@/lib/expense-
 export default function Expenses() {
   const { expenses, isLoading, createExpense, updateExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
   const { isPeriodClosed, getBtwPeriodForDate, getNextAvailablePeriod } = useBtwPeriods();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
   const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
@@ -62,6 +64,12 @@ export default function Expenses() {
   };
 
   // Check if selected date falls in a closed BTW period
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setDialogOpen(true);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     const period = getBtwPeriodForDate(expenseDate);
     const [yearStr, quarterStr] = period.split('-Q');
@@ -287,6 +295,11 @@ export default function Expenses() {
           setDialogOpen(open);
           if (!open) {
             resetForm();
+            if (searchParams.has('new')) {
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.delete('new');
+              setSearchParams(nextParams, { replace: true });
+            }
           }
         }}>
           <DialogTrigger asChild>

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { Plus, Banknote, Pencil, Trash2, Search, X, Loader2, Info } from 'lucide-react';
@@ -26,6 +27,7 @@ export default function OtherIncomePage() {
     isUpdating,
   } = useOtherIncome();
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIncome, setEditingIncome] = useState<OtherIncome | null>(null);
   const [deleteConfirmIncome, setDeleteConfirmIncome] = useState<OtherIncome | null>(null);
@@ -65,6 +67,12 @@ export default function OtherIncomePage() {
       notes: null,
     });
   };
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setDialogOpen(true);
+    }
+  }, [searchParams]);
 
   const handleEdit = (income: OtherIncome) => {
     setEditingIncome(income);
@@ -147,7 +155,14 @@ export default function OtherIncomePage() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => {
           setDialogOpen(open);
-          if (!open) resetForm();
+          if (!open) {
+            resetForm();
+            if (searchParams.has('new')) {
+              const nextParams = new URLSearchParams(searchParams);
+              nextParams.delete('new');
+              setSearchParams(nextParams, { replace: true });
+            }
+          }
         }}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto">

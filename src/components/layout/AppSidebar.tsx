@@ -8,10 +8,12 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
@@ -32,17 +34,38 @@ import {
   Sun,
 } from 'lucide-react';
 
-const menuItems = [
-  { title: 'Dashboard', url: '/', icon: LayoutDashboard },
-  { title: 'Agenda', url: '/calendar', icon: Calendar },
-  { title: 'Projecten', url: '/projects', icon: FolderKanban },
-  { title: 'Facturen', url: '/invoices', icon: FileText },
-  { title: 'Inkomsten', url: '/income', icon: Banknote },
-  { title: 'Klanten', url: '/clients', icon: Users },
-  { title: 'Uitgaven', url: '/expenses', icon: Receipt },
-  { title: 'Rapporten', url: '/reports', icon: BarChart3 },
-  { title: 'Aangiftes', url: '/tax-filings', icon: FileCheck },
-  { title: 'Instellingen', url: '/settings', icon: Settings },
+const quickActions = [
+  { title: 'Nieuwe factuur', url: '/invoices/new', icon: FileText },
+  { title: 'Nieuwe klant', url: '/clients?new=1', icon: Users },
+  { title: 'Nieuwe uitgave', url: '/expenses?new=1', icon: Receipt },
+];
+
+const menuGroups = [
+  {
+    label: 'Werk',
+    items: [
+      { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+      { title: 'Agenda', url: '/calendar', icon: Calendar },
+      { title: 'Projecten', url: '/projects', icon: FolderKanban },
+      { title: 'Klanten', url: '/clients', icon: Users },
+    ],
+  },
+  {
+    label: 'Administratie',
+    items: [
+      { title: 'Facturen', url: '/invoices', icon: FileText },
+      { title: 'Inkomsten', url: '/income', icon: Banknote },
+      { title: 'Uitgaven', url: '/expenses', icon: Receipt },
+      { title: 'Aangiftes', url: '/tax-filings', icon: FileCheck },
+    ],
+  },
+  {
+    label: 'Inzicht',
+    items: [
+      { title: 'Rapporten', url: '/reports', icon: BarChart3 },
+      { title: 'Instellingen', url: '/settings', icon: Settings },
+    ],
+  },
 ];
 
 const panelThemeStyles: Record<string, { bg: string; accent: string; border: string }> = {
@@ -100,6 +123,14 @@ export function AppSidebar() {
     signOut();
   };
 
+  const isActiveRoute = (url: string) => {
+    if (url === '/') {
+      return location.pathname === '/';
+    }
+
+    return location.pathname === url || location.pathname.startsWith(`${url}/`);
+  };
+
   return (
     <Sidebar
       className="transition-colors duration-200"
@@ -118,14 +149,12 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
+          <SidebarGroupLabel>Snelle acties</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {quickActions.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === item.url}
-                  >
+                  <SidebarMenuButton asChild tooltip={item.title}>
                     <Link to={item.url} onClick={closeMobileSidebar}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -136,6 +165,32 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarSeparator style={{ backgroundColor: themeStyles.border }} />
+
+        {menuGroups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActiveRoute(item.url)}
+                      tooltip={item.title}
+                    >
+                      <Link to={item.url} onClick={closeMobileSidebar}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter className="p-4 space-y-2" style={{ borderTop: `1px solid ${themeStyles.border}` }}>

@@ -1,5 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useClients, Client, ClientInsert } from '@/hooks/useClients';
+import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Loader2, Plus, Users, MoreHorizontal, Pencil, Trash2, Search, X, MapPin } from 'lucide-react';
+import { Loader2, Plus, Users, MoreHorizontal, Pencil, Trash2, Search, X, MapPin, Download, Upload } from 'lucide-react';
+import { parseCsv } from '@/lib/csv';
+import { downloadExcelWorkbook } from '@/lib/excel';
 
 const emptyClient: ClientInsert = {
   company_name: '',
@@ -26,12 +30,29 @@ const emptyClient: ClientInsert = {
   is_saved: true,
 };
 
+const clientExportColumns = [
+  { key: 'company_name', header: 'Bedrijfsnaam', width: 180 },
+  { key: 'contact_name', header: 'Contactpersoon', width: 150 },
+  { key: 'email', header: 'E-mail', width: 190 },
+  { key: 'phone', header: 'Telefoon', width: 110 },
+  { key: 'address', header: 'Adres', width: 180 },
+  { key: 'postal_code', header: 'Postcode', width: 90 },
+  { key: 'city', header: 'Plaats', width: 120 },
+  { key: 'country', header: 'Land', width: 110 },
+  { key: 'kvk_number', header: 'KVK-nummer', width: 110 },
+  { key: 'btw_number', header: 'BTW-nummer', width: 130 },
+  { key: 'notes', header: 'Notities', width: 220 },
+];
+
 export default function Clients() {
   const { clients, isLoading, createClient, updateClient, deleteClient, isCreating } = useClients();
+  const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [formData, setFormData] = useState<ClientInsert>(emptyClient);
   const [deleteConfirmClient, setDeleteConfirmClient] = useState<Client | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,6 +93,12 @@ export default function Clients() {
   }, [clients, searchQuery, cityFilter]);
 
   const hasActiveFilters = searchQuery || cityFilter !== 'all';
+
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setDialogOpen(true);
+    }
+  }, [searchParams]);
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -121,7 +148,71 @@ export default function Clients() {
     if (!open) {
       setEditingClient(null);
       setFormData(emptyClient);
+      if (searchParams.has('new')) {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('new');
+        setSearchParams(nextParams, { replace: true });
+      }
     }
+  };
+
+  const handleExportClients = () => {
+    downloadExcelWorkbook(
+      `klanten-${new Date().toISOString().slice(0, 10)}.xls`,
+      [
+        {
+          name: 'Klanten',
+          title: 'Klantenbestand',
+          description: `${clients.length} klant${clients.length !== 1 ? 'en' : ''} geexporteerd op ${new Date().toLocaleDateString('nl-NL')}`,
+          columns: clientExportColumns,
+          rows: clients.map((client) => ({
+            company_name: client.company_name,
+            contact_name: client.contact_name,
+            email: client.email,
+            phone: client.phone,
+            address: client.address,
+            postal_code: client.postal_code,
+            city: client.city,
+            country: client.country,
+            kvk_number: client.kvk_number,
+            btw_number: client.btw_number,
+            notes: client.notes,
+          })),
+        },
+      ],
+    );
+  };
+
+  const handleImportClients = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const csv = await file.text();
+    const rows = parseCsv(csv);
+    const importableRows = rows.filter((row) => row.company_name?.trim());
+
+    for (const row of importableRows) {
+      await createClient({
+        company_name: row.company_name.trim(),
+        contact_name: row.contact_name || null,
+        email: row.email || null,
+        phone: row.phone || null,
+        address: row.address || null,
+        postal_code: row.postal_code || null,
+        city: row.city || null,
+        country: row.country || 'Nederland',
+        kvk_number: row.kvk_number || null,
+        btw_number: row.btw_number || null,
+        notes: row.notes || null,
+        is_saved: true,
+      });
+    }
+
+    event.target.value = '';
+    toast({
+      title: 'Import afgerond',
+      description: `${importableRows.length} klant${importableRows.length !== 1 ? 'en' : ''} geimporteerd.`,
+    });
   };
 
   if (isLoading) {
@@ -141,7 +232,23 @@ export default function Clients() {
             Beheer je klantenbestand
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={handleImportClients}
+          />
+          <Button variant="outline" className="w-full sm:w-auto" onClick={handleExportClients}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button variant="outline" className="w-full sm:w-auto" onClick={() => importInputRef.current?.click()}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
@@ -263,7 +370,8 @@ export default function Clients() {
               </div>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <Card>

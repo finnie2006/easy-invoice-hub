@@ -2,11 +2,12 @@ import { useState, useMemo } from "react";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useExpenses, EXPENSE_CATEGORIES } from "@/hooks/useExpenses";
 import { useOtherIncome } from "@/hooks/useOtherIncome";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BarChart3, TrendingUp, TrendingDown, FileText, AlertCircle } from "lucide-react";
+import { Loader2, BarChart3, TrendingUp, TrendingDown, FileText, AlertCircle, Download } from "lucide-react";
 import {
   startOfYear,
   endOfYear,
@@ -22,6 +23,7 @@ import {
 import { nl } from "date-fns/locale";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { getExpenseDeductibleVat, getExpensePaidAmount, getExpenseReverseChargeVat } from "@/lib/expense-vat";
+import { downloadExcelWorkbook } from "@/lib/excel";
 
 type Period = "year" | "q1" | "q2" | "q3" | "q4";
 
@@ -159,6 +161,195 @@ export default function Reports() {
 
   // Available years
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+  const periodLabel = period === "year" ? year : `${year}-${period.toUpperCase()}`;
+  const periodDescription = period === "year" ? `Boekjaar ${year}` : `${period.toUpperCase()} ${year}`;
+
+  const handleExportSummary = () => {
+    downloadExcelWorkbook(
+      `rapport-samenvatting-${periodLabel}.xls`,
+      [
+        {
+          name: "Samenvatting",
+          title: `Financieel rapport - ${periodDescription}`,
+          description: `Gegenereerd op ${new Date().toLocaleDateString("nl-NL")}`,
+          columns: [
+            { key: "veld", header: "Onderdeel", width: 230 },
+            { key: "bedrag", header: "Bedrag", width: 120, type: "currency" as const },
+          ],
+          rows: [
+            { veld: "Omzet facturen excl. BTW", bedrag: invoiceRevenueExclBtw },
+            { veld: "Inkomsten zonder factuur", bedrag: otherIncomeRevenue },
+            { veld: "Omzet totaal excl. BTW", bedrag: totalRevenueExclBtw, __style: "total" as const },
+            { veld: "BTW over omzet", bedrag: totalRevenueVat },
+            { veld: "Kosten excl. BTW", bedrag: totalExpensesExclBtw },
+            { veld: "Voorbelasting", bedrag: totalExpensesVat },
+            { veld: "Reverse-charge BTW", bedrag: reverseChargeVat },
+            { veld: "Winst / verlies", bedrag: profit, __style: "total" as const },
+            { veld: "BTW af te dragen", bedrag: vatToPay, __style: "total" as const },
+            { veld: "Openstaand incl. BTW", bedrag: totalUnpaid },
+          ],
+        },
+        {
+          name: "Maanden",
+          title: "Omzet en kosten per maand",
+          description: periodDescription,
+          columns: [
+            { key: "month", header: "Maand", width: 90 },
+            { key: "omzet", header: "Omzet excl. BTW", width: 130, type: "currency" as const },
+            { key: "kosten", header: "Kosten excl. BTW", width: 130, type: "currency" as const },
+            { key: "resultaat", header: "Resultaat", width: 120, type: "currency" as const },
+          ],
+          rows: [
+            ...monthlyRevenueData.map((row) => ({
+              ...row,
+              resultaat: row.omzet - row.kosten,
+            })),
+            {
+              month: "Totaal",
+              omzet: monthlyRevenueData.reduce((sum, row) => sum + row.omzet, 0),
+              kosten: monthlyRevenueData.reduce((sum, row) => sum + row.kosten, 0),
+              resultaat: monthlyRevenueData.reduce((sum, row) => sum + row.omzet - row.kosten, 0),
+              __style: "total" as const,
+            },
+          ],
+        },
+        {
+          name: "Categorieen",
+          title: "Kosten per categorie",
+          description: periodDescription,
+          columns: [
+            { key: "label", header: "Categorie", width: 180 },
+            { key: "count", header: "Aantal", width: 80, type: "number" as const },
+            { key: "total", header: "Totaal", width: 120, type: "currency" as const },
+          ],
+          rows: [
+            ...expensesByCategory.map((category) => ({
+              label: category.label,
+              count: category.count,
+              total: category.total,
+            })),
+            {
+              label: "Totaal",
+              count: periodExpenses.length,
+              total: totalExpenses,
+              __style: "total" as const,
+            },
+          ],
+        },
+        {
+          name: "Openstaand",
+          title: "Openstaande facturen",
+          description: periodDescription,
+          columns: [
+            { key: "invoice_number", header: "Factuurnummer", width: 120 },
+            { key: "client", header: "Klant", width: 180 },
+            { key: "invoice_date", header: "Factuurdatum", width: 105, type: "date" as const },
+            { key: "due_date", header: "Vervaldatum", width: 105, type: "date" as const },
+            { key: "status", header: "Status", width: 100 },
+            { key: "total", header: "Bedrag incl. BTW", width: 130, type: "currency" as const },
+          ],
+          rows: [
+            ...unpaidInvoices.map((invoice) => ({
+              invoice_number: invoice.invoice_number,
+              client: invoice.client_company_name || "",
+              invoice_date: invoice.invoice_date,
+              due_date: invoice.due_date,
+              status: invoice.status,
+              total: invoice.total,
+            })),
+            {
+              invoice_number: "Totaal",
+              client: "",
+              invoice_date: "",
+              due_date: "",
+              status: "",
+              total: totalUnpaid,
+              __style: "total" as const,
+            },
+          ],
+        },
+      ],
+    );
+  };
+
+  const handleExportDetails = () => {
+    const invoiceRows = periodInvoices.map((invoice) => ({
+      type: "factuur",
+      datum: invoice.invoice_date,
+      relatie: invoice.client_company_name || "",
+      omschrijving: invoice.invoice_number,
+      status: invoice.status,
+      bedrag_excl_btw: invoice.subtotal,
+      btw: invoice.total_btw,
+      bedrag_incl_btw: invoice.total,
+    }));
+    const expenseRows = periodExpenses.map((expense) => ({
+      type: "uitgave",
+      datum: expense.expense_date,
+      relatie: expense.vendor_name,
+      omschrijving: expense.description || expense.category,
+      status: expense.btw_period || "",
+      bedrag_excl_btw: expense.amount_excl_btw || 0,
+      btw: getExpenseDeductibleVat(expense),
+      bedrag_incl_btw: getExpensePaidAmount(expense),
+    }));
+    const incomeRows = periodOtherIncome.map((income) => ({
+      type: "inkomst",
+      datum: income.income_date,
+      relatie: income.source_name,
+      omschrijving: income.description || income.category,
+      status: "",
+      bedrag_excl_btw: income.amount,
+      btw: 0,
+      bedrag_incl_btw: income.amount,
+    }));
+
+    const detailColumns = [
+      { key: "type", header: "Type", width: 90 },
+      { key: "datum", header: "Datum", width: 105, type: "date" as const },
+      { key: "relatie", header: "Relatie", width: 180 },
+      { key: "omschrijving", header: "Omschrijving", width: 220 },
+      { key: "status", header: "Status / periode", width: 120 },
+      { key: "bedrag_excl_btw", header: "Excl. BTW", width: 115, type: "currency" as const },
+      { key: "btw", header: "BTW", width: 105, type: "currency" as const },
+      { key: "bedrag_incl_btw", header: "Incl. BTW", width: 115, type: "currency" as const },
+    ];
+    const allRows = [...invoiceRows, ...expenseRows, ...incomeRows].sort((a, b) => a.datum.localeCompare(b.datum));
+
+    downloadExcelWorkbook(
+      `rapport-details-${periodLabel}.xls`,
+      [
+        {
+          name: "Alle mutaties",
+          title: `Mutaties - ${periodDescription}`,
+          description: `Facturen, uitgaven en inkomsten zonder factuur`,
+          columns: detailColumns,
+          rows: allRows,
+        },
+        {
+          name: "Facturen",
+          title: "Facturen",
+          description: periodDescription,
+          columns: detailColumns,
+          rows: invoiceRows,
+        },
+        {
+          name: "Uitgaven",
+          title: "Uitgaven",
+          description: periodDescription,
+          columns: detailColumns,
+          rows: expenseRows,
+        },
+        {
+          name: "Inkomsten",
+          title: "Inkomsten zonder factuur",
+          description: periodDescription,
+          columns: detailColumns,
+          rows: incomeRows,
+        },
+      ],
+    );
+  };
 
   if (isLoading) {
     return (
@@ -175,7 +366,7 @@ export default function Reports() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Rapporten</h1>
           <p className="text-sm sm:text-base text-muted-foreground">Financieel overzicht voor de belastingaangifte</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Select value={year} onValueChange={setYear}>
             <SelectTrigger className="w-[100px] sm:w-[120px]">
               <SelectValue />
@@ -200,6 +391,14 @@ export default function Reports() {
               <SelectItem value="q4">Q4 (okt-dec)</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" onClick={handleExportSummary}>
+            <Download className="h-4 w-4 mr-2" />
+            Samenvatting
+          </Button>
+          <Button variant="outline" onClick={handleExportDetails}>
+            <Download className="h-4 w-4 mr-2" />
+            Details
+          </Button>
         </div>
       </div>
 

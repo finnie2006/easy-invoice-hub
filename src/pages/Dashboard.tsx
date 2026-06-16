@@ -3,6 +3,7 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useOtherIncome } from '@/hooks/useOtherIncome';
 import { useProfile } from '@/hooks/useProfile';
+import { useClients } from '@/hooks/useClients';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,8 @@ import {
   Euro,
   Clock,
   CheckCircle2,
+  Settings,
+  Users,
 } from 'lucide-react';
 import { format, startOfYear, endOfYear, isAfter, isBefore } from 'date-fns';
 import { nl } from 'date-fns/locale';
@@ -25,6 +28,7 @@ export default function Dashboard() {
   const { expenses, isLoading: loadingExpenses } = useExpenses();
   const { otherIncome, isLoading: loadingOtherIncome } = useOtherIncome();
   const { profile, isLoading: loadingProfile } = useProfile();
+  const { clients, isLoading: loadingClients } = useClients();
 
   const now = new Date();
   const yearStart = startOfYear(now);
@@ -69,10 +73,41 @@ export default function Dashboard() {
     }).format(amount);
   };
 
-  const isLoading = loadingInvoices || loadingExpenses || loadingOtherIncome || loadingProfile;
+  const isLoading = loadingInvoices || loadingExpenses || loadingOtherIncome || loadingProfile || loadingClients;
 
   // Check if profile is incomplete
   const profileIncomplete = !profile?.company_name || !profile?.kvk_number;
+  const onboardingItems = [
+    {
+      title: 'Bedrijfsgegevens invullen',
+      description: 'Bedrijfsnaam, KVK, BTW en betaalgegevens maken je facturen compleet.',
+      complete: !profileIncomplete,
+      url: '/settings',
+      icon: Settings,
+    },
+    {
+      title: 'Eerste klant toevoegen',
+      description: 'Sla klantgegevens op zodat je facturen sneller kunt maken.',
+      complete: clients.length > 0,
+      url: '/clients?new=1',
+      icon: Users,
+    },
+    {
+      title: 'Eerste factuur maken',
+      description: 'Maak een conceptfactuur en controleer je template.',
+      complete: invoices.length > 0,
+      url: '/invoices/new',
+      icon: FileText,
+    },
+    {
+      title: 'Eerste uitgave vastleggen',
+      description: 'Voeg een bon toe zodat kosten en BTW direct meetellen.',
+      complete: expenses.length > 0,
+      url: '/expenses?new=1',
+      icon: TrendingDown,
+    },
+  ];
+  const showOnboarding = onboardingItems.some((item) => !item.complete);
 
   return (
     <div className="space-y-6">
@@ -138,6 +173,36 @@ export default function Dashboard() {
             </Card>
           )}
         </div>
+      )}
+
+      {showOnboarding && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base sm:text-lg">Startklaar maken</CardTitle>
+            <CardDescription>Rond deze stappen af voor een bruikbare administratiebasis.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {onboardingItems.map((item) => (
+              <Link
+                key={item.title}
+                to={item.url}
+                className="flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/50"
+              >
+                <div className="mt-0.5">
+                  {item.complete ? (
+                    <CheckCircle2 className="h-5 w-5 text-success" />
+                  ) : (
+                    <item.icon className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-medium">{item.title}</p>
+                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                </div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       {/* Stats Grid */}

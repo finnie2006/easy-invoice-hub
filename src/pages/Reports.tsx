@@ -360,15 +360,15 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Rapporten</h1>
           <p className="text-sm sm:text-base text-muted-foreground">Financieel overzicht voor de belastingaangifte</p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-row">
           <Select value={year} onValueChange={setYear}>
-            <SelectTrigger className="w-[100px] sm:w-[120px]">
+            <SelectTrigger className="w-full sm:w-[120px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -380,7 +380,7 @@ export default function Reports() {
             </SelectContent>
           </Select>
           <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-            <SelectTrigger className="w-[120px] sm:w-[140px]">
+            <SelectTrigger className="w-full sm:w-[140px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -391,28 +391,28 @@ export default function Reports() {
               <SelectItem value="q4">Q4 (okt-dec)</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={handleExportSummary}>
-            <Download className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={handleExportSummary} className="min-w-0 px-3">
+            <Download className="h-4 w-4 mr-2 shrink-0" />
             Samenvatting
           </Button>
-          <Button variant="outline" onClick={handleExportDetails}>
-            <Download className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={handleExportDetails} className="min-w-0 px-3">
+            <Download className="h-4 w-4 mr-2 shrink-0" />
             Details
           </Button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
+          <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 leading-snug">
+              <TrendingUp className="h-4 w-4 shrink-0" />
               Omzet (excl. BTW)
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-success">{formatCurrency(totalRevenueExclBtw)}</div>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className="break-words text-xl font-bold tabular-nums text-success sm:text-2xl">{formatCurrency(totalRevenueExclBtw)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {formatCurrency(invoiceRevenueExclBtw)} facturen · {formatCurrency(otherIncomeRevenue)} zonder factuur
             </p>
@@ -420,24 +420,24 @@ export default function Reports() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingDown className="h-4 w-4" />
+          <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2 leading-snug">
+              <TrendingDown className="h-4 w-4 shrink-0" />
               Kosten (excl. BTW)
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{formatCurrency(totalExpensesExclBtw)}</div>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className="break-words text-xl font-bold tabular-nums text-destructive sm:text-2xl">{formatCurrency(totalExpensesExclBtw)}</div>
             <p className="text-xs text-muted-foreground mt-1">{periodExpenses.length} uitgaven</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Winst / Verlies</CardTitle>
+          <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-sm font-medium leading-snug">Winst / Verlies</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${profit >= 0 ? "text-success" : "text-destructive"}`}>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className={`break-words text-xl font-bold tabular-nums sm:text-2xl ${profit >= 0 ? "text-success" : "text-destructive"}`}>
               {formatCurrency(profit)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Omzet min kosten</p>
@@ -445,11 +445,11 @@ export default function Reports() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">BTW af te dragen</CardTitle>
+          <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-2">
+            <CardTitle className="text-sm font-medium leading-snug">BTW af te dragen</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${vatToPay >= 0 ? "text-warning" : "text-success"}`}>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+            <div className={`break-words text-xl font-bold tabular-nums sm:text-2xl ${vatToPay >= 0 ? "text-warning" : "text-success"}`}>
               {formatCurrency(vatToPay)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">{vatToPay >= 0 ? "Te betalen" : "Terug te vorderen"}</p>
@@ -459,42 +459,45 @@ export default function Reports() {
 
       {/* Revenue Chart */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
+            <TrendingUp className="h-5 w-5 shrink-0" />
             Omzet & Kosten per maand
           </CardTitle>
           <CardDescription>Maandelijks overzicht (excl. BTW)</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyRevenueData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis
-                  dataKey="month"
-                  className="text-xs fill-muted-foreground"
-                  tick={{ fill: "hsl(var(--muted-foreground))" }}
-                />
-                <YAxis
-                  className="text-xs fill-muted-foreground"
-                  tick={{ fill: "hsl(var(--muted-foreground))" }}
-                  tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  formatter={(value: number) => formatCurrency(value)}
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                  labelStyle={{ color: "hsl(var(--foreground))" }}
-                />
-                <Legend />
-                <Bar dataKey="omzet" name="Omzet" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="kosten" name="Kosten" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+          <div className="h-[260px] overflow-x-auto sm:h-[300px]">
+            <div className="h-full min-w-[520px] sm:min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyRevenueData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis
+                    dataKey="month"
+                    className="text-xs fill-muted-foreground"
+                    tick={{ fill: "hsl(var(--muted-foreground))" }}
+                  />
+                  <YAxis
+                    className="text-xs fill-muted-foreground"
+                    tick={{ fill: "hsl(var(--muted-foreground))" }}
+                    tickFormatter={(value) => `€${(value / 1000).toFixed(0)}k`}
+                    width={48}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                    }}
+                    labelStyle={{ color: "hsl(var(--foreground))" }}
+                  />
+                  <Legend />
+                  <Bar dataKey="omzet" name="Omzet" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="kosten" name="Kosten" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -502,39 +505,39 @@ export default function Reports() {
       <div className="grid gap-6 lg:grid-cols-2">
         {/* BTW Overview */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
+              <FileText className="h-5 w-5 shrink-0" />
               BTW Overzicht
             </CardTitle>
             <CardDescription>Voor de BTW-aangifte</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             <Table>
               <TableBody>
                 <TableRow>
-                  <TableCell className="font-medium">Omzet uit facturen excl. BTW</TableCell>
-                  <TableCell className="text-right">{formatCurrency(invoiceRevenueExclBtw)}</TableCell>
+                  <TableCell className="py-3 pl-0 pr-3 font-medium">Omzet uit facturen excl. BTW</TableCell>
+                  <TableCell className="py-3 pl-3 pr-0 text-right tabular-nums">{formatCurrency(invoiceRevenueExclBtw)}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="font-medium">Inkomsten zonder factuur</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{formatCurrency(otherIncomeRevenue)}</TableCell>
+                  <TableCell className="py-3 pl-0 pr-3 font-medium">Inkomsten zonder factuur</TableCell>
+                  <TableCell className="py-3 pl-3 pr-0 text-right tabular-nums text-muted-foreground">{formatCurrency(otherIncomeRevenue)}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="font-medium">BTW over omzet</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totalRevenueVat)}</TableCell>
+                  <TableCell className="py-3 pl-0 pr-3 font-medium">BTW over omzet</TableCell>
+                  <TableCell className="py-3 pl-3 pr-0 text-right tabular-nums">{formatCurrency(totalRevenueVat)}</TableCell>
                 </TableRow>
                 <TableRow className="border-t">
-                  <TableCell className="font-medium">Kosten excl. BTW</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totalExpensesExclBtw)}</TableCell>
+                  <TableCell className="py-3 pl-0 pr-3 font-medium">Kosten excl. BTW</TableCell>
+                  <TableCell className="py-3 pl-3 pr-0 text-right tabular-nums">{formatCurrency(totalExpensesExclBtw)}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="font-medium">Voorbelasting (BTW kosten)</TableCell>
-                  <TableCell className="text-right text-success">{formatCurrency(totalExpensesVat)}</TableCell>
+                  <TableCell className="py-3 pl-0 pr-3 font-medium">Voorbelasting (BTW kosten)</TableCell>
+                  <TableCell className="py-3 pl-3 pr-0 text-right tabular-nums text-success">{formatCurrency(totalExpensesVat)}</TableCell>
                 </TableRow>
                 <TableRow className="border-t-2 font-bold">
-                  <TableCell>Per saldo te betalen</TableCell>
-                  <TableCell className={`text-right ${vatToPay >= 0 ? "" : "text-success"}`}>
+                  <TableCell className="py-3 pl-0 pr-3">Per saldo te betalen</TableCell>
+                  <TableCell className={`py-3 pl-3 pr-0 text-right tabular-nums ${vatToPay >= 0 ? "" : "text-success"}`}>
                     {formatCurrency(vatToPay)}
                   </TableCell>
                 </TableRow>
@@ -545,18 +548,18 @@ export default function Reports() {
 
         {/* Expenses by Category */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
+              <BarChart3 className="h-5 w-5 shrink-0" />
               Kosten per categorie
             </CardTitle>
             <CardDescription>Overzicht van je uitgaven</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             {expensesByCategory.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">Geen uitgaven in deze periode</p>
             ) : (
-              <Table>
+              <Table className="min-w-[360px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Categorie</TableHead>
@@ -569,13 +572,13 @@ export default function Reports() {
                     <TableRow key={cat.value}>
                       <TableCell className="font-medium">{cat.label}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{cat.count}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(cat.total)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(cat.total)}</TableCell>
                     </TableRow>
                   ))}
                   <TableRow className="border-t-2 font-bold">
                     <TableCell>Totaal</TableCell>
                     <TableCell className="text-right">{periodExpenses.length}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(totalExpenses)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatCurrency(totalExpenses)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -586,9 +589,9 @@ export default function Reports() {
 
       {/* Unpaid Invoices */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
+            <AlertCircle className="h-5 w-5 shrink-0" />
             Onbetaalde facturen
           </CardTitle>
           <CardDescription>
@@ -596,22 +599,12 @@ export default function Reports() {
             )
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
           {unpaidInvoices.length === 0 ? (
             <p className="text-center text-muted-foreground py-8">Geen onbetaalde facturen in deze periode</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Factuurnummer</TableHead>
-                  <TableHead>Klant</TableHead>
-                  <TableHead>Factuurdatum</TableHead>
-                  <TableHead>Vervaldatum</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Bedrag</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              <div className="divide-y md:hidden">
                 {unpaidInvoices.map((invoice) => {
                   const dueDate = new Date(invoice.due_date);
                   const today = new Date();
@@ -619,29 +612,90 @@ export default function Reports() {
                   const isOverdue = daysOverdue > 0;
 
                   return (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                      <TableCell>{invoice.client_company_name || "-"}</TableCell>
-                      <TableCell>{format(new Date(invoice.invoice_date), "d MMM yyyy", { locale: nl })}</TableCell>
-                      <TableCell className={isOverdue ? "text-destructive" : ""}>
-                        {format(dueDate, "d MMM yyyy", { locale: nl })}
-                        {isOverdue && <span className="text-xs ml-1">({daysOverdue} dagen te laat)</span>}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={isOverdue ? "destructive" : "secondary"}>
+                    <div key={invoice.id} className="py-4 first:pt-0 last:pb-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{invoice.invoice_number}</div>
+                          <div className="mt-1 truncate text-sm text-muted-foreground">
+                            {invoice.client_company_name || "-"}
+                          </div>
+                        </div>
+                        <Badge variant={isOverdue ? "destructive" : "secondary"} className="shrink-0">
                           {isOverdue ? "Vervallen" : "Openstaand"}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(Number(invoice.total))}</TableCell>
-                    </TableRow>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <div className="text-xs text-muted-foreground">Factuurdatum</div>
+                          <div>{format(new Date(invoice.invoice_date), "d MMM yyyy", { locale: nl })}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-muted-foreground">Vervaldatum</div>
+                          <div className={isOverdue ? "text-destructive" : ""}>
+                            {format(dueDate, "d MMM yyyy", { locale: nl })}
+                          </div>
+                        </div>
+                      </div>
+                      {isOverdue && (
+                        <div className="mt-2 text-xs text-destructive">{daysOverdue} dagen te laat</div>
+                      )}
+                      <div className="mt-3 text-right font-semibold tabular-nums">
+                        {formatCurrency(Number(invoice.total))}
+                      </div>
+                    </div>
                   );
                 })}
-                <TableRow className="border-t-2 font-bold">
-                  <TableCell colSpan={5}>Totaal openstaand</TableCell>
-                  <TableCell className="text-right">{formatCurrency(totalUnpaid)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                <div className="flex items-center justify-between gap-3 pt-4 font-bold">
+                  <span>Totaal openstaand</span>
+                  <span className="tabular-nums">{formatCurrency(totalUnpaid)}</span>
+                </div>
+              </div>
+
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Factuurnummer</TableHead>
+                      <TableHead>Klant</TableHead>
+                      <TableHead>Factuurdatum</TableHead>
+                      <TableHead>Vervaldatum</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Bedrag</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {unpaidInvoices.map((invoice) => {
+                      const dueDate = new Date(invoice.due_date);
+                      const today = new Date();
+                      const daysOverdue = differenceInDays(today, dueDate);
+                      const isOverdue = daysOverdue > 0;
+
+                      return (
+                        <TableRow key={invoice.id}>
+                          <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                          <TableCell>{invoice.client_company_name || "-"}</TableCell>
+                          <TableCell>{format(new Date(invoice.invoice_date), "d MMM yyyy", { locale: nl })}</TableCell>
+                          <TableCell className={isOverdue ? "text-destructive" : ""}>
+                            {format(dueDate, "d MMM yyyy", { locale: nl })}
+                            {isOverdue && <span className="text-xs ml-1">({daysOverdue} dagen te laat)</span>}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={isOverdue ? "destructive" : "secondary"}>
+                              {isOverdue ? "Vervallen" : "Openstaand"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium tabular-nums">{formatCurrency(Number(invoice.total))}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    <TableRow className="border-t-2 font-bold">
+                      <TableCell colSpan={5}>Totaal openstaand</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatCurrency(totalUnpaid)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

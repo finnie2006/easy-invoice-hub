@@ -34,6 +34,8 @@ const TEXT_FILE_TYPES = new Set([
   'application/json',
   'application/xml',
 ]);
+const AMOUNT_PATTERN = /(?<![\d-])(?:eur|€)?\s*(-?\d{1,4}(?:[.\s]\d{3})*(?:[,.]\d{2})|-?\d+[,.]\d{2})(?:\s*(?:eur|€))?/i;
+const AMOUNT_PATTERN_GLOBAL = /(?<![\d-])(?:eur|€)?\s*(-?\d{1,4}(?:[.\s]\d{3})*(?:[,.]\d{2})|-?\d+[,.]\d{2})(?:\s*(?:eur|€))?/gi;
 
 export async function readExpenseDocument(file: File): Promise<ExpenseDocumentReadResult> {
   const fileText = await readLikelyText(file);
@@ -154,11 +156,20 @@ function isImageOrPdf(mimeType: string, filename: string): boolean {
 }
 
 function filenameToText(filename: string): string {
-  return filename
+  const stem = filename
     .replace(/\.[^.]+$/, '')
-    .replace(/[_-]+/g, ' ')
+    .replace(/[_]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  const vendorHint = stem
+    .replace(/\b(20\d{2}|19\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b/g, ' ')
+    .replace(/\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2}|19\d{2})\b/g, ' ')
+    .replace(/(?:eur|€)?\s*-?\d{1,4}(?:[.\s]\d{3})*(?:[,.]\d{2})(?:\s*(?:eur|€))?/gi, ' ')
+    .replace(/[-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return [vendorHint, stem].filter((line, index, lines) => line && lines.indexOf(line) === index).join('\n');
 }
 
 function normalizeWhitespace(text: string): string {
@@ -219,12 +230,12 @@ function findAmount(text: string, labels: string[]): number | undefined {
 }
 
 function firstAmount(text: string): number | undefined {
-  const match = text.match(/(?:eur|€)?\s*(-?\d{1,4}(?:[.\s]\d{3})*(?:[,.]\d{2})|-?\d+[,.]\d{2})(?:\s*(?:eur|€))?/i);
+  const match = text.match(AMOUNT_PATTERN);
   return match ? parseLocalizedNumber(match[1]) : undefined;
 }
 
 function findLargestAmount(text: string): number | undefined {
-  const amounts = Array.from(text.matchAll(/(?:eur|€)?\s*(-?\d{1,4}(?:[.\s]\d{3})*(?:[,.]\d{2})|-?\d+[,.]\d{2})(?:\s*(?:eur|€))?/gi))
+  const amounts = Array.from(text.matchAll(AMOUNT_PATTERN_GLOBAL))
     .map((match) => parseLocalizedNumber(match[1]))
     .filter((amount): amount is number => amount !== undefined && amount >= 0);
 
@@ -246,7 +257,7 @@ function findVendorName(lines: string[]): string | undefined {
   const ignored = /^(factuur|invoice|bon|receipt|datum|date|totaal|total|btw|vat|kvk|iban)\b/i;
   const candidate = lines.find((line) => {
     const clean = line.trim();
-    return clean.length >= 3 && clean.length <= 60 && !ignored.test(clean) && !clean.match(/^\d/) && !clean.includes('€');
+    return clean.length >= 3 && clean.length <= 60 && !ignored.test(clean) && !clean.match(/^\d/) && !clean.includes('€') && firstAmount(clean) === undefined && !findDate(clean);
   });
 
   return candidate ? cleanReadableText(candidate) : undefined;
@@ -255,7 +266,7 @@ function findVendorName(lines: string[]): string | undefined {
 function findDescription(lines: string[], vendorName?: string): string | undefined {
   const candidate = lines.find((line) => {
     const clean = line.trim();
-    return clean.length >= 6 && clean.length <= 80 && clean.toLowerCase() !== vendorName?.toLowerCase() && !clean.includes('€');
+    return clean.length >= 6 && clean.length <= 80 && clean.toLowerCase() !== vendorName?.toLowerCase() && !clean.includes('€') && firstAmount(clean) === undefined && !findDate(clean);
   });
 
   return candidate ? sentenceCase(candidate) : undefined;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseExpenseDocumentText } from './document-intake';
+import { parseExpenseDocumentText, readExpenseDocument } from './document-intake';
 
 describe('parseExpenseDocumentText', () => {
   it('extracts common receipt fields from text', () => {
@@ -35,5 +35,16 @@ describe('parseExpenseDocumentText', () => {
 
     expect(result.fields.amountInclBtw).toBe(27.45);
     expect(result.fields.category).toBe('kantoor');
+  });
+
+  it('uses filename hints for scanned receipts until OCR is available', async () => {
+    const file = new File([''], 'bol-com_2026-06-14_100,00.jpg', { type: 'image/jpeg' });
+
+    const result = await readExpenseDocument(file);
+
+    expect(result.needsOcr).toBe(true);
+    expect(result.fields.vendorName).toBe('bol com');
+    expect(result.fields.expenseDate).toEqual(new Date(2026, 5, 14));
+    expect(result.fields.amountInclBtw).toBe(100);
   });
 });

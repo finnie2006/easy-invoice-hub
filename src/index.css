@@ -120,6 +120,32 @@
   }
 }
 
+@layer components {
+  .app-sidebar-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--app-sidebar-scrollbar-thumb, hsl(var(--sidebar-accent))) transparent;
+  }
+
+  .app-sidebar-scrollbar::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .app-sidebar-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .app-sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background-color: var(--app-sidebar-scrollbar-thumb, hsl(var(--sidebar-accent)));
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+
+  .app-sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--app-sidebar-scrollbar-thumb-hover, hsl(var(--sidebar-border)));
+  }
+}
+
 /* Print Styles */
 @media print {
   @page {

@@ -219,7 +219,13 @@ export function AppSidebar() {
         </Link>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent
+        className="app-sidebar-scrollbar"
+        style={{
+          '--app-sidebar-scrollbar-thumb': themeStyles.accent,
+          '--app-sidebar-scrollbar-thumb-hover': themeStyles.border,
+        } as React.CSSProperties}
+      >
         <SidebarGroup>
           <SidebarGroupLabel>Snelle acties</SidebarGroupLabel>
           <SidebarGroupContent>

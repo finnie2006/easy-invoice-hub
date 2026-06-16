@@ -17,6 +17,7 @@ import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Sea
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { calculateExpenseVatAmounts, getExpensePaidAmount } from '@/lib/expense-vat';
+import { readExpenseDocument, type ExpenseDocumentFields, type ExpenseDocumentReadResult } from '@/lib/document-intake';
 export default function Expenses() {
   const { expenses, isLoading, createExpense, updateExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
   const { isPeriodClosed, getBtwPeriodForDate, getNextAvailablePeriod } = useBtwPeriods();
@@ -25,6 +26,8 @@ export default function Expenses() {
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
   const [viewReceiptOpen, setViewReceiptOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [documentReadResult, setDocumentReadResult] = useState<ExpenseDocumentReadResult | null>(null);
+  const [isReadingDocument, setIsReadingDocument] = useState(false);
   const [deleteConfirmExpense, setDeleteConfirmExpense] = useState<Expense | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -129,10 +132,48 @@ export default function Expenses() {
     }));
   };
 
+  const formatDocumentAmount = (amount: number) => {
+    return amount.toFixed(2).replace(/\.00$/, '');
+  };
+
+  const applyDocumentFields = (fields: ExpenseDocumentFields, overwrite = false) => {
+    setFormData(prev => ({
+      ...prev,
+      vendor_name: overwrite || !prev.vendor_name ? (fields.vendorName ?? prev.vendor_name) : prev.vendor_name,
+      description: overwrite || !prev.description ? (fields.description ?? prev.description) : prev.description,
+      category: overwrite || prev.category === 'overig' ? (fields.category ?? prev.category) : prev.category,
+      btw_percentage: overwrite || prev.btw_percentage === 21 ? (fields.btwPercentage ?? prev.btw_percentage) : prev.btw_percentage,
+    }));
+
+    if (fields.expenseDate && (overwrite || !editingExpense)) {
+      setExpenseDate(fields.expenseDate);
+    }
+
+    if (fields.amountInclBtw !== undefined && (overwrite || !amountInput)) {
+      setAmountInputMode('incl');
+      setAmountInput(formatDocumentAmount(fields.amountInclBtw));
+    }
+  };
+
+  const readSelectedDocument = async (file: File, overwrite = false) => {
+    setIsReadingDocument(true);
+    try {
+      const result = await readExpenseDocument(file);
+      setDocumentReadResult(result);
+      applyDocumentFields(result.fields, overwrite);
+    } finally {
+      setIsReadingDocument(false);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+      setDocumentReadResult(null);
+      if (!editingExpense) {
+        void readSelectedDocument(file);
+      }
     }
   };
 
@@ -154,6 +195,8 @@ export default function Expenses() {
 
   const resetForm = () => {
     setSelectedFile(null);
+    setDocumentReadResult(null);
+    setIsReadingDocument(false);
     setAmountInput('');
     setAmountInputMode('incl');
     setExpenseDate(new Date());
@@ -173,6 +216,7 @@ export default function Expenses() {
 
   const handleEdit = (expense: Expense) => {
     setEditingExpense(expense);
+    setDocumentReadResult(null);
     setFormData({
       vendor_name: expense.vendor_name,
       description: expense.description || '',
@@ -510,11 +554,29 @@ export default function Expenses() {
                       </div>
                       <Button
                         type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isReadingDocument}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void readSelectedDocument(selectedFile, true);
+                        }}
+                      >
+                        {isReadingDocument ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Search className="h-4 w-4 mr-2" />
+                        )}
+                        Inlezen
+                      </Button>
+                      <Button
+                        type="button"
                         variant="ghost"
                         size="icon"
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedFile(null);
+                          setDocumentReadResult(null);
                         }}
                       >
                         <X className="h-4 w-4" />
@@ -532,6 +594,32 @@ export default function Expenses() {
                     </div>
                   )}
                 </div>
+                {documentReadResult && (
+                  <Alert className="mt-3">
+                    <FileText className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="space-y-2">
+                        <div>
+                          <strong>Bon ingelezen</strong>
+                          <span className="text-muted-foreground">
+                            {' '}({documentReadResult.confidence}% zekerheid). {documentReadResult.messages.join(' ')}
+                          </span>
+                        </div>
+                        {documentReadResult.needsOcr && (
+                          <p className="text-xs text-muted-foreground">
+                            OCR kan later op deze plek worden aangesloten; de formulierlogica gebruikt nu al dezelfde inleesstap.
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                          {documentReadResult.fields.vendorName && <span>Leverancier: {documentReadResult.fields.vendorName}</span>}
+                          {documentReadResult.fields.expenseDate && <span>Datum: {format(documentReadResult.fields.expenseDate, 'd MMM yyyy', { locale: nl })}</span>}
+                          {documentReadResult.fields.amountInclBtw !== undefined && <span>Bedrag: {formatCurrency(documentReadResult.fields.amountInclBtw)}</span>}
+                          {documentReadResult.fields.btwPercentage !== undefined && <span>BTW: {documentReadResult.fields.btwPercentage}%</span>}
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-4">

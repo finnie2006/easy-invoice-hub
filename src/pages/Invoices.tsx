@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useInvoices, Invoice } from '@/hooks/useInvoices';
 import { useClients } from '@/hooks/useClients';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,18 +40,30 @@ import { nl } from 'date-fns/locale';
 type StatusFilter = 'all' | 'draft' | 'sent' | 'paid' | 'overdue';
 type PeriodFilter = 'all' | 'this-month' | 'last-month' | 'this-year';
 
+const statusFilters: StatusFilter[] = ['all', 'draft', 'sent', 'paid', 'overdue'];
+
+const getStatusFilterFromParam = (status: string | null): StatusFilter => {
+  return statusFilters.includes(status as StatusFilter) ? (status as StatusFilter) : 'all';
+};
+
 export default function Invoices() {
   const { invoices, isLoading, updateInvoiceStatus, deleteInvoice } = useInvoices();
   const { clients } = useClients();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStatusFilter = getStatusFilterFromParam(searchParams.get('status'));
   const [externalDialogOpen, setExternalDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
   
   // Filter states
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(urlStatusFilter);
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('all');
+
+  useEffect(() => {
+    setStatusFilter(urlStatusFilter);
+  }, [urlStatusFilter]);
 
   const handleDeleteClick = (invoice: Invoice) => {
     setInvoiceToDelete(invoice);
@@ -140,11 +152,28 @@ export default function Invoices() {
 
   const hasActiveFilters = searchQuery || statusFilter !== 'all' || clientFilter !== 'all' || periodFilter !== 'all';
 
+  const handleStatusFilterChange = (value: StatusFilter) => {
+    setStatusFilter(value);
+
+    const nextParams = new URLSearchParams(searchParams);
+    if (value === 'all') {
+      nextParams.delete('status');
+    } else {
+      nextParams.set('status', value);
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  };
+
   const clearFilters = () => {
     setSearchQuery('');
     setStatusFilter('all');
     setClientFilter('all');
     setPeriodFilter('all');
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('status');
+    setSearchParams(nextParams, { replace: true });
   };
 
   const formatCurrency = (amount: number) => {
@@ -229,7 +258,7 @@ export default function Invoices() {
             
             {/* Filter dropdowns */}
             <div className="flex flex-wrap gap-2">
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <Select value={statusFilter} onValueChange={(v) => handleStatusFilterChange(v as StatusFilter)}>
                 <SelectTrigger className="w-full sm:w-[150px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>

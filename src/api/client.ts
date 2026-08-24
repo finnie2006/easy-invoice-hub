@@ -201,6 +201,15 @@ export const annualTaxData = {
     api.post('/api/annual-tax-data', data),
 };
 
+export const monthlySalaries = {
+  getByYear: (year) =>
+    api.get(`/api/monthly-salaries/${year}`),
+  save: (data) =>
+    api.post('/api/monthly-salaries', data),
+  saveMany: (data) =>
+    api.post('/api/monthly-salaries/bulk', data),
+};
+
 export const appSettings = {
   getAll: () =>
     api.get('/api/app-settings'),

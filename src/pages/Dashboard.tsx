@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useExpenses } from '@/hooks/useExpenses';
@@ -7,6 +8,10 @@ import { useClients } from '@/hooks/useClients';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useMonthlySalaries } from '@/hooks/useMonthlySalaries';
+import { useAnnualTaxData } from '@/hooks/useAnnualTaxData';
 import { 
   FileText, 
   Plus, 
@@ -14,6 +19,7 @@ import {
   TrendingDown, 
   AlertTriangle,
   Euro,
+  Calculator,
   Clock,
   CheckCircle2,
   Settings,
@@ -29,6 +35,17 @@ export default function Dashboard() {
   const { otherIncome, isLoading: loadingOtherIncome } = useOtherIncome();
   const { profile, isLoading: loadingProfile } = useProfile();
   const { clients, isLoading: loadingClients } = useClients();
+  const currentYear = new Date().getFullYear();
+  const { salaries, saveSalaries, isSaving: savingSalaries } = useMonthlySalaries(currentYear);
+  const { taxData, getTaxConstants } = useAnnualTaxData(currentYear);
+  const [monthlySalaryValues, setMonthlySalaryValues] = useState<number[]>(Array(12).fill(0));
+
+  useEffect(() => {
+    setMonthlySalaryValues(Array.from({ length: 12 }, (_, index) => {
+      const salary = salaries.find((item) => item.month === index + 1);
+      return salary ? Number(salary.gross_amount) : 0;
+    }));
+  }, [salaries]);
 
   const now = new Date();
   const yearStart = startOfYear(now);
@@ -65,12 +82,37 @@ export default function Dashboard() {
     .reduce((sum, exp) => sum + getExpensePaidAmount(exp), 0);
 
   const profit = totalRevenue - totalExpenses;
+  const paidInvoices = yearInvoices.filter((invoice) => invoice.status === 'paid');
+  const invoiceRevenueExclBtw = paidInvoices.reduce((sum, invoice) => sum + Number(invoice.subtotal || 0), 0);
+  const totalExpensesExclBtw = yearExpenses.reduce((sum, expense) => sum + Number(expense.amount_excl_btw || 0), 0);
+  const invoiceExpenseRatio = invoiceRevenueExclBtw > 0 ? Math.min(1, totalExpensesExclBtw / invoiceRevenueExclBtw) : 0;
+  const estimatedInvoiceProfit = (invoice: { subtotal: number | string }) => Number(invoice.subtotal || 0) * (1 - invoiceExpenseRatio);
+  const annualSalary = monthlySalaryValues.reduce((sum, amount) => sum + amount, 0);
+  const estimatedBusinessProfit = Math.max(0, invoiceRevenueExclBtw + otherIncomeRevenue - totalExpensesExclBtw);
+  const taxConstants = getTaxConstants(currentYear);
+  const meetsHoursRequirement = Number(taxData?.hours_worked || 0) >= 1225;
+  const zelfstandigenaftrek = meetsHoursRequirement ? taxConstants.zelfstandigenaftrek : 0;
+  const startersaftrek = meetsHoursRequirement && taxData?.is_starter ? taxConstants.startersaftrek : 0;
+  const profitAfterAftrek = Math.max(0, estimatedBusinessProfit - zelfstandigenaftrek - startersaftrek);
+  const mkbVrijstelling = profitAfterAftrek * (taxConstants.mkbVrijstellingPercentage / 100);
+  const estimatedBusinessTaxableIncome = profitAfterAftrek - mkbVrijstelling;
+  const estimatedBox1Income = annualSalary + estimatedBusinessTaxableIncome;
+  const box1FirstBracket = 38441;
+  const remainingBox1Space = Math.max(0, box1FirstBracket - estimatedBox1Income);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
       style: 'currency',
       currency: 'EUR',
     }).format(amount);
+  };
+
+  const handleSaveSalaries = () => {
+    saveSalaries(monthlySalaryValues.map((gross_amount, index) => ({
+      year: currentYear,
+      month: index + 1,
+      gross_amount,
+    })));
   };
 
   const isLoading = loadingInvoices || loadingExpenses || loadingOtherIncome || loadingProfile || loadingClients;
@@ -261,6 +303,117 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Euro className="h-5 w-5" />
+              Loon uit vast werk
+            </CardTitle>
+            <CardDescription>
+              Vul je bruto maandloon in voor een completer box-1-overzicht van {currentYear}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+              {monthlySalaryValues.map((amount, index) => (
+                <div key={index} className="space-y-1">
+                  <Label htmlFor={`salary-${index}`} className="text-xs text-muted-foreground">
+                    {format(new Date(currentYear, index, 1), 'MMM', { locale: nl })}
+                  </Label>
+                  <Input
+                    id={`salary-${index}`}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={amount || ''}
+                    onChange={(event) => {
+                      const next = [...monthlySalaryValues];
+                      next[index] = Number(event.target.value) || 0;
+                      setMonthlySalaryValues(next);
+                    }}
+                    placeholder="0,00"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">Totaal bruto: {formatCurrency(annualSalary)}</p>
+              <Button onClick={handleSaveSalaries} disabled={savingSalaries} size="sm">
+                {savingSalaries ? 'Opslaan...' : 'Loon opslaan'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              Box 1 in beeld
+            </CardTitle>
+            <CardDescription>Indicatie op basis van je ingevoerde loon en onderneming.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between gap-4 text-sm">
+              <span className="text-muted-foreground">Ondernemingswinst</span>
+              <span className="font-medium">{formatCurrency(estimatedBusinessProfit)}</span>
+            </div>
+            <div className="flex justify-between gap-4 text-sm text-muted-foreground">
+              <span>Ondernemersaftrek</span>
+              <span>- {formatCurrency(zelfstandigenaftrek + startersaftrek)}</span>
+            </div>
+            <div className="flex justify-between gap-4 text-sm text-muted-foreground">
+              <span>MKB-winstvrijstelling ({taxConstants.mkbVrijstellingPercentage}%)</span>
+              <span>- {formatCurrency(mkbVrijstelling)}</span>
+            </div>
+            <div className="flex justify-between gap-4 border-t pt-3 text-sm">
+              <span className="text-muted-foreground">Belastbare winst + loon</span>
+              <span className="font-medium">{formatCurrency(estimatedBox1Income)}</span>
+            </div>
+            <div className="flex justify-between gap-4 border-t pt-3">
+              <span className="font-medium">Resterend in eerste schijf</span>
+              <span className={`font-bold ${remainingBox1Space > 0 ? 'text-success' : 'text-warning'}`}>
+                {formatCurrency(remainingBox1Space)}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              MKB-vrijstelling: {taxConstants.mkbVrijstellingPercentage}%. Rekent met een indicatieve grens van {formatCurrency(box1FirstBracket)}; heffingskortingen en exacte tarieven zijn niet verwerkt.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Geschatte winst per factuur</CardTitle>
+          <CardDescription>
+            Betaalde facturen excl. BTW, na een evenredige toerekening van je bedrijfskosten.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {paidInvoices.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nog geen betaalde facturen dit jaar.</p>
+          ) : (
+            paidInvoices.slice(0, 5).map((invoice) => (
+              <div key={invoice.id} className="flex items-center justify-between gap-4 border-b pb-3 last:border-0 last:pb-0">
+                <div>
+                  <p className="font-medium">{invoice.invoice_number}</p>
+                  <p className="text-sm text-muted-foreground">{invoice.client_company_name || 'Onbekende klant'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-medium text-success">{formatCurrency(estimatedInvoiceProfit(invoice))}</p>
+                  <p className="text-xs text-muted-foreground">van {formatCurrency(Number(invoice.subtotal || 0))} excl. BTW</p>
+                </div>
+              </div>
+            ))
+          )}
+          <p className="pt-1 text-xs text-muted-foreground">
+            Schatting: totale kosten gedeeld naar rato van omzet. Gebruik de jaaraangifte voor je definitieve winst.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Recent Invoices */}
       <div className="grid gap-4 lg:grid-cols-2">

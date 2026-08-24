@@ -1455,6 +1455,88 @@ app.post('/api/annual-tax-data', authenticateToken, async (req, res) => {
 });
 
 // ============================================
+// Monthly Salary Routes
+// ============================================
+
+app.get('/api/monthly-salaries/:year', authenticateToken, async (req, res) => {
+  const year = Number(req.params.year);
+  if (!Number.isInteger(year)) return res.status(400).json({ error: 'Invalid year' });
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM public.monthly_salaries WHERE user_id = $1 AND year = $2 ORDER BY month',
+      [req.userId, year]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching monthly salaries:', err);
+    res.status(500).json({ error: 'Failed to fetch monthly salaries' });
+  }
+});
+
+app.post('/api/monthly-salaries/bulk', authenticateToken, async (req, res) => {
+  const salaries = Array.isArray(req.body.salaries) ? req.body.salaries : [];
+  if (salaries.length !== 12 || salaries.some((salary) => {
+    const month = Number(salary.month);
+    const amount = Number(salary.gross_amount);
+    return !Number.isInteger(Number(salary.year)) || !Number.isInteger(month) || month < 1 || month > 12 || !Number.isFinite(amount) || amount < 0;
+  })) {
+    return res.status(400).json({ error: 'Invalid salary data' });
+  }
+
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const saved = [];
+      for (const salary of salaries) {
+        const result = await client.query(
+          `INSERT INTO public.monthly_salaries (user_id, year, month, gross_amount)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (user_id, year, month) DO UPDATE SET gross_amount = EXCLUDED.gross_amount, updated_at = now()
+           RETURNING *`,
+          [req.userId, Number(salary.year), Number(salary.month), Number(salary.gross_amount)]
+        );
+        saved.push(result.rows[0]);
+      }
+      await client.query('COMMIT');
+      res.json(saved);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Error saving monthly salaries:', err);
+    res.status(500).json({ error: 'Failed to save monthly salaries' });
+  }
+});
+
+app.post('/api/monthly-salaries', authenticateToken, async (req, res) => {
+  const year = Number(req.body.year);
+  const month = Number(req.body.month);
+  const grossAmount = Number(req.body.gross_amount);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12 || !Number.isFinite(grossAmount) || grossAmount < 0) {
+    return res.status(400).json({ error: 'Invalid salary data' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO public.monthly_salaries (user_id, year, month, gross_amount)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, year, month) DO UPDATE SET gross_amount = EXCLUDED.gross_amount, updated_at = now()
+       RETURNING *`,
+      [req.userId, year, month, grossAmount]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error saving monthly salary:', err);
+    res.status(500).json({ error: 'Failed to save monthly salary' });
+  }
+});
+
+// ============================================
 // App Settings & Roles Routes
 // ============================================
 

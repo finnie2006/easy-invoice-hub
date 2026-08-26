@@ -29,7 +29,7 @@ export interface AnnualTaxDataUpsert {
   notes?: string | null;
 }
 
-// Dutch tax constants per year (simplified, using 2024/2025 values)
+// Dutch tax constants per year (simplified)
 export const TAX_CONSTANTS: Record<number, {
   zelfstandigenaftrek: number;
   startersaftrek: number;
@@ -37,8 +37,8 @@ export const TAX_CONSTANTS: Record<number, {
 }> = {
   2023: { zelfstandigenaftrek: 5030, startersaftrek: 2123, mkbVrijstellingPercentage: 14 },
   2024: { zelfstandigenaftrek: 3750, startersaftrek: 2123, mkbVrijstellingPercentage: 13.31 },
-  2025: { zelfstandigenaftrek: 2470, startersaftrek: 2123, mkbVrijstellingPercentage: 13.31 },
-  2026: { zelfstandigenaftrek: 2470, startersaftrek: 2123, mkbVrijstellingPercentage: 13.31 },
+  2025: { zelfstandigenaftrek: 2470, startersaftrek: 2123, mkbVrijstellingPercentage: 12.7 },
+  2026: { zelfstandigenaftrek: 1200, startersaftrek: 2123, mkbVrijstellingPercentage: 12.7 },
 };
 
 export function useAnnualTaxData(year: number) {

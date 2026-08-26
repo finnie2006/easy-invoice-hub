@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
-import { Plus, Banknote, Pencil, Trash2, Search, X, Loader2, Info } from 'lucide-react';
+import { Plus, Banknote, Pencil, Trash2, Search, X, Loader2, Info, Save } from 'lucide-react';
 import { useOtherIncome, OtherIncome, OtherIncomeInsert, OTHER_INCOME_CATEGORIES } from '@/hooks/useOtherIncome';
+import { useMonthlySalaries } from '@/hooks/useMonthlySalaries';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -43,6 +44,16 @@ export default function OtherIncomePage() {
     amount: 0,
     notes: null,
   });
+  const salaryYear = new Date().getFullYear();
+  const { salaries, saveSalaries, isSaving: savingSalaries } = useMonthlySalaries(salaryYear);
+  const [salaryValues, setSalaryValues] = useState<number[]>(Array(12).fill(0));
+
+  useEffect(() => {
+    setSalaryValues(Array.from({ length: 12 }, (_, index) => {
+      const salary = salaries.find((item) => item.month === index + 1);
+      return salary ? Number(salary.gross_amount) : 0;
+    }));
+  }, [salaries]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('nl-NL', {
@@ -135,6 +146,15 @@ export default function OtherIncomePage() {
 
   const totalIncome = otherIncome.reduce((sum, income) => sum + Number(income.amount), 0);
   const filteredTotal = filteredIncome.reduce((sum, income) => sum + Number(income.amount), 0);
+  const annualSalary = salaryValues.reduce((sum, amount) => sum + amount, 0);
+
+  const handleSaveSalaries = () => {
+    saveSalaries(salaryValues.map((gross_amount, index) => ({
+      year: salaryYear,
+      month: index + 1,
+      gross_amount,
+    })));
+  };
 
   if (isLoading) {
     return (
@@ -281,6 +301,47 @@ export default function OtherIncomePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Banknote className="h-5 w-5" />
+            Loon uit vast werk
+          </CardTitle>
+          <CardDescription>
+            Vul hier je bruto loon per maand in. Dit wordt gebruikt voor je box-1-overzicht.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            {salaryValues.map((amount, index) => (
+              <div key={index} className="space-y-1">
+                <Label htmlFor={`salary-${index}`} className="text-xs text-muted-foreground">
+                  {format(new Date(salaryYear, index, 1), 'MMM', { locale: nl })}
+                </Label>
+                <Input
+                  id={`salary-${index}`}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={amount || ''}
+                  onChange={(event) => setSalaryValues((current) => current.map((value, valueIndex) => (
+                    valueIndex === index ? Number(event.target.value) || 0 : value
+                  )))}
+                  placeholder="0,00"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">Totaal bruto: {formatCurrency(annualSalary)}</p>
+            <Button onClick={handleSaveSalaries} disabled={savingSalaries} size="sm">
+              <Save className="mr-2 h-4 w-4" />
+              {savingSalaries ? 'Opslaan...' : 'Loon opslaan'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

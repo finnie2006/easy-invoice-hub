@@ -1476,7 +1476,9 @@ app.get('/api/monthly-salaries/:year', authenticateToken, async (req, res) => {
 
 app.post('/api/monthly-salaries/bulk', authenticateToken, async (req, res) => {
   const salaries = Array.isArray(req.body.salaries) ? req.body.salaries : [];
-  if (salaries.length !== 12 || salaries.some((salary) => {
+  const salaryYears = new Set(salaries.map((salary) => Number(salary.year)));
+  const salaryMonths = new Set(salaries.map((salary) => Number(salary.month)));
+  if (salaries.length !== 12 || salaryYears.size !== 1 || salaryMonths.size !== 12 || ![...salaryMonths].every((month) => month >= 1 && month <= 12) || salaries.some((salary) => {
     const month = Number(salary.month);
     const amount = Number(salary.gross_amount);
     return !Number.isInteger(Number(salary.year)) || !Number.isInteger(month) || month < 1 || month > 12 || !Number.isFinite(amount) || amount < 0;
@@ -2496,6 +2498,21 @@ const ensureRuntimeSchema = async () => {
 
   await pool.query('CREATE INDEX IF NOT EXISTS idx_other_income_user_id ON public.other_income (user_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_other_income_income_date ON public.other_income (income_date)');
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.monthly_salaries (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      year integer NOT NULL,
+      month integer NOT NULL CHECK (month BETWEEN 1 AND 12),
+      gross_amount numeric(14,2) NOT NULL DEFAULT 0,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (user_id, year, month)
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_monthly_salaries_user_year ON public.monthly_salaries (user_id, year)');
 };
 
 const startServer = async () => {

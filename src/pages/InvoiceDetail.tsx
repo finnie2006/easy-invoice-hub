@@ -47,6 +47,7 @@ export default function InvoiceDetail() {
   const { toast } = useToast();
 
   const invoiceRef = useRef<HTMLDivElement>(null);
+  const hiddenInvoiceRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailTo, setEmailTo] = useState('');
@@ -84,15 +85,21 @@ export default function InvoiceDetail() {
     }).format(amount);
   };
 
-  const handleDownloadPdf = async () => {
-    if (!invoiceRef.current || !invoice) return;
+  const getInvoicePdfFilename = () => {
+    const invoiceNumber = invoice?.invoice_number || 'factuur';
+    const safeInvoiceNumber = invoiceNumber.replace(/[^a-zA-Z0-9._-]+/g, '-');
+    return `Factuur-${safeInvoiceNumber}.pdf`;
+  };
 
-    setIsGeneratingPdf(true);
+  const createInvoicePdf = async () => {
+    const sourceElement = invoiceRef.current || hiddenInvoiceRef.current;
+    if (!sourceElement || !invoice) {
+      throw new Error('Factuurvoorbeeld is niet beschikbaar voor PDF-generatie');
+    }
+
     let clone: HTMLElement | null = null;
 
     try {
-      const element = invoiceRef.current;
-
       // A4 dimensions
       const A4_WIDTH_MM = 210;
       const A4_HEIGHT_MM = 297;
@@ -101,7 +108,7 @@ export default function InvoiceDetail() {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
       // Clone element for PDF generation
-      clone = element.cloneNode(true) as HTMLElement;
+      clone = sourceElement.cloneNode(true) as HTMLElement;
       clone.style.width = `${a4WidthPx}px`;
       clone.style.position = 'absolute';
       clone.style.left = '-9999px';
@@ -230,7 +237,20 @@ export default function InvoiceDetail() {
         pageIndex += 1;
       }
 
-      pdf.save(`Factuur-${invoice.invoice_number}.pdf`);
+      return pdf;
+    } finally {
+      if (clone && clone.parentNode) {
+        clone.parentNode.removeChild(clone);
+      }
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsGeneratingPdf(true);
+
+    try {
+      const pdf = await createInvoicePdf();
+      pdf.save(getInvoicePdfFilename());
 
       toast({
         title: 'PDF gedownload',
@@ -244,10 +264,6 @@ export default function InvoiceDetail() {
         variant: 'destructive',
       });
     } finally {
-      if (clone && clone.parentNode) {
-        clone.parentNode.removeChild(clone);
-      }
-
       setIsGeneratingPdf(false);
     }
   };
@@ -272,11 +288,21 @@ export default function InvoiceDetail() {
 
     setIsSendingEmail(true);
     try {
-      await invoicesApi.sendEmail(id, {
-        recipientEmail: emailTo,
-        recipientName: emailName || undefined,
-        customMessage: emailMessage || undefined,
-      });
+      const pdf = await createInvoicePdf();
+      const formData = new FormData();
+      formData.append('recipientEmail', emailTo);
+
+      if (emailName) {
+        formData.append('recipientName', emailName);
+      }
+
+      if (emailMessage) {
+        formData.append('customMessage', emailMessage);
+      }
+
+      formData.append('invoicePdf', pdf.output('blob'), getInvoicePdfFilename());
+
+      await invoicesApi.sendEmail(id, formData);
 
       toast({
         title: 'E-mail verzonden',
@@ -622,6 +648,14 @@ export default function InvoiceDetail() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {invoice.attachment_url && (
+        <div className="fixed left-[-10000px] top-0 w-[794px] bg-white pointer-events-none" aria-hidden="true">
+          <div ref={hiddenInvoiceRef}>
+            {renderTemplate()}
+          </div>
+        </div>
       )}
 
       {/* Email Dialog */}

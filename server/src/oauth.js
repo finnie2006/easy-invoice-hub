@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
-import { v4 as uuidv4 } from 'uuid';
 import bcryptjs from 'bcryptjs';
+import { randomUUID } from 'crypto';
 
 const AUTHENTIK_SERVER_URL = (process.env.AUTHENTIK_SERVER_URL || '').trim();
 const AUTHENTIK_CLIENT_ID = (process.env.AUTHENTIK_CLIENT_ID || '').trim();
@@ -136,8 +136,8 @@ export async function getAuthorizationURL(pool, fallbackRedirectUri = '') {
   }
 
   const config = await getOIDCConfig(runtimeConfig.serverUrl);
-  const state = uuidv4();
-  const nonce = uuidv4();
+  const state = randomUUID();
+  const nonce = randomUUID();
 
   const params = new URLSearchParams({
     client_id: runtimeConfig.clientId,
@@ -274,8 +274,8 @@ export async function handleOAuthCallback(pool, code, state, expectedState, opti
           if (userResult.rows.length > 0) {
             userId = userResult.rows[0].id;
           } else {
-            userId = uuidv4();
-            const randomPassword = await bcryptjs.hash(uuidv4(), 10);
+            userId = randomUUID();
+            const randomPassword = await bcryptjs.hash(randomUUID(), 10);
 
             await client.query(
               'INSERT INTO public.users (id, email, password_hash) VALUES ($1, $2, $3)',

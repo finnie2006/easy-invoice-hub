@@ -3,8 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import { v4 as uuidv4 } from 'uuid';
 import bcryptjs from 'bcryptjs';
+import { randomUUID } from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -48,6 +48,7 @@ const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 10);
 const AUTH_WINDOW_MS = Number(process.env.AUTH_WINDOW_MS || 15 * 60 * 1000);
 const AUTH_MAX_REQUESTS = Number(process.env.AUTH_MAX_REQUESTS || 30);
 const ALLOWED_BUCKETS = ['receipts', 'invoice-attachments', 'logos'];
+const PUBLIC_APP_SETTING_KEYS = new Set(['registration_enabled', 'environment_mode']);
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
@@ -307,7 +308,7 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname || '');
-    cb(null, `${Date.now()}-${uuidv4()}${ext}`);
+    cb(null, `${Date.now()}-${randomUUID()}${ext}`);
   },
 });
 
@@ -329,6 +330,32 @@ const uploadWithLimits = multer({
     cb(null, true);
   },
 });
+
+const invoiceEmailUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: UPLOAD_MAX_MB * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Invoice attachment must be a PDF'));
+    }
+
+    cb(null, true);
+  },
+});
+
+function handleInvoiceEmailUpload(req, res, next) {
+  invoiceEmailUpload.single('invoicePdf')(req, res, (err) => {
+    if (!err) {
+      return next();
+    }
+
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: `Invoice PDF must be smaller than ${UPLOAD_MAX_MB}MB` });
+    }
+
+    return res.status(400).json({ error: err.message || 'Invalid invoice PDF attachment' });
+  });
+}
 
 async function getSetting(key, fallback = null) {
   const result = await pool.query(
@@ -500,7 +527,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
 
     // Hash password
     const hashedPassword = await bcryptjs.hash(password, 10);
-    const userId = uuidv4();
+    const userId = randomUUID();
 
     // Create user and profile in transaction
     const client = await pool.connect();
@@ -1632,10 +1659,15 @@ app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, async (req, 
 
 app.get('/api/app-settings', authenticateToken, async (req, res) => {
   try {
+    const admin = await isAdmin(req.userId);
     const result = await pool.query(
       'SELECT setting_key, setting_value FROM public.app_settings ORDER BY setting_key ASC'
     );
-    res.json(result.rows);
+    const rows = admin
+      ? result.rows
+      : result.rows.filter((row) => PUBLIC_APP_SETTING_KEYS.has(row.setting_key));
+
+    res.json(rows);
   } catch (err) {
     console.error('Error fetching app settings:', err);
     res.status(500).json({ error: 'Failed to fetch app settings' });
@@ -2121,7 +2153,7 @@ app.delete('/api/files', authenticateToken, async (req, res) => {
 // Invoice Email Route
 // ============================================
 
-app.post('/api/invoices/:id/send-email', authenticateToken, async (req, res) => {
+app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUpload, async (req, res) => {
   const { recipientEmail, recipientName, customMessage } = req.body;
   if (!recipientEmail) {
     return res.status(400).json({ error: 'Recipient email is required' });
@@ -2179,6 +2211,13 @@ app.post('/api/invoices/:id/send-email', authenticateToken, async (req, res) => 
       to: recipientEmail,
       subject,
       text: messageLines.join('\n'),
+      attachments: req.file
+        ? [{
+          filename: req.file.originalname || `Factuur-${invoice.invoice_number}.pdf`,
+          content: req.file.buffer,
+          contentType: 'application/pdf',
+        }]
+        : undefined,
     });
 
     res.json({ success: true });

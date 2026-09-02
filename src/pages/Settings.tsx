@@ -5,11 +5,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Save, Building2, Palette } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Save, Building2, Palette, Mail } from 'lucide-react';
 import AdminSettings from '@/components/settings/AdminSettings';
 import SystemSettings from '@/components/settings/SystemSettings';
 import { MFASettings } from '@/components/settings/MFASettings';
 import { PushNotificationSettings } from '@/components/settings/PushNotificationSettings';
+import {
+  DEFAULT_INVOICE_EMAIL_BODY,
+  DEFAULT_INVOICE_EMAIL_SUBJECT,
+  INVOICE_EMAIL_VARIABLES,
+} from '@/lib/invoice-email-template';
 export default function Settings() {
   const { profile, isLoading, updateProfile, isUpdating, appName } = useProfile();
   const [formData, setFormData] = useState<Partial<Profile>>({});
@@ -17,7 +24,7 @@ export default function Settings() {
   // Merge profile with form data for display
   const displayData = { ...profile, ...formData };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -239,6 +246,52 @@ export default function Settings() {
                     onChange={handleChange}
                     placeholder="14"
                   />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <h3 className="font-medium mb-4 flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Standaard factuurmail
+              </h3>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="invoice_email_subject_template">Onderwerp</Label>
+                  <Input
+                    id="invoice_email_subject_template"
+                    name="invoice_email_subject_template"
+                    value={displayData.invoice_email_subject_template ?? DEFAULT_INVOICE_EMAIL_SUBJECT}
+                    onChange={handleChange}
+                    placeholder={DEFAULT_INVOICE_EMAIL_SUBJECT}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="invoice_email_body_template">Bericht</Label>
+                  <Textarea
+                    id="invoice_email_body_template"
+                    name="invoice_email_body_template"
+                    value={displayData.invoice_email_body_template ?? DEFAULT_INVOICE_EMAIL_BODY}
+                    onChange={handleChange}
+                    placeholder={DEFAULT_INVOICE_EMAIL_BODY}
+                    rows={10}
+                    className="font-mono text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Variabelen</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {INVOICE_EMAIL_VARIABLES.map((variable) => (
+                      <Badge key={variable.token} variant="outline" title={variable.description}>
+                        {variable.token}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Gebruik deze variabelen in onderwerp en bericht. Ze worden automatisch ingevuld bij het e-mailen van een factuur.
+                  </p>
                 </div>
               </div>
             </div>

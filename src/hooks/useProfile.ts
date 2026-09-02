@@ -21,6 +21,8 @@ export interface Profile {
   invoice_color_theme: string | null;
   panel_color_theme: string | null;
   payment_name: string | null;
+  invoice_email_subject_template: string | null;
+  invoice_email_body_template: string | null;
   created_at: string;
   updated_at: string;
 }

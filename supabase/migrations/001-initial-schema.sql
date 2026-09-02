@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   invoice_color_theme text,
   panel_color_theme text,
   payment_name text,
+  invoice_email_subject_template text,
+  invoice_email_body_template text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

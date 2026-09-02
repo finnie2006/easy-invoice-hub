@@ -72,6 +72,8 @@ const PROFILE_UPDATABLE_FIELDS = [
   'invoice_color_theme',
   'panel_color_theme',
   'payment_name',
+  'invoice_email_subject_template',
+  'invoice_email_body_template',
 ];
 
 const CLIENT_UPDATABLE_FIELDS = [
@@ -211,6 +213,18 @@ const CALENDAR_EVENT_UPDATABLE_FIELDS = [
   'external_id',
   'external_feed_id',
 ];
+
+const DEFAULT_INVOICE_EMAIL_SUBJECT = 'Factuur {factuurnummer}';
+const DEFAULT_INVOICE_EMAIL_BODY = `Beste {klantnaam},
+
+Hierbij ontvang je factuur {factuurnummer}.
+
+Factuurdatum: {factuurdatum}
+Vervaldatum: {vervaldatum}
+Totaalbedrag: {totaalbedrag}
+
+Met vriendelijke groet,
+{bedrijfsnaam}`;
 
 const BTW_FILING_TURNOVER_FIELDS = [
   'turnover_1a',
@@ -499,6 +513,49 @@ function buildValidatedUpdate(body, allowedFields) {
   const values = requestedFields.map((field) => body[field]);
   const setClause = requestedFields.map((field, i) => `${field} = $${i + 1}`).join(', ');
   return { fields: requestedFields, values, setClause };
+}
+
+function formatInvoiceEmailDate(value) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat('nl-NL', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatInvoiceEmailCurrency(value) {
+  return new Intl.NumberFormat('nl-NL', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(Number(value || 0));
+}
+
+function buildInvoiceEmailVariables(invoice, profile, recipientName, fallbackCompanyName) {
+  const contactName = recipientName || invoice.client_contact_name || '';
+  const clientName = contactName || invoice.client_company_name || 'klant';
+
+  return {
+    factuurnummer: invoice.invoice_number || '',
+    factuurdatum: formatInvoiceEmailDate(invoice.invoice_date),
+    vervaldatum: formatInvoiceEmailDate(invoice.due_date),
+    totaalbedrag: formatInvoiceEmailCurrency(invoice.total),
+    klantnaam: clientName,
+    contactnaam: contactName,
+    bedrijfsnaam: profile?.company_name || fallbackCompanyName || 'Easy Invoice Hub',
+    iban: profile?.iban || '',
+    betaalreferentie: invoice.payment_reference || invoice.invoice_number || '',
+  };
+}
+
+function renderInvoiceEmailTemplate(template, variables) {
+  return String(template || '').replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
+    return Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : match;
+  });
 }
 
 // ============================================
@@ -2154,7 +2211,7 @@ app.delete('/api/files', authenticateToken, async (req, res) => {
 // ============================================
 
 app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUpload, async (req, res) => {
-  const { recipientEmail, recipientName, customMessage } = req.body;
+  const { recipientEmail, recipientName, emailSubject, customMessage } = req.body;
   if (!recipientEmail) {
     return res.status(400).json({ error: 'Recipient email is required' });
   }
@@ -2170,6 +2227,13 @@ app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUp
     }
 
     const invoice = invoiceResult.rows[0];
+    const profileResult = await pool.query(
+      `SELECT company_name, iban, invoice_email_subject_template, invoice_email_body_template
+       FROM public.profiles
+       WHERE user_id = $1`,
+      [req.userId]
+    );
+    const profile = profileResult.rows[0] || {};
 
     const smtpHost = await getSetting('smtp_host', '');
     const smtpPort = Number(await getSetting('smtp_port', 587));
@@ -2189,28 +2253,21 @@ app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUp
       auth: smtpUser ? { user: smtpUser, pass: smtpPassword } : undefined,
     });
 
-    const subject = `Factuur ${invoice.invoice_number}`;
-    const messageLines = [
-      `Beste ${recipientName || 'klant'},`,
-      '',
-      `Hierbij ontvang je factuur ${invoice.invoice_number}.`,
-      `Factuurdatum: ${invoice.invoice_date}`,
-      `Vervaldatum: ${invoice.due_date}`,
-      `Totaalbedrag: EUR ${Number(invoice.total || 0).toFixed(2)}`,
-      '',
-    ];
-
-    if (customMessage) {
-      messageLines.push(customMessage, '');
-    }
-
-    messageLines.push('Met vriendelijke groet,', 'Easy Invoice Hub');
+    const variables = buildInvoiceEmailVariables(invoice, profile, recipientName, fromName);
+    const subjectTemplate = Object.prototype.hasOwnProperty.call(req.body, 'emailSubject')
+      ? emailSubject
+      : profile.invoice_email_subject_template || DEFAULT_INVOICE_EMAIL_SUBJECT;
+    const bodyTemplate = Object.prototype.hasOwnProperty.call(req.body, 'customMessage')
+      ? customMessage
+      : profile.invoice_email_body_template || DEFAULT_INVOICE_EMAIL_BODY;
+    const subject = renderInvoiceEmailTemplate(subjectTemplate, variables).trim() || `Factuur ${invoice.invoice_number}`;
+    const message = renderInvoiceEmailTemplate(bodyTemplate, variables);
 
     await transporter.sendMail({
       from: `${fromName} <${fromEmail}>`,
       to: recipientEmail,
       subject,
-      text: messageLines.join('\n'),
+      text: message,
       attachments: req.file
         ? [{
           filename: req.file.originalname || `Factuur-${invoice.invoice_number}.pdf`,

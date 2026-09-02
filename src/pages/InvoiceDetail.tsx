@@ -27,6 +27,12 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import type { AxiosError } from 'axios';
 import {
+  DEFAULT_INVOICE_EMAIL_BODY,
+  DEFAULT_INVOICE_EMAIL_SUBJECT,
+  getInvoiceEmailVariables,
+  renderInvoiceEmailTemplate,
+} from '@/lib/invoice-email-template';
+import {
   OriginalTemplate,
   ClassicTemplate,
   ModernTemplate,
@@ -52,6 +58,7 @@ export default function InvoiceDetail() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [emailTo, setEmailTo] = useState('');
   const [emailName, setEmailName] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
@@ -269,17 +276,32 @@ export default function InvoiceDetail() {
   };
 
   const handleOpenEmailDialog = () => {
+    let recipientEmail = '';
+    let recipientName = invoice?.client_contact_name || invoice?.client_company_name || '';
+
     if (invoice?.client_id) {
       const client = clients.find(c => c.id === invoice.client_id);
       if (client) {
-        setEmailTo(client.email || '');
-        setEmailName(client.contact_name || client.company_name);
+        recipientEmail = client.email || '';
+        recipientName = client.contact_name || client.company_name;
       }
-    } else {
-      setEmailTo('');
-      setEmailName(invoice?.client_contact_name || invoice?.client_company_name || '');
     }
-    setEmailMessage('');
+
+    setEmailTo(recipientEmail);
+    setEmailName(recipientName);
+
+    if (invoice) {
+      const variables = getInvoiceEmailVariables(invoice, profile, recipientName);
+      setEmailSubject(renderInvoiceEmailTemplate(
+        profile?.invoice_email_subject_template || DEFAULT_INVOICE_EMAIL_SUBJECT,
+        variables,
+      ));
+      setEmailMessage(renderInvoiceEmailTemplate(
+        profile?.invoice_email_body_template || DEFAULT_INVOICE_EMAIL_BODY,
+        variables,
+      ));
+    }
+
     setEmailDialogOpen(true);
   };
 
@@ -291,13 +313,11 @@ export default function InvoiceDetail() {
       const pdf = await createInvoicePdf();
       const formData = new FormData();
       formData.append('recipientEmail', emailTo);
+      formData.append('emailSubject', emailSubject);
+      formData.append('customMessage', emailMessage);
 
       if (emailName) {
         formData.append('recipientName', emailName);
-      }
-
-      if (emailMessage) {
-        formData.append('customMessage', emailMessage);
       }
 
       formData.append('invoicePdf', pdf.output('blob'), getInvoicePdfFilename());
@@ -689,13 +709,23 @@ export default function InvoiceDetail() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email-message">Persoonlijk bericht (optioneel)</Label>
+              <Label htmlFor="email-subject">Onderwerp *</Label>
+              <Input
+                id="email-subject"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                placeholder="Factuur 2026001"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-message">Bericht</Label>
               <Textarea
                 id="email-message"
                 value={emailMessage}
                 onChange={(e) => setEmailMessage(e.target.value)}
-                placeholder="Voeg een persoonlijk bericht toe aan de e-mail..."
-                rows={3}
+                placeholder="Bericht aan de klant"
+                rows={8}
               />
             </div>
           </div>
@@ -703,7 +733,7 @@ export default function InvoiceDetail() {
             <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
               Annuleren
             </Button>
-            <Button onClick={handleSendEmail} disabled={!emailTo || isSendingEmail}>
+            <Button onClick={handleSendEmail} disabled={!emailTo || !emailSubject || isSendingEmail}>
               {isSendingEmail && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               <Mail className="h-4 w-4 mr-2" />
               Versturen

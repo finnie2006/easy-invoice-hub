@@ -230,6 +230,15 @@ export const pushNotifications = {
     api.post('/api/push/test'),
 };
 
+export const rabobank = {
+  getStatus: () =>
+    api.get('/api/rabobank/status'),
+  connect: () =>
+    api.post('/api/rabobank/connect'),
+  disconnect: () =>
+    api.delete('/api/rabobank/connection'),
+};
+
 export const userRole = {
   getCurrent: () =>
     api.get('/api/user-role'),

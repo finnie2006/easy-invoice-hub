@@ -347,8 +347,14 @@ export function useInvoices() {
   });
 
   const updateInvoiceStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string; paid_at?: string }) => {
-      await invoicesApi.update(id, { status });
+    mutationFn: async ({ id, status, paid_at }: { id: string; status: string; paid_at?: string }) => {
+      const payload: { status: string; paid_at?: string | null } = { status };
+      if (status === 'paid') {
+        payload.paid_at = paid_at || new Date().toISOString();
+      } else if (paid_at) {
+        payload.paid_at = paid_at;
+      }
+      await invoicesApi.update(id, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
@@ -398,7 +404,7 @@ export function useInvoices() {
     createInvoice: createInvoice.mutateAsync,
     createExternalInvoice: createExternalInvoice.mutateAsync,
     updateInvoice: updateInvoice.mutateAsync,
-    updateInvoiceStatus: updateInvoiceStatus.mutate,
+    updateInvoiceStatus: updateInvoiceStatus.mutateAsync,
     updateAttachment: updateAttachment.mutateAsync,
     deleteInvoice: deleteInvoice.mutate,
     isCreating: createInvoice.isPending,

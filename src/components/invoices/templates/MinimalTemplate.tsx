@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
+import { formatInvoiceQuantity } from '@/lib/invoice-format';
 import { InvoiceTemplateProps } from './types';
 
 export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
@@ -48,7 +49,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
             <div className="flex-1">
               <p>{item.description}</p>
               <p className="text-xs text-gray-400 mt-1">
-                {item.quantity} × {formatCurrency(item.unit_price)}
+                {formatInvoiceQuantity(item.quantity, item.unit)} × {formatCurrency(item.unit_price)}
                 {item.discount_type && item.discount_value > 0 && (
                   <span> · korting {item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)}</span>
                 )}

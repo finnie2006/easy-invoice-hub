@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
+import { formatInvoiceQuantity } from '@/lib/invoice-format';
 import { InvoiceTemplateProps } from './types';
 
 export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
@@ -75,7 +76,7 @@ export function BoldTemplate({ invoice, profile }: InvoiceTemplateProps) {
               {invoice.items?.map((item, index) => (
                 <tr key={item.id} className={`border-b border-slate-200 ${index % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
                   <td className="py-4 font-medium text-slate-800">{item.description}</td>
-                  <td className="text-right py-4 text-slate-600">{item.quantity} {item.unit || ''}</td>
+                  <td className="text-right py-4 text-slate-600">{formatInvoiceQuantity(item.quantity, item.unit)}</td>
                   <td className="text-right py-4 text-slate-600">{formatCurrency(item.unit_price)}</td>
                   {hasItemDiscounts && (
                     <td className="text-right py-4 text-slate-600">

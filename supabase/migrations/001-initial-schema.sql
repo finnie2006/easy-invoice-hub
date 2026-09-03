@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS public.invoices (
   client_country text,
   client_kvk_number text,
   client_btw_number text,
+  paid_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );

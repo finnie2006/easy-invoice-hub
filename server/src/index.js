@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import bcryptjs from 'bcryptjs';
-import { randomUUID } from 'crypto';
+import crypto, { randomUUID } from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -49,6 +49,27 @@ const AUTH_WINDOW_MS = Number(process.env.AUTH_WINDOW_MS || 15 * 60 * 1000);
 const AUTH_MAX_REQUESTS = Number(process.env.AUTH_MAX_REQUESTS || 30);
 const ALLOWED_BUCKETS = ['receipts', 'invoice-attachments', 'logos'];
 const PUBLIC_APP_SETTING_KEYS = new Set(['registration_enabled', 'environment_mode']);
+const RABO_MODE = (process.env.RABO_MODE || 'premium').toLowerCase();
+const RABO_CLIENT_ID = (process.env.RABO_CLIENT_ID || '').trim();
+const RABO_CLIENT_SECRET = (process.env.RABO_CLIENT_SECRET || '').trim();
+const RABO_SCOPES = (process.env.RABO_SCOPES || '').trim();
+const RABO_REDIRECT_URI = (process.env.RABO_REDIRECT_URI || `${PUBLIC_URL.replace(/\/$/, '')}/api/rabobank/callback`).trim();
+const RABO_OAUTH_BASE_URL = (
+  process.env.RABO_OAUTH_BASE_URL ||
+  (RABO_MODE === 'psd2'
+    ? 'https://oauth.rabobank.nl/openapi/oauth2'
+    : 'https://oauth.rabobank.nl/openapi/oauth2-premium')
+).replace(/\/$/, '');
+const RABO_NOTIFICATION_PUSH_URI = (
+  process.env.RABO_NOTIFICATION_PUSH_URI ||
+  `${PUBLIC_URL.replace(/\/$/, '')}/api/rabobank/notifications`
+).trim();
+const RABO_TOKEN_ENCRYPTION_SECRET = (
+  process.env.RABO_TOKEN_ENCRYPTION_KEY ||
+  process.env.JWT_SECRET ||
+  process.env.JWT_REFRESH_SECRET ||
+  'local-rabobank-token-development-secret'
+).trim();
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
@@ -106,6 +127,7 @@ const INVOICE_UPDATABLE_FIELDS = [
   'notes',
   'notes_title',
   'payment_reference',
+  'paid_at',
   'client_company_name',
   'client_contact_name',
   'client_address',
@@ -402,6 +424,114 @@ async function requireAdmin(req, res, next) {
     console.error('Admin check failed:', err);
     res.status(500).json({ error: 'Failed to validate admin rights' });
   }
+}
+
+function getRaboMissingConfig() {
+  return [
+    ['RABO_CLIENT_ID', RABO_CLIENT_ID],
+    ['RABO_CLIENT_SECRET', RABO_CLIENT_SECRET],
+    ['RABO_SCOPES', RABO_SCOPES],
+    ['RABO_REDIRECT_URI', RABO_REDIRECT_URI],
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+}
+
+function isRaboConfigured() {
+  return getRaboMissingConfig().length === 0;
+}
+
+function hashValue(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function getRaboEncryptionKey() {
+  return crypto.createHash('sha256').update(RABO_TOKEN_ENCRYPTION_SECRET).digest();
+}
+
+function encryptRaboToken(value) {
+  if (!value) return null;
+
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', getRaboEncryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return [
+    iv.toString('base64url'),
+    tag.toString('base64url'),
+    encrypted.toString('base64url'),
+  ].join('.');
+}
+
+function getRaboPublicStatus(connection = null, lastNotification = null) {
+  const missing = getRaboMissingConfig();
+
+  return {
+    configured: missing.length === 0,
+    missing,
+    mode: RABO_MODE === 'psd2' ? 'psd2' : 'premium',
+    scopes: RABO_SCOPES,
+    redirectUri: RABO_REDIRECT_URI,
+    notificationPushUri: RABO_NOTIFICATION_PUSH_URI,
+    connected: Boolean(connection),
+    connection: connection
+      ? {
+          status: connection.status,
+          scope: connection.scope,
+          consentedOn: connection.consented_on,
+          accessTokenExpiresAt: connection.access_token_expires_at,
+          refreshTokenExpiresAt: connection.refresh_token_expires_at,
+          updatedAt: connection.updated_at,
+        }
+      : null,
+    lastNotification: lastNotification
+      ? {
+          notificationId: lastNotification.notification_id,
+          subscriptionId: lastNotification.subscription_id,
+          notificationType: lastNotification.notification_type,
+          createdAt: lastNotification.created_at,
+          processedAt: lastNotification.processed_at,
+        }
+      : null,
+  };
+}
+
+async function exchangeRaboAuthorizationCode(code) {
+  const tokenResponse = await fetch(`${RABO_OAUTH_BASE_URL}/token`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${RABO_CLIENT_ID}:${RABO_CLIENT_SECRET}`).toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+    }),
+  });
+
+  const responseText = await tokenResponse.text();
+  let tokenData;
+  try {
+    tokenData = responseText ? JSON.parse(responseText) : {};
+  } catch (err) {
+    tokenData = { raw: responseText };
+  }
+
+  if (!tokenResponse.ok) {
+    const error = new Error('Rabobank token exchange failed');
+    error.status = tokenResponse.status;
+    error.details = tokenData;
+    throw error;
+  }
+
+  return tokenData;
+}
+
+function addSecondsToNow(seconds) {
+  const parsedSeconds = Number(seconds);
+  if (!Number.isFinite(parsedSeconds) || parsedSeconds <= 0) return null;
+  return new Date(Date.now() + parsedSeconds * 1000).toISOString();
 }
 
 let overduePushCheckRunning = false;
@@ -750,6 +880,184 @@ app.post('/api/auth/callback', async (req, res) => {
   }
 
   return res.status(501).json({ error: 'External OAuth callback is not configured on this server' });
+});
+
+// ============================================
+// Rabobank Connection Routes
+// ============================================
+
+app.get('/api/rabobank/status', authenticateToken, async (req, res) => {
+  try {
+    const connectionResult = await pool.query(
+      `SELECT status, scope, consented_on, access_token_expires_at, refresh_token_expires_at, updated_at
+       FROM public.rabobank_connections
+       WHERE user_id = $1
+       LIMIT 1`,
+      [req.userId]
+    );
+    const notificationResult = await pool.query(
+      `SELECT notification_id, subscription_id, notification_type, created_at, processed_at
+       FROM public.rabobank_notifications
+       WHERE user_id = $1 OR user_id IS NULL
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [req.userId]
+    );
+
+    res.json(getRaboPublicStatus(connectionResult.rows[0] || null, notificationResult.rows[0] || null));
+  } catch (err) {
+    console.error('Error fetching Rabobank status:', err);
+    res.status(500).json({ error: 'Failed to fetch Rabobank status' });
+  }
+});
+
+app.post('/api/rabobank/connect', authenticateToken, async (req, res) => {
+  if (!isRaboConfigured()) {
+    return res.status(400).json({
+      error: 'Rabobank integration is not configured',
+      missing: getRaboMissingConfig(),
+    });
+  }
+
+  try {
+    const state = crypto.randomBytes(32).toString('base64url');
+    await pool.query(
+      `INSERT INTO public.rabobank_oauth_states (user_id, state_hash, expires_at)
+       VALUES ($1, $2, NOW() + INTERVAL '15 minutes')`,
+      [req.userId, hashValue(state)]
+    );
+
+    const authorizationUrl = new URL(`${RABO_OAUTH_BASE_URL}/authorize`);
+    authorizationUrl.searchParams.set('response_type', 'code');
+    authorizationUrl.searchParams.set('scope', RABO_SCOPES);
+    authorizationUrl.searchParams.set('client_id', RABO_CLIENT_ID);
+    authorizationUrl.searchParams.set('state', state);
+    if (RABO_REDIRECT_URI) {
+      authorizationUrl.searchParams.set('redirect_uri', RABO_REDIRECT_URI);
+    }
+
+    res.json({ authorizationUrl: authorizationUrl.toString() });
+  } catch (err) {
+    console.error('Error creating Rabobank authorization URL:', err);
+    res.status(500).json({ error: 'Failed to start Rabobank authorization' });
+  }
+});
+
+app.get('/api/rabobank/callback', async (req, res) => {
+  const redirectBase = PUBLIC_URL.replace(/\/$/, '');
+  const { code, state, error } = req.query;
+
+  if (error) {
+    return res.redirect(`${redirectBase}/payments?rabobank=denied`);
+  }
+
+  if (!code || !state) {
+    return res.redirect(`${redirectBase}/payments?rabobank=invalid_callback`);
+  }
+
+  try {
+    const stateResult = await pool.query(
+      `DELETE FROM public.rabobank_oauth_states
+       WHERE state_hash = $1
+         AND expires_at > NOW()
+       RETURNING user_id`,
+      [hashValue(String(state))]
+    );
+
+    if (stateResult.rows.length === 0) {
+      return res.redirect(`${redirectBase}/payments?rabobank=invalid_state`);
+    }
+
+    const userId = stateResult.rows[0].user_id;
+    const tokenData = await exchangeRaboAuthorizationCode(String(code));
+    const consentedOn = tokenData.consented_on
+      ? new Date(Number(tokenData.consented_on) * 1000).toISOString()
+      : new Date().toISOString();
+
+    await pool.query(
+      `INSERT INTO public.rabobank_connections (
+          user_id,
+          environment,
+          scope,
+          token_type,
+          access_token_encrypted,
+          access_token_expires_at,
+          refresh_token_encrypted,
+          refresh_token_expires_at,
+          consented_on,
+          metadata,
+          status,
+          updated_at
+        )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'connected', NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+          environment = EXCLUDED.environment,
+          scope = EXCLUDED.scope,
+          token_type = EXCLUDED.token_type,
+          access_token_encrypted = EXCLUDED.access_token_encrypted,
+          access_token_expires_at = EXCLUDED.access_token_expires_at,
+          refresh_token_encrypted = EXCLUDED.refresh_token_encrypted,
+          refresh_token_expires_at = EXCLUDED.refresh_token_expires_at,
+          consented_on = EXCLUDED.consented_on,
+          metadata = EXCLUDED.metadata,
+          status = 'connected',
+          updated_at = NOW()`,
+      [
+        userId,
+        RABO_MODE === 'psd2' ? 'psd2' : 'premium',
+        tokenData.scope || RABO_SCOPES,
+        tokenData.token_type || 'bearer',
+        encryptRaboToken(tokenData.access_token),
+        addSecondsToNow(tokenData.expires_in),
+        encryptRaboToken(tokenData.refresh_token),
+        addSecondsToNow(tokenData.refresh_token_expires_in),
+        consentedOn,
+        tokenData.metadata || null,
+      ]
+    );
+
+    res.redirect(`${redirectBase}/payments?rabobank=connected`);
+  } catch (err) {
+    console.error('Rabobank OAuth callback failed:', err);
+    res.redirect(`${redirectBase}/payments?rabobank=token_failed`);
+  }
+});
+
+app.delete('/api/rabobank/connection', authenticateToken, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM public.rabobank_connections WHERE user_id = $1', [req.userId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error disconnecting Rabobank:', err);
+    res.status(500).json({ error: 'Failed to disconnect Rabobank' });
+  }
+});
+
+app.post('/api/rabobank/notifications', async (req, res) => {
+  const payload = req.body || {};
+
+  try {
+    await pool.query(
+      `INSERT INTO public.rabobank_notifications (
+          notification_id,
+          subscription_id,
+          notification_type,
+          payload
+        )
+       VALUES ($1, $2, $3, $4)`,
+      [
+        payload.notificationId || null,
+        payload.subscriptionId || null,
+        payload.notificationType || null,
+        payload,
+      ]
+    );
+
+    res.status(202).json({ received: true });
+  } catch (err) {
+    console.error('Error storing Rabobank notification:', err);
+    res.status(500).json({ error: 'Failed to store Rabobank notification' });
+  }
 });
 
 // ============================================
@@ -2516,6 +2824,57 @@ const ensureRuntimeSchema = async () => {
     WHERE has_reverse_charge = true
       AND reverse_charge_type IS NULL
   `);
+
+  await pool.query(`
+    ALTER TABLE public.invoices
+    ADD COLUMN IF NOT EXISTS paid_at timestamptz
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.rabobank_connections (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE UNIQUE,
+      environment text NOT NULL DEFAULT 'premium',
+      scope text,
+      token_type text,
+      access_token_encrypted text,
+      access_token_expires_at timestamptz,
+      refresh_token_encrypted text,
+      refresh_token_expires_at timestamptz,
+      consented_on timestamptz,
+      metadata text,
+      status text NOT NULL DEFAULT 'connected',
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.rabobank_oauth_states (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      state_hash text NOT NULL UNIQUE,
+      expires_at timestamptz NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.rabobank_notifications (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+      notification_id text,
+      subscription_id text,
+      notification_type text,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      processed_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_rabobank_connections_user_id ON public.rabobank_connections (user_id)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_rabobank_oauth_states_hash ON public.rabobank_oauth_states (state_hash)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_rabobank_notifications_user_created ON public.rabobank_notifications (user_id, created_at DESC)');
 
   await pool.query(`
     ALTER TABLE public.btw_periods

@@ -15,6 +15,7 @@ import { DiscountInput } from '@/components/invoices/DiscountInput';
 import { Loader2, Plus, Trash2, FileText, ArrowLeft } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
+import { INVOICE_UNIT_OPTIONS } from '@/lib/invoice-format';
 
 interface InvoiceItemForm extends InvoiceItemInsert {
   id: string;
@@ -412,10 +413,9 @@ export default function InvoiceNew() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">—</SelectItem>
-                              <SelectItem value="uur">uur</SelectItem>
-                              <SelectItem value="dag">dag</SelectItem>
-                              <SelectItem value="stuk">stuk</SelectItem>
-                              <SelectItem value="project">project</SelectItem>
+                              {INVOICE_UNIT_OPTIONS.map((unit) => (
+                                <SelectItem key={unit.value} value={unit.value}>{unit.label}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>

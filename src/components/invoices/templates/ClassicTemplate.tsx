@@ -1,6 +1,7 @@
 import { format } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
+import { formatInvoiceQuantity } from '@/lib/invoice-format';
 import { InvoiceTemplateProps } from './types';
 
 export function ClassicTemplate({ invoice, profile }: InvoiceTemplateProps) {
@@ -64,7 +65,7 @@ export function ClassicTemplate({ invoice, profile }: InvoiceTemplateProps) {
             {invoice.items?.map((item, index) => (
               <tr key={item.id} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                 <td className="py-3 px-4">{item.description}</td>
-                <td className="text-right py-3 px-4">{item.quantity} {item.unit || ''}</td>
+                <td className="text-right py-3 px-4">{formatInvoiceQuantity(item.quantity, item.unit)}</td>
                 <td className="text-right py-3 px-4">{formatCurrency(item.unit_price)}</td>
                 {hasItemDiscounts && (
                   <td className="text-right py-3 px-4">

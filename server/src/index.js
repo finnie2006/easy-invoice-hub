@@ -538,16 +538,22 @@ function getRaboPublicStatus(connection = null, lastNotification = null) {
 }
 
 async function exchangeRaboAuthorizationCode(code) {
+  const tokenBody = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+  });
+
+  if (RABO_REDIRECT_URI) {
+    tokenBody.set('redirect_uri', RABO_REDIRECT_URI);
+  }
+
   const tokenResponse = await fetch(`${RABO_OAUTH_BASE_URL}/token`, {
     method: 'POST',
     headers: {
       Authorization: `Basic ${Buffer.from(`${RABO_CLIENT_ID}:${RABO_CLIENT_SECRET}`).toString('base64')}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-    }),
+    body: tokenBody,
   });
 
   const responseText = await tokenResponse.text();

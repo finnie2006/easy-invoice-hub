@@ -49,21 +49,26 @@ const AUTH_WINDOW_MS = Number(process.env.AUTH_WINDOW_MS || 15 * 60 * 1000);
 const AUTH_MAX_REQUESTS = Number(process.env.AUTH_MAX_REQUESTS || 30);
 const ALLOWED_BUCKETS = ['receipts', 'invoice-attachments', 'logos'];
 const PUBLIC_APP_SETTING_KEYS = new Set(['registration_enabled', 'environment_mode']);
-const RABO_MODE = (process.env.RABO_MODE || 'premium').toLowerCase();
-const RABO_CLIENT_ID = (process.env.RABO_CLIENT_ID || '').trim();
-const RABO_CLIENT_SECRET = (process.env.RABO_CLIENT_SECRET || '').trim();
-const RABO_SCOPES = (process.env.RABO_SCOPES || '').trim();
-const RABO_REDIRECT_URI = (process.env.RABO_REDIRECT_URI || `${PUBLIC_URL.replace(/\/$/, '')}/api/rabobank/callback`).trim();
+const HIDDEN_CONFIG_CHARS = /[\u0000-\u001F\u007F\u200B-\u200D\u2060\uFEFF\uFFFD]/g;
+const cleanConfigValue = (value = '') => String(value).replace(HIDDEN_CONFIG_CHARS, '').trim();
+const RABO_MODE = cleanConfigValue(process.env.RABO_MODE || 'premium').toLowerCase();
+const RABO_CLIENT_ID = cleanConfigValue(process.env.RABO_CLIENT_ID);
+const RABO_CLIENT_SECRET = cleanConfigValue(process.env.RABO_CLIENT_SECRET);
+const RABO_SCOPES = cleanConfigValue(process.env.RABO_SCOPES);
+const PUBLIC_BASE_URL = cleanConfigValue(PUBLIC_URL).replace(/\/$/, '');
+const RABO_REDIRECT_URI = cleanConfigValue(
+  process.env.RABO_REDIRECT_URI || `${PUBLIC_BASE_URL}/api/rabobank/callback`
+);
 const RABO_OAUTH_BASE_URL = (
-  process.env.RABO_OAUTH_BASE_URL ||
+  cleanConfigValue(process.env.RABO_OAUTH_BASE_URL) ||
   (RABO_MODE === 'psd2'
     ? 'https://oauth.rabobank.nl/openapi/oauth2'
     : 'https://oauth.rabobank.nl/openapi/oauth2-premium')
 ).replace(/\/$/, '');
 const RABO_NOTIFICATION_PUSH_URI = (
-  process.env.RABO_NOTIFICATION_PUSH_URI ||
-  `${PUBLIC_URL.replace(/\/$/, '')}/api/rabobank/notifications`
-).trim();
+  cleanConfigValue(process.env.RABO_NOTIFICATION_PUSH_URI) ||
+  `${PUBLIC_BASE_URL}/api/rabobank/notifications`
+);
 const RABO_TOKEN_ENCRYPTION_SECRET = (
   process.env.RABO_TOKEN_ENCRYPTION_KEY ||
   process.env.JWT_SECRET ||
@@ -437,8 +442,41 @@ function getRaboMissingConfig() {
     .map(([name]) => name);
 }
 
+function validateRaboHttpUrl(name, value) {
+  if (!value) return null;
+
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return `${name} must use http or https`;
+    }
+    return null;
+  } catch (err) {
+    return `${name} must be a valid URL`;
+  }
+}
+
+function getRaboConfigErrors() {
+  const errors = [];
+
+  if (!['premium', 'psd2'].includes(RABO_MODE)) {
+    errors.push('RABO_MODE must be premium or psd2');
+  }
+
+  [
+    ['RABO_REDIRECT_URI', RABO_REDIRECT_URI],
+    ['RABO_OAUTH_BASE_URL', RABO_OAUTH_BASE_URL],
+    ['RABO_NOTIFICATION_PUSH_URI', RABO_NOTIFICATION_PUSH_URI],
+  ].forEach(([name, value]) => {
+    const error = validateRaboHttpUrl(name, value);
+    if (error) errors.push(error);
+  });
+
+  return errors;
+}
+
 function isRaboConfigured() {
-  return getRaboMissingConfig().length === 0;
+  return getRaboMissingConfig().length === 0 && getRaboConfigErrors().length === 0;
 }
 
 function hashValue(value) {
@@ -466,10 +504,12 @@ function encryptRaboToken(value) {
 
 function getRaboPublicStatus(connection = null, lastNotification = null) {
   const missing = getRaboMissingConfig();
+  const configErrors = getRaboConfigErrors();
 
   return {
-    configured: missing.length === 0,
+    configured: missing.length === 0 && configErrors.length === 0,
     missing,
+    configErrors,
     mode: RABO_MODE === 'psd2' ? 'psd2' : 'premium',
     scopes: RABO_SCOPES,
     redirectUri: RABO_REDIRECT_URI,
@@ -916,6 +956,7 @@ app.post('/api/rabobank/connect', authenticateToken, async (req, res) => {
     return res.status(400).json({
       error: 'Rabobank integration is not configured',
       missing: getRaboMissingConfig(),
+      configErrors: getRaboConfigErrors(),
     });
   }
 

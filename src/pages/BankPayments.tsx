@@ -24,6 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 interface RabobankStatus {
   configured: boolean;
   missing: string[];
+  configErrors: string[];
   mode: 'premium' | 'psd2';
   scopes: string;
   redirectUri: string;
@@ -56,6 +57,35 @@ const formatDateTime = (value: string | null | undefined) => {
   }).format(date);
 };
 
+const getRabobankErrorMessage = (error: unknown) => {
+  const responseData = (
+    error &&
+    typeof error === 'object' &&
+    'response' in error &&
+    error.response &&
+    typeof error.response === 'object' &&
+    'data' in error.response
+  )
+    ? error.response.data
+    : null;
+
+  if (responseData && typeof responseData === 'object') {
+    const missing = Array.isArray(responseData.missing) ? responseData.missing : [];
+    const configErrors = Array.isArray(responseData.configErrors) ? responseData.configErrors : [];
+    const details = [...missing, ...configErrors].filter((value): value is string => typeof value === 'string');
+
+    if (details.length > 0) {
+      return details.join(', ');
+    }
+
+    if ('error' in responseData && typeof responseData.error === 'string') {
+      return responseData.error;
+    }
+  }
+
+  return error instanceof Error ? error.message : 'Controleer de Rabobank configuratie.';
+};
+
 export default function BankPayments() {
   const { invoices, isLoading: invoicesLoading } = useInvoices();
   const { toast } = useToast();
@@ -81,7 +111,7 @@ export default function BankPayments() {
     onError: (error) => {
       toast({
         title: 'Rabobank koppelen mislukt',
-        description: error instanceof Error ? error.message : 'Controleer de Rabobank configuratie.',
+        description: getRabobankErrorMessage(error),
         variant: 'destructive',
       });
     },
@@ -204,8 +234,8 @@ export default function BankPayments() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Rabobank is nog niet geconfigureerd</AlertTitle>
           <AlertDescription>
-            Vul op de server eerst {status?.missing.join(', ') || 'de Rabobank env-vars'} in. Daarna wordt de
-            koppelknop actief.
+            {[...(status?.missing || []), ...(status?.configErrors || [])].join(', ') || 'Controleer de Rabobank env-vars'}.
+            Daarna wordt de koppelknop actief.
           </AlertDescription>
         </Alert>
       )}

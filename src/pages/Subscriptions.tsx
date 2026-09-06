@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { differenceInCalendarDays, format, parseISO, startOfDay } from 'date-fns';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { addDays, differenceInCalendarDays, format, parseISO, startOfDay } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import {
   AlertDialog,
@@ -30,6 +30,8 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { useClients } from '@/hooks/useClients';
+import { useInvoices } from '@/hooks/useInvoices';
+import { useProfile } from '@/hooks/useProfile';
 import {
   Subscription,
   SubscriptionInsert,
@@ -98,6 +100,7 @@ export default function SubscriptionsPage() {
     updateSubscription,
     deleteSubscription,
     markSubscriptionInvoiced,
+    undoSubscriptionInvoiced,
     isCreating,
     isUpdating,
   } = useSubscriptions();
@@ -110,6 +113,9 @@ export default function SubscriptionsPage() {
     isSaving: isSavingPlan,
   } = useSubscriptionPlans();
   const { clients } = useClients();
+  const { createInvoice, getNextInvoiceNumber, isCreating: isCreatingInvoice } = useInvoices();
+  const { profile } = useProfile();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const activePlans = useMemo(() => plans.filter((plan) => plan.is_active), [plans]);
@@ -315,6 +321,54 @@ export default function SubscriptionsPage() {
     }
 
     resetPlanForm();
+  };
+
+  const handleCreateInvoice = async (subscription: Subscription) => {
+    const invoiceNumber = getNextInvoiceNumber();
+    const invoiceDate = new Date();
+    const dueDate = addDays(invoiceDate, profile?.default_payment_terms || 14);
+    const client = subscription.client_id
+      ? clients.find((item) => item.id === subscription.client_id)
+      : null;
+    const clientName = client?.company_name || subscription.client_name || subscription.service_name;
+    const nextInvoiceDateLabel = formatDate(subscription.next_invoice_date);
+
+    const invoice = await createInvoice({
+      invoice: {
+        invoice_number: invoiceNumber,
+        invoice_date: formatDateInput(invoiceDate),
+        due_date: formatDateInput(dueDate),
+        client_id: subscription.client_id,
+        client_company_name: clientName,
+        client_contact_name: client?.contact_name || null,
+        client_address: client?.address || null,
+        client_postal_code: client?.postal_code || null,
+        client_city: client?.city || null,
+        client_country: client?.country || null,
+        client_kvk_number: client?.kvk_number || null,
+        client_btw_number: client?.btw_number || null,
+        notes: null,
+        notes_title: 'Opmerkingen',
+        payment_reference: invoiceNumber,
+        status: 'draft',
+        discount_type: null,
+        discount_value: 0,
+      },
+      items: [
+        {
+          description: `${subscription.service_name} - ${subscription.plan_name} (${getBillingIntervalLabel(subscription.billing_interval_months)}, vanaf ${nextInvoiceDateLabel})`,
+          quantity: 1,
+          unit: 'stuk',
+          unit_price: Number(subscription.invoice_amount),
+          btw_percentage: Number(subscription.btw_percentage),
+          discount_type: null,
+          discount_value: 0,
+        },
+      ],
+    });
+
+    await markSubscriptionInvoiced(subscription);
+    navigate(`/invoices/${invoice.id}`);
   };
 
   const filteredSubscriptions = useMemo(() => {
@@ -913,12 +967,31 @@ export default function SubscriptionsPage() {
                             <Button
                               variant="outline"
                               size="sm"
+                              onClick={() => handleCreateInvoice(subscription)}
+                              disabled={subscription.status !== 'active' || isUpdating || isCreatingInvoice}
+                            >
+                              <ReceiptText className="mr-2 h-4 w-4" />
+                              Factuur maken
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => markSubscriptionInvoiced(subscription)}
                               disabled={subscription.status !== 'active' || isUpdating}
                             >
-                              <ReceiptText className="mr-2 h-4 w-4" />
-                              Gefactureerd
+                              <CalendarClock className="mr-2 h-4 w-4" />
+                              Doorschuiven
                             </Button>
+                            {subscription.last_invoice_date && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => undoSubscriptionInvoiced(subscription)}
+                                disabled={isUpdating}
+                              >
+                                Terug
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(subscription)}>
                               <Pencil className="h-4 w-4" />
                             </Button>

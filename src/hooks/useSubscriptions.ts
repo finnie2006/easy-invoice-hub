@@ -158,6 +158,35 @@ export function useSubscriptions() {
     },
   });
 
+  const undoSubscriptionInvoiced = useMutation({
+    mutationFn: async (subscription: Subscription) => {
+      if (!user) throw new Error('Not authenticated');
+      if (!subscription.last_invoice_date) {
+        throw new Error('Er is geen vorige factuurdatum om terug te zetten.');
+      }
+
+      const response = await subscriptionsApi.update(subscription.id, {
+        next_invoice_date: subscription.last_invoice_date,
+        last_invoice_date: null,
+      });
+      return response.data as Subscription;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subscriptions'] });
+      toast({
+        title: 'Factuurmoment teruggedraaid',
+        description: 'De vorige volgende factuurdatum is hersteld.',
+      });
+    },
+    onError: (error: unknown) => {
+      toast({
+        title: 'Fout bij terugdraaien',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      });
+    },
+  });
+
   return {
     subscriptions,
     isLoading,
@@ -165,8 +194,9 @@ export function useSubscriptions() {
     updateSubscription: updateSubscription.mutateAsync,
     deleteSubscription: deleteSubscription.mutate,
     markSubscriptionInvoiced: markSubscriptionInvoiced.mutateAsync,
+    undoSubscriptionInvoiced: undoSubscriptionInvoiced.mutateAsync,
     isCreating: createSubscription.isPending,
-    isUpdating: updateSubscription.isPending || markSubscriptionInvoiced.isPending,
+    isUpdating: updateSubscription.isPending || markSubscriptionInvoiced.isPending || undoSubscriptionInvoiced.isPending,
   };
 }
 

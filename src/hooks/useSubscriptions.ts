@@ -5,7 +5,7 @@ import {
 } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { calculateNextInvoiceDate } from '@/lib/subscriptions';
+import { calculateNextInvoiceDate, calculatePreviousInvoiceDate } from '@/lib/subscriptions';
 
 export type SubscriptionStatus = 'active' | 'paused' | 'cancelled';
 
@@ -161,12 +161,12 @@ export function useSubscriptions() {
   const undoSubscriptionInvoiced = useMutation({
     mutationFn: async (subscription: Subscription) => {
       if (!user) throw new Error('Not authenticated');
-      if (!subscription.last_invoice_date) {
-        throw new Error('Er is geen vorige factuurdatum om terug te zetten.');
-      }
 
       const response = await subscriptionsApi.update(subscription.id, {
-        next_invoice_date: subscription.last_invoice_date,
+        next_invoice_date: calculatePreviousInvoiceDate(
+          subscription.next_invoice_date,
+          subscription.billing_interval_months,
+        ),
         last_invoice_date: null,
       });
       return response.data as Subscription;

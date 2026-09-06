@@ -982,16 +982,14 @@ export default function SubscriptionsPage() {
                               <CalendarClock className="mr-2 h-4 w-4" />
                               Doorschuiven
                             </Button>
-                            {subscription.last_invoice_date && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => undoSubscriptionInvoiced(subscription)}
-                                disabled={isUpdating}
-                              >
-                                Terug
-                              </Button>
-                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => undoSubscriptionInvoiced(subscription)}
+                              disabled={subscription.status !== 'active' || isUpdating}
+                            >
+                              Terug
+                            </Button>
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(subscription)}>
                               <Pencil className="h-4 w-4" />
                             </Button>

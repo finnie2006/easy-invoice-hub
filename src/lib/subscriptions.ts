@@ -1,4 +1,4 @@
-import { addMonths, differenceInCalendarDays, format, parseISO, startOfDay } from 'date-fns';
+import { addMonths, differenceInCalendarDays, format, parseISO, startOfDay, subMonths } from 'date-fns';
 
 export type BillingIntervalMonths = 1 | 3 | 6 | 12;
 
@@ -15,6 +15,11 @@ export const calculateNextInvoiceDate = (
   invoiceDate: string,
   intervalMonths: number,
 ) => formatDateInput(addMonths(parseISO(invoiceDate), intervalMonths));
+
+export const calculatePreviousInvoiceDate = (
+  invoiceDate: string,
+  intervalMonths: number,
+) => formatDateInput(subMonths(parseISO(invoiceDate), intervalMonths));
 
 export const getSubscriptionBillingState = (
   subscription: SubscriptionScheduleInput,

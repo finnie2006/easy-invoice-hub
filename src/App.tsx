@@ -16,6 +16,7 @@ import Clients from "./pages/Clients";
 import Expenses from "./pages/Expenses";
 import OtherIncome from "./pages/OtherIncome";
 import BankPayments from "./pages/BankPayments";
+import Subscriptions from "./pages/Subscriptions";
 import Reports from "./pages/Reports";
 import TaxFilings from "./pages/TaxFilings";
 import Settings from "./pages/Settings";
@@ -69,6 +70,7 @@ function AppContent() {
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/expenses" element={<Expenses />} />
         <Route path="/income" element={<OtherIncome />} />
+        <Route path="/subscriptions" element={<Subscriptions />} />
         <Route path="/payments" element={<BankPayments />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/tax-filings" element={<TaxFilings />} />

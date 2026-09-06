@@ -6,6 +6,8 @@ import { useTheme } from '@/hooks/useTheme';
 import type { Theme } from '@/hooks/useTheme';
 import { useBtwPeriods } from '@/hooks/useBtwPeriods';
 import { useInvoices } from '@/hooks/useInvoices';
+import { useSubscriptions } from '@/hooks/useSubscriptions';
+import { getSubscriptionBillingState } from '@/lib/subscriptions';
 import {
   Sidebar,
   SidebarContent,
@@ -46,6 +48,7 @@ import {
   Sun,
   ChevronDown,
   Monitor,
+  Repeat2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -76,6 +79,7 @@ const menuGroups = [
     items: [
       { title: 'Facturen', url: '/invoices', icon: FileText },
       { title: 'Concepten', url: '/invoices?status=draft', icon: FileText },
+      { title: 'Abonnementen', url: '/subscriptions', icon: Repeat2 },
       { title: 'Inkomsten', url: '/income', icon: Banknote },
       { title: 'Betalingen', url: '/payments', icon: Landmark },
       { title: 'Uitgaven', url: '/expenses', icon: Receipt },
@@ -135,6 +139,7 @@ export function AppSidebar() {
   const { appName, profile } = useProfile();
   const { theme, setTheme } = useTheme();
   const { invoices, overdueInvoices } = useInvoices();
+  const { subscriptions } = useSubscriptions();
   const { btwPeriods } = useBtwPeriods();
   const { isMobile, setOpenMobile } = useSidebar();
 
@@ -143,6 +148,10 @@ export function AppSidebar() {
   const selectedTheme = themeOptions.find((option) => option.value === theme) ?? themeOptions[2];
   const SelectedThemeIcon = selectedTheme.icon;
   const draftInvoiceCount = invoices.filter((invoice) => invoice.status === 'draft').length;
+  const dueSubscriptionCount = subscriptions.filter((subscription) => {
+    const state = getSubscriptionBillingState(subscription);
+    return state === 'overdue' || state === 'due_today';
+  }).length;
   const openBtwPeriodCount = btwPeriods.filter((period) => !period.is_closed).length;
   const recentInvoices = useMemo(() => {
     return [...invoices]
@@ -196,6 +205,10 @@ export function AppSidebar() {
 
     if (title === 'Concepten' && draftInvoiceCount > 0) {
       return [{ label: draftInvoiceCount.toString(), variant: 'muted' as const }];
+    }
+
+    if (title === 'Abonnementen' && dueSubscriptionCount > 0) {
+      return [{ label: `${dueSubscriptionCount} nodig`, variant: 'danger' as const }];
     }
 
     if (title === 'Aangiftes' && openBtwPeriodCount > 0) {

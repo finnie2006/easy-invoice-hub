@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Plus,
   Receipt,
+  Repeat2,
   Search,
   Settings,
   Users,
@@ -29,12 +30,14 @@ import { useExpenses } from '@/hooks/useExpenses';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useOtherIncome } from '@/hooks/useOtherIncome';
 import { useProjects } from '@/hooks/useProjects';
+import { useSubscriptions } from '@/hooks/useSubscriptions';
 
 const navigationItems = [
   { label: 'Dashboard', url: '/', icon: LayoutDashboard },
   { label: 'Agenda', url: '/calendar', icon: Calendar },
   { label: 'Projecten', url: '/projects', icon: FolderKanban },
   { label: 'Facturen', url: '/invoices', icon: FileText },
+  { label: 'Abonnementen', url: '/subscriptions', icon: Repeat2 },
   { label: 'Inkomsten', url: '/income', icon: Banknote },
   { label: 'Klanten', url: '/clients', icon: Users },
   { label: 'Uitgaven', url: '/expenses', icon: Receipt },
@@ -47,6 +50,7 @@ const quickActions = [
   { label: 'Nieuwe klant', url: '/clients?new=1', icon: Users },
   { label: 'Nieuwe uitgave', url: '/expenses?new=1', icon: Receipt },
   { label: 'Nieuwe inkomst', url: '/income?new=1', icon: Banknote },
+  { label: 'Nieuw abonnement', url: '/subscriptions?new=1', icon: Repeat2 },
 ];
 
 export function CommandPalette() {
@@ -57,6 +61,7 @@ export function CommandPalette() {
   const { expenses } = useExpenses();
   const { projects } = useProjects();
   const { otherIncome } = useOtherIncome();
+  const { subscriptions } = useSubscriptions();
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -107,8 +112,15 @@ export function CommandPalette() {
         url: '/income',
         icon: Banknote,
       })),
+      ...subscriptions.slice(0, 20).map((subscription) => ({
+        id: `subscription-${subscription.id}`,
+        label: `${subscription.service_name} ${subscription.plan_name}`,
+        description: subscription.client_name || 'Abonnement',
+        url: '/subscriptions',
+        icon: Repeat2,
+      })),
     ];
-  }, [clients, expenses, invoices, otherIncome, projects]);
+  }, [clients, expenses, invoices, otherIncome, projects, subscriptions]);
 
   const runCommand = (url: string) => {
     setOpen(false);

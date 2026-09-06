@@ -182,6 +182,68 @@ const OTHER_INCOME_UPDATABLE_FIELDS = [
   'notes',
 ];
 
+const SUBSCRIPTION_UPDATABLE_FIELDS = [
+  'client_id',
+  'client_name',
+  'service_name',
+  'plan_name',
+  'billing_interval_months',
+  'monthly_price',
+  'invoice_amount',
+  'btw_percentage',
+  'start_date',
+  'next_invoice_date',
+  'last_invoice_date',
+  'minimum_term_months',
+  'status',
+  'notes',
+];
+
+const SUBSCRIPTION_PLAN_UPDATABLE_FIELDS = [
+  'name',
+  'billing_interval_months',
+  'monthly_price',
+  'invoice_amount',
+  'minimum_term_months',
+  'is_active',
+  'sort_order',
+];
+
+const DEFAULT_SUBSCRIPTION_PLANS = [
+  {
+    name: 'Vevuno Flex',
+    billing_interval_months: 1,
+    monthly_price: 70,
+    invoice_amount: 70,
+    minimum_term_months: 1,
+    sort_order: 0,
+  },
+  {
+    name: 'Vevuno 3',
+    billing_interval_months: 3,
+    monthly_price: 65,
+    invoice_amount: 195,
+    minimum_term_months: 3,
+    sort_order: 1,
+  },
+  {
+    name: 'Vevuno 6',
+    billing_interval_months: 6,
+    monthly_price: 60,
+    invoice_amount: 360,
+    minimum_term_months: 6,
+    sort_order: 2,
+  },
+  {
+    name: 'Vevuno 12',
+    billing_interval_months: 12,
+    monthly_price: 50,
+    invoice_amount: 600,
+    minimum_term_months: 12,
+    sort_order: 3,
+  },
+];
+
 const PROJECT_UPDATABLE_FIELDS = [
   'client_id',
   'client_name',
@@ -689,6 +751,41 @@ function buildValidatedUpdate(body, allowedFields) {
   const values = requestedFields.map((field) => body[field]);
   const setClause = requestedFields.map((field, i) => `${field} = $${i + 1}`).join(', ');
   return { fields: requestedFields, values, setClause };
+}
+
+async function ensureDefaultSubscriptionPlans(userId) {
+  const existingPlans = await pool.query(
+    'SELECT id FROM public.subscription_plans WHERE user_id = $1 LIMIT 1',
+    [userId]
+  );
+
+  if (existingPlans.rows.length > 0) {
+    return;
+  }
+
+  for (const plan of DEFAULT_SUBSCRIPTION_PLANS) {
+    await pool.query(
+      `INSERT INTO public.subscription_plans (
+          user_id,
+          name,
+          billing_interval_months,
+          monthly_price,
+          invoice_amount,
+          minimum_term_months,
+          sort_order
+        )
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        userId,
+        plan.name,
+        plan.billing_interval_months,
+        plan.monthly_price,
+        plan.invoice_amount,
+        plan.minimum_term_months,
+        plan.sort_order,
+      ]
+    );
+  }
 }
 
 function formatInvoiceEmailDate(value) {
@@ -1541,6 +1638,242 @@ app.delete('/api/other-income/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error deleting other income:', err);
     res.status(500).json({ error: 'Failed to delete other income' });
+  }
+});
+
+// ============================================
+// Subscription Plans Routes
+// ============================================
+
+app.get('/api/subscription-plans', authenticateToken, async (req, res) => {
+  try {
+    await ensureDefaultSubscriptionPlans(req.userId);
+    const result = await pool.query(
+      `SELECT * FROM public.subscription_plans
+       WHERE user_id = $1
+       ORDER BY sort_order ASC, name ASC`,
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching subscription plans:', err);
+    res.status(500).json({ error: 'Failed to fetch subscription plans' });
+  }
+});
+
+app.post('/api/subscription-plans', authenticateToken, async (req, res) => {
+  const {
+    name,
+    billing_interval_months,
+    monthly_price,
+    invoice_amount,
+    minimum_term_months,
+    is_active,
+    sort_order,
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO public.subscription_plans (
+          user_id,
+          name,
+          billing_interval_months,
+          monthly_price,
+          invoice_amount,
+          minimum_term_months,
+          is_active,
+          sort_order
+        )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [
+        req.userId,
+        name,
+        billing_interval_months,
+        monthly_price,
+        invoice_amount,
+        minimum_term_months,
+        is_active ?? true,
+        sort_order ?? 0,
+      ]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating subscription plan:', err);
+    res.status(500).json({ error: 'Failed to create subscription plan' });
+  }
+});
+
+app.put('/api/subscription-plans/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const updatePayload = buildValidatedUpdate(req.body, SUBSCRIPTION_PLAN_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
+  values.push(req.userId);
+  values.push(id);
+
+  try {
+    const result = await pool.query(
+      `UPDATE public.subscription_plans SET ${setClause}, updated_at=NOW()
+       WHERE user_id = $${fields.length + 1} AND id = $${fields.length + 2}
+       RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Subscription plan not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating subscription plan:', err);
+    res.status(500).json({ error: 'Failed to update subscription plan' });
+  }
+});
+
+app.delete('/api/subscription-plans/:id', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE public.subscription_plans
+       SET is_active = false, updated_at = NOW()
+       WHERE id = $1 AND user_id = $2
+       RETURNING id`,
+      [req.params.id, req.userId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Subscription plan not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting subscription plan:', err);
+    res.status(500).json({ error: 'Failed to delete subscription plan' });
+  }
+});
+
+// ============================================
+// Subscriptions Routes
+// ============================================
+
+app.get('/api/subscriptions', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM public.subscriptions
+       WHERE user_id = $1
+       ORDER BY
+         CASE status
+           WHEN 'active' THEN 0
+           WHEN 'paused' THEN 1
+           ELSE 2
+         END,
+         next_invoice_date ASC,
+         created_at DESC`,
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching subscriptions:', err);
+    res.status(500).json({ error: 'Failed to fetch subscriptions' });
+  }
+});
+
+app.post('/api/subscriptions', authenticateToken, async (req, res) => {
+  const {
+    client_id,
+    client_name,
+    service_name,
+    plan_name,
+    billing_interval_months,
+    monthly_price,
+    invoice_amount,
+    btw_percentage,
+    start_date,
+    next_invoice_date,
+    last_invoice_date,
+    minimum_term_months,
+    status,
+    notes,
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO public.subscriptions (
+          user_id,
+          client_id,
+          client_name,
+          service_name,
+          plan_name,
+          billing_interval_months,
+          monthly_price,
+          invoice_amount,
+          btw_percentage,
+          start_date,
+          next_invoice_date,
+          last_invoice_date,
+          minimum_term_months,
+          status,
+          notes
+        )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       RETURNING *`,
+      [
+        req.userId,
+        client_id,
+        client_name,
+        service_name,
+        plan_name,
+        billing_interval_months,
+        monthly_price,
+        invoice_amount,
+        btw_percentage,
+        start_date,
+        next_invoice_date,
+        last_invoice_date,
+        minimum_term_months,
+        status || 'active',
+        notes,
+      ]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating subscription:', err);
+    res.status(500).json({ error: 'Failed to create subscription' });
+  }
+});
+
+app.put('/api/subscriptions/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const updatePayload = buildValidatedUpdate(req.body, SUBSCRIPTION_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
+  values.push(req.userId);
+  values.push(id);
+
+  try {
+    const result = await pool.query(
+      `UPDATE public.subscriptions SET ${setClause}, updated_at=NOW()
+       WHERE user_id = $${fields.length + 1} AND id = $${fields.length + 2}
+       RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Subscription not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating subscription:', err);
+    res.status(500).json({ error: 'Failed to update subscription' });
+  }
+});
+
+app.delete('/api/subscriptions/:id', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM public.subscriptions WHERE id = $1 AND user_id = $2 RETURNING id',
+      [req.params.id, req.userId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Subscription not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting subscription:', err);
+    res.status(500).json({ error: 'Failed to delete subscription' });
   }
 });
 
@@ -3000,6 +3333,51 @@ const ensureRuntimeSchema = async () => {
 
   await pool.query('CREATE INDEX IF NOT EXISTS idx_other_income_user_id ON public.other_income (user_id)');
   await pool.query('CREATE INDEX IF NOT EXISTS idx_other_income_income_date ON public.other_income (income_date)');
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.subscription_plans (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      name text NOT NULL,
+      billing_interval_months integer NOT NULL CHECK (billing_interval_months IN (1, 3, 6, 12)),
+      monthly_price numeric(14,2) NOT NULL DEFAULT 0,
+      invoice_amount numeric(14,2) NOT NULL DEFAULT 0,
+      minimum_term_months integer NOT NULL DEFAULT 1,
+      is_active boolean NOT NULL DEFAULT true,
+      sort_order integer NOT NULL DEFAULT 0,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_subscription_plans_user_active ON public.subscription_plans (user_id, is_active)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_subscription_plans_sort_order ON public.subscription_plans (user_id, sort_order)');
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.subscriptions (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      client_id uuid REFERENCES public.clients(id) ON DELETE SET NULL,
+      client_name text,
+      service_name text NOT NULL DEFAULT 'Vevuno',
+      plan_name text NOT NULL,
+      billing_interval_months integer NOT NULL CHECK (billing_interval_months IN (1, 3, 6, 12)),
+      monthly_price numeric(14,2) NOT NULL DEFAULT 0,
+      invoice_amount numeric(14,2) NOT NULL DEFAULT 0,
+      btw_percentage numeric(6,2) NOT NULL DEFAULT 21,
+      start_date date NOT NULL,
+      next_invoice_date date NOT NULL,
+      last_invoice_date date,
+      minimum_term_months integer NOT NULL DEFAULT 1,
+      status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'cancelled')),
+      notes text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_status ON public.subscriptions (user_id, status)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_next_invoice_date ON public.subscriptions (next_invoice_date)');
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.monthly_salaries (

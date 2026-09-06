@@ -147,6 +147,28 @@ export const otherIncome = {
     api.delete(`/api/other-income/${id}`),
 };
 
+export const subscriptions = {
+  getAll: () =>
+    api.get('/api/subscriptions'),
+  create: (data) =>
+    api.post('/api/subscriptions', data),
+  update: (id, data) =>
+    api.put(`/api/subscriptions/${id}`, data),
+  delete: (id) =>
+    api.delete(`/api/subscriptions/${id}`),
+};
+
+export const subscriptionPlans = {
+  getAll: () =>
+    api.get('/api/subscription-plans'),
+  create: (data) =>
+    api.post('/api/subscription-plans', data),
+  update: (id, data) =>
+    api.put(`/api/subscription-plans/${id}`, data),
+  delete: (id) =>
+    api.delete(`/api/subscription-plans/${id}`),
+};
+
 // Projects
 export const projects = {
   getAll: () =>

@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -62,6 +63,8 @@ import {
 } from 'lucide-react';
 
 type SubscriptionFilter = 'all' | 'active' | 'due' | 'upcoming' | 'paused' | 'cancelled';
+
+const SETUP_FEE_AMOUNT = 100;
 
 const today = () => startOfDay(new Date());
 
@@ -125,6 +128,8 @@ export default function SubscriptionsPage() {
   const [plansDialogOpen, setPlansDialogOpen] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [editingPlan, setEditingPlan] = useState<SubscriptionPlan | null>(null);
+  const [invoiceConfirmSubscription, setInvoiceConfirmSubscription] = useState<Subscription | null>(null);
+  const [includeSetupFee, setIncludeSetupFee] = useState(false);
   const [deleteConfirmSubscription, setDeleteConfirmSubscription] = useState<Subscription | null>(null);
   const [deleteConfirmPlan, setDeleteConfirmPlan] = useState<SubscriptionPlan | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -323,7 +328,12 @@ export default function SubscriptionsPage() {
     resetPlanForm();
   };
 
-  const handleCreateInvoice = async (subscription: Subscription) => {
+  const openInvoiceDialog = (subscription: Subscription) => {
+    setInvoiceConfirmSubscription(subscription);
+    setIncludeSetupFee(!subscription.last_invoice_date);
+  };
+
+  const handleCreateInvoice = async (subscription: Subscription, withSetupFee: boolean) => {
     const invoiceNumber = getNextInvoiceNumber();
     const invoiceDate = new Date();
     const dueDate = addDays(invoiceDate, profile?.default_payment_terms || 14);
@@ -332,6 +342,29 @@ export default function SubscriptionsPage() {
       : null;
     const clientName = client?.company_name || subscription.client_name || subscription.service_name;
     const nextInvoiceDateLabel = formatDate(subscription.next_invoice_date);
+    const items = [
+      {
+        description: `${subscription.service_name} abonnement - ${subscription.plan_name}. Factuurperiode start: ${nextInvoiceDateLabel}`,
+        quantity: 1,
+        unit: 'stuk',
+        unit_price: Number(subscription.invoice_amount),
+        btw_percentage: Number(subscription.btw_percentage),
+        discount_type: null,
+        discount_value: 0,
+      },
+    ];
+
+    if (withSetupFee) {
+      items.push({
+        description: 'Eenmalige basisinrichting',
+        quantity: 1,
+        unit: 'stuk',
+        unit_price: SETUP_FEE_AMOUNT,
+        btw_percentage: Number(subscription.btw_percentage),
+        discount_type: null,
+        discount_value: 0,
+      });
+    }
 
     const invoice = await createInvoice({
       invoice: {
@@ -354,20 +387,11 @@ export default function SubscriptionsPage() {
         discount_type: null,
         discount_value: 0,
       },
-      items: [
-        {
-          description: `${subscription.service_name} - ${subscription.plan_name} (${getBillingIntervalLabel(subscription.billing_interval_months)}, vanaf ${nextInvoiceDateLabel})`,
-          quantity: 1,
-          unit: 'stuk',
-          unit_price: Number(subscription.invoice_amount),
-          btw_percentage: Number(subscription.btw_percentage),
-          discount_type: null,
-          discount_value: 0,
-        },
-      ],
+      items,
     });
 
     await markSubscriptionInvoiced(subscription);
+    setInvoiceConfirmSubscription(null);
     navigate(`/invoices/${invoice.id}`);
   };
 
@@ -671,6 +695,88 @@ export default function SubscriptionsPage() {
       </Dialog>
 
       <Dialog
+        open={!!invoiceConfirmSubscription}
+        onOpenChange={(open) => {
+          if (!open) setInvoiceConfirmSubscription(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Conceptfactuur maken</DialogTitle>
+            <DialogDescription>
+              Controleer de factuurregels voordat de abonnementsplanning wordt doorgeschoven.
+            </DialogDescription>
+          </DialogHeader>
+
+          {invoiceConfirmSubscription && (
+            <div className="space-y-4">
+              <div className="rounded-lg border p-4 text-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="font-medium">
+                      {invoiceConfirmSubscription.service_name} abonnement - {invoiceConfirmSubscription.plan_name}
+                    </div>
+                    <div className="text-muted-foreground">
+                      Factuurperiode start: {formatDate(invoiceConfirmSubscription.next_invoice_date)}
+                    </div>
+                  </div>
+                  <div className="whitespace-nowrap font-medium">
+                    {formatCurrency(Number(invoiceConfirmSubscription.invoice_amount))}
+                  </div>
+                </div>
+
+                {includeSetupFee && (
+                  <div className="mt-3 flex items-start justify-between gap-4 border-t pt-3">
+                    <div>
+                      <div className="font-medium">Eenmalige basisinrichting</div>
+                      <div className="text-muted-foreground">Alleen toevoegen op de eerste factuur</div>
+                    </div>
+                    <div className="whitespace-nowrap font-medium">{formatCurrency(SETUP_FEE_AMOUNT)}</div>
+                  </div>
+                )}
+              </div>
+
+              <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
+                <Checkbox
+                  checked={includeSetupFee}
+                  onCheckedChange={(checked) => setIncludeSetupFee(checked === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="block font-medium">Eenmalige basisinrichting toevoegen</span>
+                  <span className="block text-muted-foreground">{formatCurrency(SETUP_FEE_AMOUNT)} excl. btw</span>
+                </span>
+              </label>
+
+              <div className="flex items-center justify-between rounded-lg bg-muted px-4 py-3 text-sm">
+                <span className="font-medium">Totaal excl. btw</span>
+                <span className="text-base font-semibold">
+                  {formatCurrency(
+                    Number(invoiceConfirmSubscription.invoice_amount) +
+                    (includeSetupFee ? SETUP_FEE_AMOUNT : 0),
+                  )}
+                </span>
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <Button type="button" variant="outline" onClick={() => setInvoiceConfirmSubscription(null)}>
+                  Annuleren
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handleCreateInvoice(invoiceConfirmSubscription, includeSetupFee)}
+                  disabled={isCreatingInvoice || isUpdating}
+                >
+                  {(isCreatingInvoice || isUpdating) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Factuur maken
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={plansDialogOpen}
         onOpenChange={(open) => {
           setPlansDialogOpen(open);
@@ -967,7 +1073,7 @@ export default function SubscriptionsPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleCreateInvoice(subscription)}
+                              onClick={() => openInvoiceDialog(subscription)}
                               disabled={subscription.status !== 'active' || isUpdating || isCreatingInvoice}
                             >
                               <ReceiptText className="mr-2 h-4 w-4" />

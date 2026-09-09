@@ -173,8 +173,8 @@ export function useCalendarEvents() {
     events,
     isLoading,
     createEvent: createEvent.mutateAsync,
-    updateEvent: updateEvent.mutate,
-    deleteEvent: deleteEvent.mutate,
+    updateEvent: updateEvent.mutateAsync,
+    deleteEvent: deleteEvent.mutateAsync,
   };
 }
 

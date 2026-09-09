@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useCalendarEvents, useLabels, useExternalFeeds } from '@/hooks/useCalendar';
+import { useCalendarEvents, useLabels, useExternalFeeds, type CalendarEvent } from '@/hooks/useCalendar';
 import { calendar as calendarApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +28,7 @@ import {
   MapPin,
   Download,
   Copy,
+  Pencil,
 } from 'lucide-react';
 import { 
   format, 
@@ -53,9 +54,33 @@ const LABEL_COLORS = [
   '#EC4899', '#06B6D4', '#84CC16', '#F97316', '#6366F1',
 ];
 
+const NO_LABEL_VALUE = 'no-label';
+
+const createEmptyEventForm = () => ({
+  title: '',
+  description: '',
+  start_time: '',
+  end_time: '',
+  all_day: false,
+  location: '',
+  label_id: '',
+});
+
+const createDefaultEventForm = (day: Date) => {
+  const dateStr = format(day, 'yyyy-MM-dd');
+
+  return {
+    ...createEmptyEventForm(),
+    start_time: `${dateStr}T09:00`,
+    end_time: `${dateStr}T10:00`,
+  };
+};
+
+const toDateTimeInputValue = (value: string) => format(parseISO(value), "yyyy-MM-dd'T'HH:mm");
+
 export default function Calendar() {
   const { user } = useAuth();
-  const { events, isLoading: loadingEvents, createEvent, deleteEvent } = useCalendarEvents();
+  const { events, isLoading: loadingEvents, createEvent, updateEvent, deleteEvent } = useCalendarEvents();
   const { labels, isLoading: loadingLabels, createLabel, deleteLabel } = useLabels();
   const { feeds, createFeed, deleteFeed } = useExternalFeeds();
 
@@ -67,18 +92,11 @@ export default function Calendar() {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [startDatePickerOpen, setStartDatePickerOpen] = useState(false);
   const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
 
   // Event form
-  const [eventForm, setEventForm] = useState({
-    title: '',
-    description: '',
-    start_time: '',
-    end_time: '',
-    all_day: false,
-    location: '',
-    label_id: '',
-  });
+  const [eventForm, setEventForm] = useState(createEmptyEventForm);
 
   // Label form
   const [labelForm, setLabelForm] = useState({ name: '', color: LABEL_COLORS[0] });
@@ -110,19 +128,51 @@ export default function Calendar() {
 
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
-    const dateStr = format(day, 'yyyy-MM-dd');
+    setEditingEventId(null);
+    setEventForm(createDefaultEventForm(day));
+    setEventDialogOpen(true);
+  };
+
+  const handleNewEventClick = () => {
+    const now = new Date();
+    setSelectedDate(now);
+    setEditingEventId(null);
+    setEventForm(createDefaultEventForm(now));
+  };
+
+  const handleEditEvent = (event: CalendarEvent) => {
+    setSelectedDate(parseISO(event.start_time));
+    setEditingEventId(event.id);
     setEventForm({
-      ...eventForm,
-      start_time: `${dateStr}T09:00`,
-      end_time: `${dateStr}T10:00`,
+      title: event.title,
+      description: event.description || '',
+      start_time: toDateTimeInputValue(event.start_time),
+      end_time: toDateTimeInputValue(event.end_time),
+      all_day: event.all_day,
+      location: event.location || '',
+      label_id: event.label_id || '',
     });
     setEventDialogOpen(true);
   };
 
+  const resetEventDialog = () => {
+    setEditingEventId(null);
+    setEventForm(createEmptyEventForm());
+    setStartDatePickerOpen(false);
+    setEndDatePickerOpen(false);
+  };
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
+  const handleEventDialogOpenChange = (open: boolean) => {
+    setEventDialogOpen(open);
+    if (!open) {
+      resetEventDialog();
+    }
+  };
+
+  const handleSubmitEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createEvent({
+
+    const eventPayload = {
       title: eventForm.title,
       description: eventForm.description || null,
       start_time: new Date(eventForm.start_time).toISOString(),
@@ -130,11 +180,47 @@ export default function Calendar() {
       all_day: eventForm.all_day,
       location: eventForm.location || null,
       label_id: eventForm.label_id || null,
-      external_id: null,
-      external_feed_id: null,
-    });
+    };
+
+    if (editingEventId) {
+      await updateEvent({
+        id: editingEventId,
+        ...eventPayload,
+      });
+    } else {
+      await createEvent({
+        ...eventPayload,
+        external_id: null,
+        external_feed_id: null,
+      });
+    }
+
     setEventDialogOpen(false);
-    setEventForm({ title: '', description: '', start_time: '', end_time: '', all_day: false, location: '', label_id: '' });
+    resetEventDialog();
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    await deleteEvent(eventId);
+
+    if (editingEventId === eventId) {
+      setEventDialogOpen(false);
+      resetEventDialog();
+    }
+  };
+
+  const handleCalendarDayKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, day: Date) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleDayClick(day);
+    }
+  };
+
+  const handleCalendarEventKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, event: CalendarEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      handleEditEvent(event);
+    }
   };
 
   const handleCreateLabel = async (e: React.FormEvent) => {
@@ -401,26 +487,18 @@ export default function Calendar() {
             </DialogContent>
           </Dialog>
 
-          <Dialog open={eventDialogOpen} onOpenChange={setEventDialogOpen}>
+          <Dialog open={eventDialogOpen} onOpenChange={handleEventDialogOpenChange}>
             <DialogTrigger asChild>
-              <Button onClick={() => {
-                const now = new Date();
-                const dateStr = format(now, 'yyyy-MM-dd');
-                setEventForm({
-                  ...eventForm,
-                  start_time: `${dateStr}T09:00`,
-                  end_time: `${dateStr}T10:00`,
-                });
-              }}>
+              <Button onClick={handleNewEventClick}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nieuwe afspraak
               </Button>
             </DialogTrigger>
             <DialogContent className="bg-card">
               <DialogHeader>
-                <DialogTitle>Nieuwe afspraak</DialogTitle>
+                <DialogTitle>{editingEventId ? 'Afspraak wijzigen' : 'Nieuwe afspraak'}</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleCreateEvent} className="space-y-4 mt-4">
+              <form onSubmit={handleSubmitEvent} className="space-y-4 mt-4">
                 <div className="space-y-2">
                   <UILabel htmlFor="title">Titel *</UILabel>
                   <Input
@@ -436,6 +514,7 @@ export default function Calendar() {
                     <Popover open={startDatePickerOpen} onOpenChange={setStartDatePickerOpen}>
                       <PopoverTrigger asChild>
                         <Button
+                          type="button"
                           variant="outline"
                           className={cn(
                             "w-full justify-start text-left font-normal",
@@ -476,6 +555,7 @@ export default function Calendar() {
                             className="flex-1"
                           />
                           <Button 
+                            type="button"
                             variant="outline" 
                             size="sm"
                             onClick={() => {
@@ -493,6 +573,7 @@ export default function Calendar() {
                     <Popover open={endDatePickerOpen} onOpenChange={setEndDatePickerOpen}>
                       <PopoverTrigger asChild>
                         <Button
+                          type="button"
                           variant="outline"
                           className={cn(
                             "w-full justify-start text-left font-normal",
@@ -533,6 +614,7 @@ export default function Calendar() {
                             className="flex-1"
                           />
                           <Button 
+                            type="button"
                             variant="outline" 
                             size="sm"
                             onClick={() => {
@@ -557,13 +639,14 @@ export default function Calendar() {
                 <div className="space-y-2">
                   <UILabel htmlFor="label">Label</UILabel>
                   <Select 
-                    value={eventForm.label_id} 
-                    onValueChange={(v) => setEventForm({ ...eventForm, label_id: v })}
+                    value={eventForm.label_id || NO_LABEL_VALUE} 
+                    onValueChange={(v) => setEventForm({ ...eventForm, label_id: v === NO_LABEL_VALUE ? '' : v })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecteer een label" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover">
+                      <SelectItem value={NO_LABEL_VALUE}>Geen label</SelectItem>
                       {labels.map(label => (
                         <SelectItem key={label.id} value={label.id}>
                           <div className="flex items-center gap-2">
@@ -596,10 +679,21 @@ export default function Calendar() {
                   />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setEventDialogOpen(false)}>
+                  {editingEventId && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleDeleteEvent(editingEventId)}
+                      className="mr-auto text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Verwijderen
+                    </Button>
+                  )}
+                  <Button type="button" variant="outline" onClick={() => handleEventDialogOpenChange(false)}>
                     Annuleren
                   </Button>
-                  <Button type="submit">Aanmaken</Button>
+                  <Button type="submit">{editingEventId ? 'Opslaan' : 'Aanmaken'}</Button>
                 </div>
               </form>
             </DialogContent>
@@ -692,11 +786,14 @@ export default function Calendar() {
                 const isSelected = selectedDate && isSameDay(day, selectedDate);
 
                 return (
-                  <button
+                  <div
                     key={day.toISOString()}
                     onClick={() => handleDayClick(day)}
+                    onKeyDown={(e) => handleCalendarDayKeyDown(e, day)}
+                    role="button"
+                    tabIndex={0}
                     className={cn(
-                      "min-h-[100px] p-1.5 rounded-lg text-left transition-all relative",
+                      "min-h-[100px] p-1.5 rounded-lg text-left transition-all relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       isCurrentMonth ? 'bg-card hover:bg-muted/50' : 'bg-muted/30 text-muted-foreground',
                       isCurrentDay && 'ring-2 ring-primary',
                       isSelected && 'bg-primary/10'
@@ -712,7 +809,15 @@ export default function Calendar() {
                       {dayEvents.slice(0, 3).map(event => (
                         <div
                           key={event.id}
-                          className="text-xs px-1.5 py-0.5 rounded truncate"
+                          role="button"
+                          tabIndex={0}
+                          title={`Wijzig ${event.title}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditEvent(event);
+                          }}
+                          onKeyDown={(e) => handleCalendarEventKeyDown(e, event)}
+                          className="text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:ring-1 hover:ring-ring focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                           style={{ 
                             backgroundColor: event.label?.color ? `${event.label.color}20` : 'hsl(var(--muted))',
                             borderLeft: `3px solid ${event.label?.color || 'hsl(var(--primary))'}`
@@ -727,7 +832,7 @@ export default function Calendar() {
                         </div>
                       )}
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -793,8 +898,18 @@ export default function Calendar() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => deleteEvent(event.id)}
+                    onClick={() => handleEditEvent(event)}
+                    className="h-8 w-8"
+                    title="Afspraak wijzigen"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteEvent(event.id)}
                     className="text-destructive h-8 w-8"
+                    title="Afspraak verwijderen"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

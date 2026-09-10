@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import Particles, { ParticlesProvider } from '@tsparticles/react';
+import type { Engine, ISourceOptions } from '@tsparticles/engine';
+import { loadSlim } from '@tsparticles/slim';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +12,79 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Briefcase, Loader2 } from 'lucide-react';
 import { AuthentikLoginButton } from './AuthentikLoginButton';
+
+const initLoginParticles = async (engine: Engine) => {
+  await loadSlim(engine);
+};
+
+const loginParticlesOptions: ISourceOptions = {
+  background: {
+    color: {
+      value: 'transparent',
+    },
+  },
+  detectRetina: true,
+  fpsLimit: 40,
+  fullScreen: {
+    enable: false,
+  },
+  interactivity: {
+    events: {
+      onHover: {
+        enable: false,
+      },
+      onClick: {
+        enable: false,
+      },
+      resize: {
+        enable: true,
+      },
+    },
+  },
+  particles: {
+    color: {
+      value: ['#3B82F6', '#16A34A', '#94A3B8'],
+    },
+    links: {
+      color: '#3B82F6',
+      distance: 145,
+      enable: true,
+      opacity: 0.14,
+      width: 1,
+    },
+    move: {
+      direction: 'none',
+      enable: true,
+      outModes: {
+        default: 'bounce',
+      },
+      random: true,
+      speed: 0.35,
+      straight: false,
+    },
+    number: {
+      density: {
+        enable: true,
+      },
+      value: 34,
+    },
+    opacity: {
+      value: {
+        min: 0.12,
+        max: 0.28,
+      },
+    },
+    shape: {
+      type: 'circle',
+    },
+    size: {
+      value: {
+        min: 1,
+        max: 3,
+      },
+    },
+  },
+};
 
 export function AuthPage() {
   const [email, setEmail] = useState('');
@@ -53,13 +129,21 @@ export function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
+    <div className="relative isolate min-h-screen flex items-center justify-center overflow-hidden bg-background p-4">
+      <ParticlesProvider init={initLoginParticles}>
+        <Particles
+          id="login-particles"
+          className="pointer-events-none absolute inset-0 z-0 opacity-70"
+          options={loginParticlesOptions}
+        />
+      </ParticlesProvider>
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.10),transparent_34%),radial-gradient(circle_at_bottom_right,hsl(var(--accent)/0.08),transparent_32%)]" />
+      <div className="relative z-10 w-full max-w-md">
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="p-2 bg-primary rounded-lg">
             <Briefcase className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">MijnZaak</h1>
+          <h1 className="text-2xl font-bold text-foreground">Bedrijfsnaam</h1>
         </div>
 
         <Card>

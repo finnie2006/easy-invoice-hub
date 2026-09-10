@@ -384,6 +384,30 @@ app.use(cors({
 app.use(express.json({ limit: BODY_LIMIT }));
 app.use('/uploads', express.static(UPLOAD_ROOT));
 
+app.get('/api/public/branding', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.company_name, p.logo_url
+       FROM public.profiles p
+       LEFT JOIN public.user_roles ur ON ur.user_id = p.user_id
+       WHERE p.use_company_branding = true
+         AND NULLIF(BTRIM(p.company_name), '') IS NOT NULL
+       ORDER BY CASE WHEN ur.role = 'admin' THEN 0 ELSE 1 END,
+                p.updated_at DESC
+       LIMIT 1`
+    );
+
+    const branding = result.rows[0] || {};
+    res.json({
+      appName: branding.company_name || 'MijnZaak',
+      logoUrl: branding.logo_url || null,
+    });
+  } catch (err) {
+    console.error('Error fetching public branding:', err);
+    res.status(500).json({ error: 'Failed to fetch public branding' });
+  }
+});
+
 const authLimiter = rateLimit({
   windowMs: AUTH_WINDOW_MS,
   max: AUTH_MAX_REQUESTS,

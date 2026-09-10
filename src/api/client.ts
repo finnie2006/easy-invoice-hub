@@ -241,6 +241,11 @@ export const appSettings = {
     api.put('/api/app-settings', { settings }),
 };
 
+export const publicBranding = {
+  get: () =>
+    api.get('/api/public/branding'),
+};
+
 export const pushNotifications = {
   getConfig: () =>
     api.get('/api/push/config'),

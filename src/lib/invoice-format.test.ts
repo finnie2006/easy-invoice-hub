@@ -18,6 +18,11 @@ describe('invoice quantity formatting', () => {
     expect(formatInvoiceQuantity(1, 'jaar')).toBe('1 jaar');
   });
 
+  it('formats performances as invoice units', () => {
+    expect(formatInvoiceQuantity(1, 'optreden')).toBe('1 optreden');
+    expect(formatInvoiceQuantity(2, 'optreden')).toBe('2 optredens');
+  });
+
   it('omits the unit when no unit is selected', () => {
     expect(formatInvoiceQuantity('1.00', null)).toBe('1');
   });

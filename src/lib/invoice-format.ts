@@ -2,6 +2,7 @@ const UNIT_LABELS: Record<string, { singular: string; plural: string }> = {
   uur: { singular: 'uur', plural: 'uur' },
   dag: { singular: 'dag', plural: 'dagen' },
   stuk: { singular: 'stuk', plural: 'stuks' },
+  optreden: { singular: 'optreden', plural: 'optredens' },
   project: { singular: 'project', plural: 'projecten' },
   maand: { singular: 'maand', plural: 'maanden' },
   jaar: { singular: 'jaar', plural: 'jaar' },
@@ -13,6 +14,7 @@ export const INVOICE_UNIT_OPTIONS = [
   { value: 'maand', label: 'maand' },
   { value: 'jaar', label: 'jaar' },
   { value: 'stuk', label: 'stuk' },
+  { value: 'optreden', label: 'optreden' },
   { value: 'project', label: 'project' },
 ] as const;
 

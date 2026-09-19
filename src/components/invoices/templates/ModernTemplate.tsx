@@ -132,10 +132,21 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
           <div className="flex justify-between items-start">
             <div>
               <p className="font-semibold text-gray-900 mb-2">Betalingsinformatie</p>
-              <div className="text-sm text-gray-600 space-y-1">
-                {(profile?.payment_name || profile?.company_name) && <p>T.n.v.: {profile?.payment_name || profile?.company_name}</p>}
-                {profile?.iban && <p>IBAN: <span className="font-mono">{profile.iban}</span></p>}
-                <p>Referentie: {invoice.invoice_number}</p>
+              <div className="grid grid-cols-[5rem_1fr] gap-x-2 gap-y-1 text-sm text-gray-600">
+                {(profile?.payment_name || profile?.company_name) && (
+                  <>
+                    <span>T.n.v.:</span>
+                    <span>{profile?.payment_name || profile?.company_name}</span>
+                  </>
+                )}
+                {profile?.iban && (
+                  <>
+                    <span>IBAN:</span>
+                    <span className="font-mono tabular-nums">{profile.iban}</span>
+                  </>
+                )}
+                <span>Referentie:</span>
+                <span>{invoice.invoice_number}</span>
               </div>
             </div>
             <div className="text-right text-sm">

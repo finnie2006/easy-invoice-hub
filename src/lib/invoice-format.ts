@@ -19,6 +19,10 @@ export const INVOICE_UNIT_OPTIONS = [
 ] as const;
 
 export function formatInvoiceQuantity(quantity: number | string | null | undefined, unit?: string | null) {
+  if (quantity === null || quantity === undefined || quantity === '') {
+    return '-';
+  }
+
   const amount = Number(quantity);
   const formattedQuantity = Number.isFinite(amount)
     ? amount.toLocaleString('nl-NL', {

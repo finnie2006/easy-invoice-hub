@@ -17,8 +17,9 @@ import { format, addDays } from 'date-fns';
 import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
 import { INVOICE_UNIT_OPTIONS } from '@/lib/invoice-format';
 
-interface InvoiceItemForm extends InvoiceItemInsert {
+interface InvoiceItemForm extends Omit<InvoiceItemInsert, 'quantity'> {
   id: string;
+  quantity: number | '';
 }
 
 export default function InvoiceNew() {
@@ -135,7 +136,7 @@ export default function InvoiceNew() {
   };
 
   const getItemCalc = (item: InvoiceItemForm) => {
-    return calculateItemTotals(item);
+    return calculateItemTotals({ ...item, quantity: item.quantity === '' ? null : item.quantity });
   };
 
   const itemTotals = items.map(item => getItemCalc(item));
@@ -191,7 +192,10 @@ export default function InvoiceNew() {
           discount_type: invoiceDiscountType,
           discount_value: invoiceDiscountValue,
         },
-        items: items.map(({ id, ...item }) => item),
+        items: items.map(({ id, quantity, ...item }) => ({
+          ...item,
+          quantity: quantity === '' ? null : quantity,
+        })),
       });
 
       navigate('/invoices');
@@ -401,7 +405,11 @@ export default function InvoiceNew() {
                             step="0.5"
                             min="0"
                             value={item.quantity}
-                            onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                            onChange={(e) => handleItemChange(
+                              item.id,
+                              'quantity',
+                              e.target.value === '' ? '' : parseFloat(e.target.value),
+                            )}
                             className="w-20"
                           />
                           <Select 

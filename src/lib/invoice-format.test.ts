@@ -26,4 +26,9 @@ describe('invoice quantity formatting', () => {
   it('omits the unit when no unit is selected', () => {
     expect(formatInvoiceQuantity('1.00', null)).toBe('1');
   });
+
+  it('shows a dash for an empty quantity', () => {
+    expect(formatInvoiceQuantity(null, null)).toBe('-');
+    expect(formatInvoiceQuantity('', 'uur')).toBe('-');
+  });
 });

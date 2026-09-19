@@ -17,8 +17,9 @@ import { format, parseISO } from 'date-fns';
 import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
 import { INVOICE_UNIT_OPTIONS } from '@/lib/invoice-format';
 
-interface InvoiceItemForm extends InvoiceItemInsert {
+interface InvoiceItemForm extends Omit<InvoiceItemInsert, 'quantity'> {
   id: string;
+  quantity: number | '';
 }
 
 export default function InvoiceEdit() {
@@ -77,7 +78,7 @@ export default function InvoiceEdit() {
       setItems(invoice.items?.map(item => ({
         id: item.id,
         description: item.description,
-        quantity: item.quantity,
+        quantity: item.quantity ?? '',
         unit: item.unit,
         unit_price: item.unit_price,
         btw_percentage: item.btw_percentage,
@@ -137,7 +138,7 @@ export default function InvoiceEdit() {
   };
 
   const getItemCalc = (item: InvoiceItemForm) => {
-    return calculateItemTotals(item);
+    return calculateItemTotals({ ...item, quantity: item.quantity === '' ? null : item.quantity });
   };
 
   const itemCalcs = items.map(item => getItemCalc(item));
@@ -192,7 +193,10 @@ export default function InvoiceEdit() {
           discount_type: invoiceDiscountType,
           discount_value: invoiceDiscountValue,
         },
-        items: items.map(({ id: itemId, ...item }) => item),
+        items: items.map(({ id: itemId, quantity, ...item }) => ({
+          ...item,
+          quantity: quantity === '' ? null : quantity,
+        })),
       });
 
       navigate(`/invoices/${id}`);
@@ -411,7 +415,11 @@ export default function InvoiceEdit() {
                             step="0.5"
                             min="0"
                             value={item.quantity}
-                            onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                            onChange={(e) => handleItemChange(
+                              item.id,
+                              'quantity',
+                              e.target.value === '' ? '' : parseFloat(e.target.value),
+                            )}
                             className="w-20"
                           />
                           <Select 

@@ -3,7 +3,7 @@ import { Profile } from '@/hooks/useProfile';
 export interface InvoiceItem {
   id: string;
   description: string;
-  quantity: number;
+  quantity: number | null;
   unit: string | null;
   unit_price: number;
   btw_percentage: number;

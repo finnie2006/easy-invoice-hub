@@ -7,7 +7,7 @@ export interface InvoiceItem {
   id: string;
   invoice_id: string;
   description: string;
-  quantity: number;
+  quantity: number | null;
   unit: string;
   unit_price: number;
   btw_percentage: number;
@@ -75,7 +75,7 @@ export interface InvoiceInsert {
 
 export interface InvoiceItemInsert {
   description: string;
-  quantity: number;
+  quantity: number | null;
   unit: string;
   unit_price: number;
   btw_percentage: number;
@@ -85,7 +85,7 @@ export interface InvoiceItemInsert {
 
 // Calculate item totals with discount
 export function calculateItemTotals(item: InvoiceItemInsert) {
-  const lineSubtotal = item.quantity * item.unit_price;
+  const lineSubtotal = (item.quantity ?? 1) * item.unit_price;
   let discountAmount = 0;
   if (item.discount_type === 'percentage' && item.discount_value) {
     discountAmount = lineSubtotal * (item.discount_value / 100);

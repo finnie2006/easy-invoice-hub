@@ -136,6 +136,20 @@ export const expenses = {
     api.delete(`/api/expenses/${id}`),
 };
 
+// Mileage
+export const mileage = {
+  getAll: () =>
+    api.get('/api/mileage'),
+  create: (data) =>
+    api.post('/api/mileage', data),
+  update: (id, data) =>
+    api.put(`/api/mileage/${id}`, data),
+  delete: (id) =>
+    api.delete(`/api/mileage/${id}`),
+  finalizeYear: (year) =>
+    api.post('/api/mileage/finalize-year', { year }),
+};
+
 export const otherIncome = {
   getAll: () =>
     api.get('/api/other-income'),

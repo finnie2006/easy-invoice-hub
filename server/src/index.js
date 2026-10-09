@@ -173,6 +173,15 @@ const EXPENSE_UPDATABLE_FIELDS = [
   'reverse_charge_type',
 ];
 
+const MILEAGE_UPDATABLE_FIELDS = [
+  'travel_date',
+  'destination',
+  'purpose',
+  'kilometers',
+  'rate',
+  'notes',
+];
+
 const OTHER_INCOME_UPDATABLE_FIELDS = [
   'source_name',
   'description',
@@ -1590,6 +1599,108 @@ app.delete('/api/expenses/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error deleting expense:', err);
     res.status(500).json({ error: 'Failed to delete expense' });
+  }
+});
+
+// ============================================
+// Mileage Routes
+// ============================================
+
+app.get('/api/mileage', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM public.mileage_entries WHERE user_id = $1 ORDER BY travel_date DESC, created_at DESC',
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching mileage entries:', err);
+    res.status(500).json({ error: 'Failed to fetch mileage entries' });
+  }
+});
+
+app.post('/api/mileage', authenticateToken, async (req, res) => {
+  const { travel_date, destination, purpose, kilometers, rate, notes } = req.body;
+  const parsedKilometers = Number(kilometers);
+  const parsedRate = Number(rate ?? 0.25);
+
+  if (!travel_date || !destination?.trim() || !purpose?.trim() || !Number.isFinite(parsedKilometers) || parsedKilometers <= 0 || !Number.isFinite(parsedRate) || parsedRate < 0) {
+    return res.status(400).json({ error: 'Invalid mileage entry' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO public.mileage_entries (user_id, travel_date, destination, purpose, kilometers, rate, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [req.userId, travel_date, destination.trim(), purpose.trim(), parsedKilometers, parsedRate, notes || null]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating mileage entry:', err);
+    res.status(500).json({ error: 'Failed to create mileage entry' });
+  }
+});
+
+app.post('/api/mileage/finalize-year', authenticateToken, async (req, res) => {
+  const year = Number(req.body.year);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    return res.status(400).json({ error: 'Invalid year' });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE public.mileage_entries
+       SET is_finalized = true, finalized_at = NOW(), updated_at = NOW()
+       WHERE user_id = $1
+         AND EXTRACT(YEAR FROM travel_date) = $2
+         AND is_finalized = false
+       RETURNING id`,
+      [req.userId, year]
+    );
+    res.json({ finalized: result.rowCount });
+  } catch (err) {
+    console.error('Error finalizing mileage entries:', err);
+    res.status(500).json({ error: 'Failed to finalize mileage entries' });
+  }
+});
+
+app.put('/api/mileage/:id', authenticateToken, async (req, res) => {
+  const updatePayload = buildValidatedUpdate(req.body, MILEAGE_UPDATABLE_FIELDS);
+  if (updatePayload.error) {
+    return res.status(400).json({ error: updatePayload.error });
+  }
+
+  const { fields, values, setClause } = updatePayload;
+  values.push(req.userId);
+  values.push(req.params.id);
+
+  try {
+    const result = await pool.query(
+      `UPDATE public.mileage_entries SET ${setClause}, updated_at = NOW()
+       WHERE user_id = $${fields.length + 1} AND id = $${fields.length + 2}
+       RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Mileage entry not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating mileage entry:', err);
+    res.status(500).json({ error: 'Failed to update mileage entry' });
+  }
+});
+
+app.delete('/api/mileage/:id', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM public.mileage_entries WHERE id = $1 AND user_id = $2 AND is_finalized = false RETURNING id',
+      [req.params.id, req.userId]
+    );
+    if (result.rows.length === 0) return res.status(409).json({ error: 'Definitieve ritten kunnen niet worden verwijderd' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting mileage entry:', err);
+    res.status(500).json({ error: 'Failed to delete mileage entry' });
   }
 });
 
@@ -3216,6 +3327,28 @@ const ensureRuntimeSchema = async () => {
     ALTER TABLE public.expenses
     ADD COLUMN IF NOT EXISTS has_reverse_charge boolean NOT NULL DEFAULT false
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.mileage_entries (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      travel_date date NOT NULL,
+      destination text NOT NULL,
+      purpose text NOT NULL,
+      kilometers numeric(10,1) NOT NULL CHECK (kilometers > 0),
+      rate numeric(6,2) NOT NULL DEFAULT 0.25,
+      notes text,
+      is_finalized boolean NOT NULL DEFAULT false,
+      finalized_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await pool.query('ALTER TABLE public.mileage_entries ADD COLUMN IF NOT EXISTS is_finalized boolean NOT NULL DEFAULT false');
+  await pool.query('ALTER TABLE public.mileage_entries ADD COLUMN IF NOT EXISTS finalized_at timestamptz');
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_mileage_entries_user_date ON public.mileage_entries (user_id, travel_date DESC)');
 
   await pool.query(`
     ALTER TABLE public.expenses

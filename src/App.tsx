@@ -24,6 +24,7 @@ import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
+import Mileage from "./pages/Mileage";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -69,6 +70,7 @@ function AppContent() {
         <Route path="/projects" element={<Projects />} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/expenses" element={<Expenses />} />
+        <Route path="/mileage" element={<Mileage />} />
         <Route path="/income" element={<OtherIncome />} />
         <Route path="/subscriptions" element={<Subscriptions />} />
         <Route path="/payments" element={<BankPayments />} />

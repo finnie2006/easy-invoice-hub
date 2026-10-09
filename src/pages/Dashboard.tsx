@@ -615,7 +615,7 @@ export default function Dashboard() {
               <span className="font-bold text-success">{formatCurrency(deductibleVehicleCosts)}</span>
             </div>
             <Button variant="outline" size="sm" asChild>
-              <Link to="/tax-filings">Kilometers bijwerken</Link>
+              <Link to="/mileage">Kilometers registreren</Link>
             </Button>
           </CardContent>
         </Card>

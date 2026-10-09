@@ -49,6 +49,7 @@ import {
   ChevronDown,
   Monitor,
   Repeat2,
+  Car,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -56,6 +57,7 @@ const quickActions = [
   { title: 'Nieuwe factuur', url: '/invoices/new', icon: FileText },
   { title: 'Nieuwe klant', url: '/clients?new=1', icon: Users },
   { title: 'Nieuwe uitgave', url: '/expenses?new=1', icon: Receipt },
+  { title: 'Nieuwe rit', url: '/mileage', icon: Car },
 ];
 
 const themeOptions: Array<{ value: Theme; label: string; icon: LucideIcon }> = [
@@ -83,6 +85,7 @@ const menuGroups = [
       { title: 'Inkomsten', url: '/income', icon: Banknote },
       { title: 'Betalingen', url: '/payments', icon: Landmark },
       { title: 'Uitgaven', url: '/expenses', icon: Receipt },
+      { title: 'Kilometers', url: '/mileage', icon: Car },
       { title: 'Aangiftes', url: '/tax-filings', icon: FileCheck },
     ],
   },

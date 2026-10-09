@@ -4,6 +4,7 @@ import { useExpenses } from '@/hooks/useExpenses';
 import { useOtherIncome } from '@/hooks/useOtherIncome';
 import { useBusinessAssets, BusinessAssetInsert, ASSET_CATEGORIES } from '@/hooks/useBusinessAssets';
 import { useAnnualTaxData, TAX_CONSTANTS } from '@/hooks/useAnnualTaxData';
+import { useMileage } from '@/hooks/useMileage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +43,7 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
   const { otherIncome } = useOtherIncome();
   const { assets, createAsset, deleteAsset, isCreating, getDepreciationForYear, getBookValueEndOfYear } = useBusinessAssets();
   const { taxData, upsertTaxData, isSaving, getTaxConstants } = useAnnualTaxData(selectedYear);
+  const { entries: mileageEntries } = useMileage();
 
   const [hoursWorked, setHoursWorked] = useState(0);
   const [isStarter, setIsStarter] = useState(false);
@@ -140,10 +142,18 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
   // Vehicle deduction
   const vehicleBusinessPercentage = vehicleTotalKm > 0 ? (vehicleBusinessKm / vehicleTotalKm) * 100 : 0;
   const vehicleDeduction = vehicleCosts * (vehicleBusinessPercentage / 100);
+  const finalizedMileageEntries = mileageEntries.filter((entry) => (
+    entry.is_finalized && new Date(`${entry.travel_date}T00:00:00`).getFullYear() === selectedYear
+  ));
+  const finalizedMileageDeduction = finalizedMileageEntries.reduce(
+    (sum, entry) => sum + Number(entry.kilometers) * Number(entry.rate),
+    0,
+  );
+  const mileageDeduction = finalizedMileageEntries.length > 0 ? finalizedMileageDeduction : vehicleDeduction;
 
   // Profit
   const grossProfit = totalRevenueExclBtw - totalExpensesExclBtw - totalDepreciation;
-  const profitAfterVehicle = grossProfit - vehicleDeduction;
+  const profitAfterVehicle = grossProfit - mileageDeduction;
 
   // Ondernemersaftrek
   const constants = getTaxConstants(selectedYear);
@@ -203,11 +213,11 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
                   - {formatCurrency(totalDepreciation)}
                 </TableCell>
               </TableRow>
-              {vehicleDeduction > 0 && (
+              {mileageDeduction > 0 && (
                 <TableRow>
-                  <TableCell className="font-medium">Zakelijke autokosten</TableCell>
+                  <TableCell className="font-medium">Zakelijke autokosten{finalizedMileageEntries.length > 0 ? ' (definitieve ritten)' : ''}</TableCell>
                   <TableCell className="text-right text-destructive font-medium">
-                    - {formatCurrency(vehicleDeduction)}
+                    - {formatCurrency(mileageDeduction)}
                   </TableCell>
                 </TableRow>
               )}
@@ -570,7 +580,7 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
             Autokosten / privégebruik
           </CardTitle>
           <CardDescription>
-            Bereken het zakelijke deel van je autokosten
+            Definitieve ritten worden automatisch gebruikt. Zonder definitieve ritten kun je dit handmatig berekenen.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -627,7 +637,7 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
             Opslaan
           </Button>
 
-          {vehicleTotalKm > 0 && (
+          {vehicleTotalKm > 0 && finalizedMileageEntries.length === 0 && (
             <>
               <Separator />
               <div className="grid gap-4 sm:grid-cols-3">
@@ -675,10 +685,10 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
                 <TableCell className="font-medium">Afschrijvingen</TableCell>
                 <TableCell className="text-right">- {formatCurrency(totalDepreciation)}</TableCell>
               </TableRow>
-              {vehicleDeduction > 0 && (
+              {mileageDeduction > 0 && (
                 <TableRow>
-                  <TableCell className="font-medium">Zakelijke autokosten</TableCell>
-                  <TableCell className="text-right">- {formatCurrency(vehicleDeduction)}</TableCell>
+                  <TableCell className="font-medium">Zakelijke autokosten{finalizedMileageEntries.length > 0 ? ' (definitieve ritten)' : ''}</TableCell>
+                  <TableCell className="text-right">- {formatCurrency(mileageDeduction)}</TableCell>
                 </TableRow>
               )}
               <TableRow className="border-t">

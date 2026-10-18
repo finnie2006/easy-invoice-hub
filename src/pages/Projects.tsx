@@ -126,8 +126,8 @@ export default function Projects() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Projecten</h1>
-          <p className="text-muted-foreground">Beheer je projecten en registreer uren</p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Projecten</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">Beheer je projecten en registreer uren</p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>

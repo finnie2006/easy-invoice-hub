@@ -15,6 +15,7 @@ export interface Profile {
   btw_number: string | null;
   iban: string | null;
   default_hourly_rate: number | null;
+  default_km_rate: number | null;
   default_payment_terms: number | null;
   logo_url: string | null;
   use_company_branding: boolean | null;

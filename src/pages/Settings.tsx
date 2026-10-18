@@ -17,6 +17,8 @@ import {
   DEFAULT_INVOICE_EMAIL_SUBJECT,
   INVOICE_EMAIL_VARIABLES,
 } from '@/lib/invoice-email-template';
+const NUMERIC_PROFILE_FIELDS = ['default_hourly_rate', 'default_km_rate', 'default_payment_terms'] as const;
+
 export default function Settings() {
   const { profile, isLoading, updateProfile, isUpdating, appName } = useProfile();
   const [formData, setFormData] = useState<Partial<Profile>>({});
@@ -31,7 +33,11 @@ export default function Settings() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile(formData);
+    const payload: Record<string, unknown> = { ...formData };
+    for (const key of NUMERIC_PROFILE_FIELDS) {
+      if (payload[key] === '') payload[key] = null;
+    }
+    updateProfile(payload);
     setFormData({});
   };
 
@@ -50,8 +56,8 @@ export default function Settings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Instellingen</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Instellingen</h1>
+        <p className="text-sm text-muted-foreground sm:text-base">
           Beheer je bedrijfsgegevens en voorkeuren
         </p>
       </div>
@@ -233,6 +239,23 @@ export default function Settings() {
                     onChange={handleChange}
                     placeholder="75.00"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="default_km_rate">Standaard km-tarief (€)</Label>
+                  <Input
+                    id="default_km_rate"
+                    name="default_km_rate"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={displayData.default_km_rate ?? ''}
+                    onChange={handleChange}
+                    placeholder="0.25"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Wordt ingevuld als je op een factuurregel de eenheid "km" kiest.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

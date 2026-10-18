@@ -65,8 +65,8 @@ export default function Mileage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Kilometerregistratie</h1>
-        <p className="text-sm sm:text-base text-muted-foreground">Leg zakelijke ritten met je privéauto vast voor je administratie</p>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Kilometerregistratie</h1>
+        <p className="text-sm text-muted-foreground sm:text-base">Leg zakelijke ritten met je privéauto vast voor je administratie</p>
       </div>
 
       <Alert>

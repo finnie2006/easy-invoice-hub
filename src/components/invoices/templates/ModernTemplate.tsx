@@ -85,7 +85,7 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
             <tbody>
               {invoice.items?.map((item, index) => (
                 <tr key={item.id} className={`border-b border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
-                  <td className="py-4 pr-4 text-gray-800 break-words whitespace-pre-wrap align-top">{item.description}</td>
+                  <td className="py-4 pr-4 text-gray-800 wrap-break-word whitespace-pre-wrap align-top">{item.description}</td>
                   <td className="text-right py-4 text-gray-600 align-top tabular-nums">{formatInvoiceQuantity(item.quantity, item.unit)}</td>
                   <td className="text-right py-4 text-gray-600 align-top tabular-nums">{formatCurrency(item.unit_price)}</td>
                   {hasItemDiscounts && (

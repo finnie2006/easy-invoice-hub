@@ -285,8 +285,8 @@ export default function Calendar() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Agenda</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Agenda</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
             Beheer je afspraken en taken
           </p>
         </div>
@@ -721,7 +721,7 @@ export default function Calendar() {
                   }`}
                 >
                   <div 
-                    className="w-3 h-3 rounded-full flex-shrink-0" 
+                    className="w-3 h-3 rounded-full shrink-0" 
                     style={{ backgroundColor: label.color }}
                   />
                   <span className="text-sm">{label.name}</span>
@@ -793,7 +793,7 @@ export default function Calendar() {
                     role="button"
                     tabIndex={0}
                     className={cn(
-                      "min-h-[100px] p-1.5 rounded-lg text-left transition-all relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      "min-h-[100px] p-1.5 rounded-lg text-left transition-all relative cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       isCurrentMonth ? 'bg-card hover:bg-muted/50' : 'bg-muted/30 text-muted-foreground',
                       isCurrentDay && 'ring-2 ring-primary',
                       isSelected && 'bg-primary/10'
@@ -817,7 +817,7 @@ export default function Calendar() {
                             handleEditEvent(event);
                           }}
                           onKeyDown={(e) => handleCalendarEventKeyDown(e, event)}
-                          className="text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:ring-1 hover:ring-ring focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          className="text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:ring-1 hover:ring-ring focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                           style={{ 
                             backgroundColor: event.label?.color ? `${event.label.color}20` : 'hsl(var(--muted))',
                             borderLeft: `3px solid ${event.label?.color || 'hsl(var(--primary))'}`
@@ -861,7 +861,7 @@ export default function Calendar() {
                   className="flex items-start gap-4 p-3 rounded-lg bg-muted/50"
                 >
                   <div 
-                    className="w-1 h-12 rounded-full flex-shrink-0"
+                    className="w-1 h-12 rounded-full shrink-0"
                     style={{ backgroundColor: event.label?.color || 'hsl(var(--primary))' }}
                   />
                   <div className="flex-1 min-w-0">

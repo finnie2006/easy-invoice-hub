@@ -93,6 +93,7 @@ const PROFILE_UPDATABLE_FIELDS = [
   'btw_number',
   'iban',
   'default_hourly_rate',
+  'default_km_rate',
   'default_payment_terms',
   'logo_url',
   'use_company_branding',
@@ -3398,6 +3399,11 @@ const ensureRuntimeSchema = async () => {
   await pool.query(`
     ALTER TABLE public.invoices
     ADD COLUMN IF NOT EXISTS paid_at timestamptz
+  `);
+
+  await pool.query(`
+    ALTER TABLE public.profiles
+    ADD COLUMN IF NOT EXISTS default_km_rate numeric(8,2)
   `);
 
   await pool.query(`

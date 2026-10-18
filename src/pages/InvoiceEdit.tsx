@@ -15,7 +15,7 @@ import { DiscountInput } from '@/components/invoices/DiscountInput';
 import { Loader2, Plus, Trash2, FileText, ArrowLeft } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { sanitizeRichTextHtml } from '@/lib/sanitize-html';
-import { INVOICE_UNIT_OPTIONS } from '@/lib/invoice-format';
+import { INVOICE_UNIT_OPTIONS, applyUnitChange, getUnitPriceLabel } from '@/lib/invoice-format';
 
 interface InvoiceItemForm extends Omit<InvoiceItemInsert, 'quantity'> {
   id: string;
@@ -117,6 +117,11 @@ export default function InvoiceEdit() {
       item.id === id ? { ...item, [field]: value } : item
     ));
   };
+  const handleUnitChange = (id: string, unit: string | null) => {
+    const rates = { hourly: profile?.default_hourly_rate, km: profile?.default_km_rate };
+    setItems(prev => prev.map(item => (item.id === id ? applyUnitChange(item, unit, rates) : item)));
+  };
+
 
   const addItem = () => {
     setItems(prev => [...prev, {
@@ -231,8 +236,8 @@ export default function InvoiceEdit() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Factuur bewerken</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Factuur bewerken</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">
             Factuur {invoiceNumber}
           </p>
         </div>
@@ -412,7 +417,7 @@ export default function InvoiceEdit() {
                         <div className="flex gap-2">
                           <Input
                             type="number"
-                            step="0.5"
+                            step={item.unit === 'km' ? 'any' : '0.5'}
                             min="0"
                             value={item.quantity}
                             onChange={(e) => handleItemChange(
@@ -424,7 +429,7 @@ export default function InvoiceEdit() {
                           />
                           <Select 
                             value={item.unit || 'none'} 
-                            onValueChange={(value) => handleItemChange(item.id, 'unit', value === 'none' ? null : value)}
+                            onValueChange={(value) => handleUnitChange(item.id, value === 'none' ? null : value)}
                           >
                             <SelectTrigger className="w-24">
                               <SelectValue />
@@ -439,7 +444,7 @@ export default function InvoiceEdit() {
                         </div>
                       </div>
                       <div className="md:col-span-2 space-y-2">
-                        <Label>Prijs (€)</Label>
+                        <Label>{getUnitPriceLabel(item.unit)}</Label>
                         <Input
                           type="number"
                           step="0.01"

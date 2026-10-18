@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AuthPage } from "@/components/auth/AuthPage";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "@/hooks/useTheme";
 import { lazy, Suspense } from "react";
@@ -61,6 +62,7 @@ function PageLoader({ fullScreen = false }: { fullScreen?: boolean }) {
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <PageLoader fullScreen />;
@@ -80,48 +82,52 @@ function AppContent() {
 
   return (
     <AppLayout>
-      <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/invoices" element={<Invoices />} />
-          <Route path="/invoices/new" element={<InvoiceNew />} />
-          <Route path="/invoices/:id" element={<InvoiceDetail />} />
-          <Route path="/invoices/:id/edit" element={<InvoiceEdit />} />
-          <Route path="/clients" element={<Clients />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route path="/expenses" element={<Expenses />} />
-          <Route path="/mileage" element={<Mileage />} />
-          <Route path="/income" element={<OtherIncome />} />
-          <Route path="/subscriptions" element={<Subscriptions />} />
-          <Route path="/payments" element={<BankPayments />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/tax-filings" element={<TaxFilings />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
-          <Route path="/auth" element={<RedirectFromAuth />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Suspense>
+      <ErrorBoundary resetKey={location.pathname}>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/invoices" element={<Invoices />} />
+            <Route path="/invoices/new" element={<InvoiceNew />} />
+            <Route path="/invoices/:id" element={<InvoiceDetail />} />
+            <Route path="/invoices/:id/edit" element={<InvoiceEdit />} />
+            <Route path="/clients" element={<Clients />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/projects/:id" element={<ProjectDetail />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/mileage" element={<Mileage />} />
+            <Route path="/income" element={<OtherIncome />} />
+            <Route path="/subscriptions" element={<Subscriptions />} />
+            <Route path="/payments" element={<BankPayments />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/tax-filings" element={<TaxFilings />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/auth" element={<RedirectFromAuth />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </AppLayout>
   );
 }
 
 const App = () => (
-  <ThemeInitializer>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ThemeInitializer>
+  <ErrorBoundary>
+    <ThemeInitializer>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <AppContent />
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeInitializer>
+  </ErrorBoundary>
 );
 
 export default App;

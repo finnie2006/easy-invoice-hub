@@ -198,7 +198,7 @@ export default function BankPayments() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Bankbetalingen</h1>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Bankbetalingen</h1>
           <p className="text-sm text-muted-foreground sm:text-base">
             Autoriseer Rabobank en verwerk betaalmeldingen automatisch
           </p>
@@ -248,7 +248,7 @@ export default function BankPayments() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Status</CardDescription>
-            <CardTitle className="flex items-center gap-2 text-2xl">
+            <CardTitle className="flex items-center gap-2">
               {status?.connected ? 'Gekoppeld' : 'Niet gekoppeld'}
               {status?.connected && <CheckCircle2 className="h-5 w-5 text-success" />}
             </CardTitle>

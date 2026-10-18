@@ -479,7 +479,7 @@ export default function InvoiceDetail() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Factuur {invoice.invoice_number}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Factuur {invoice.invoice_number}</h1>
             <div className="flex items-center gap-2 mt-1">
               {invoice.attachment_url && (
                 <Badge variant="outline">Extern</Badge>
@@ -660,7 +660,7 @@ export default function InvoiceDetail() {
         <Card className="print:shadow-none print:border-none overflow-hidden">
           <CardContent className="p-0 bg-slate-100/70">
             <div className="p-3 md:p-6 lg:p-8 overflow-x-auto">
-              <div className="mx-auto w-[794px] max-w-full shadow-sm ring-1 ring-slate-200">
+              <div className="mx-auto w-[794px] max-w-full shadow-xs ring-1 ring-slate-200">
                 <div ref={invoiceRef}>
                   {renderTemplate()}
                 </div>

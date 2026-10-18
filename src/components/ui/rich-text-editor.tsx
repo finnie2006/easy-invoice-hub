@@ -112,7 +112,7 @@ export function RichTextEditor({ value, onChange, placeholder, className, id }: 
         onKeyDown={handleKeyDown}
         data-placeholder={placeholder}
         className={cn(
-          "min-h-[80px] px-3 py-2 text-sm outline-none",
+          "min-h-[80px] px-3 py-2 text-sm outline-hidden",
           "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground empty:before:pointer-events-none"
         )}
         suppressContentEditableWarning

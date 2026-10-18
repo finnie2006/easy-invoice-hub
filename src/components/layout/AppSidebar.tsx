@@ -229,11 +229,11 @@ export function AppSidebar() {
       } as React.CSSProperties}
     >
       <SidebarHeader className="p-4" style={{ borderBottom: `1px solid ${themeStyles.border}` }}>
-        <Link to="/" className="flex items-center gap-2" onClick={closeMobileSidebar}>
-          <div className="p-1.5 bg-sidebar-primary rounded-lg">
+        <Link to="/" className="flex items-center gap-3" onClick={closeMobileSidebar}>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary">
             <Briefcase className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
-          <span className="font-bold text-lg text-sidebar-foreground truncate">{appName}</span>
+          <span className="truncate text-lg font-semibold tracking-tight text-sidebar-foreground">{appName}</span>
         </Link>
       </SidebarHeader>
 

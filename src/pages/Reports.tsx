@@ -363,8 +363,8 @@ export default function Reports() {
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Rapporten</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Financieel overzicht voor de belastingaangifte</p>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Rapporten</h1>
+          <p className="text-sm text-muted-foreground sm:text-base">Financieel overzicht voor de belastingaangifte</p>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-row">
           <Select value={year} onValueChange={setYear}>
@@ -412,7 +412,7 @@ export default function Reports() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-            <div className="break-words text-xl font-bold tabular-nums text-success sm:text-2xl">{formatCurrency(totalRevenueExclBtw)}</div>
+            <div className="wrap-break-word text-xl font-bold tabular-nums text-success sm:text-2xl">{formatCurrency(totalRevenueExclBtw)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {formatCurrency(invoiceRevenueExclBtw)} facturen · {formatCurrency(otherIncomeRevenue)} zonder factuur
             </p>
@@ -427,7 +427,7 @@ export default function Reports() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-            <div className="break-words text-xl font-bold tabular-nums text-destructive sm:text-2xl">{formatCurrency(totalExpensesExclBtw)}</div>
+            <div className="wrap-break-word text-xl font-bold tabular-nums text-destructive sm:text-2xl">{formatCurrency(totalExpensesExclBtw)}</div>
             <p className="text-xs text-muted-foreground mt-1">{periodExpenses.length} uitgaven</p>
           </CardContent>
         </Card>
@@ -437,7 +437,7 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium leading-snug">Winst / Verlies</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-            <div className={`break-words text-xl font-bold tabular-nums sm:text-2xl ${profit >= 0 ? "text-success" : "text-destructive"}`}>
+            <div className={`wrap-break-word text-xl font-bold tabular-nums sm:text-2xl ${profit >= 0 ? "text-success" : "text-destructive"}`}>
               {formatCurrency(profit)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Omzet min kosten</p>
@@ -449,7 +449,7 @@ export default function Reports() {
             <CardTitle className="text-sm font-medium leading-snug">BTW af te dragen</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-            <div className={`break-words text-xl font-bold tabular-nums sm:text-2xl ${vatToPay >= 0 ? "text-warning" : "text-success"}`}>
+            <div className={`wrap-break-word text-xl font-bold tabular-nums sm:text-2xl ${vatToPay >= 0 ? "text-warning" : "text-success"}`}>
               {formatCurrency(vatToPay)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">{vatToPay >= 0 ? "Te betalen" : "Terug te vorderen"}</p>
@@ -460,7 +460,7 @@ export default function Reports() {
       {/* Revenue Chart */}
       <Card>
         <CardHeader className="p-4 sm:p-6">
-          <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
+          <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 shrink-0" />
             Omzet & Kosten per maand
           </CardTitle>
@@ -506,7 +506,7 @@ export default function Reports() {
         {/* BTW Overview */}
         <Card>
           <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
+            <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 shrink-0" />
               BTW Overzicht
             </CardTitle>
@@ -549,7 +549,7 @@ export default function Reports() {
         {/* Expenses by Category */}
         <Card>
           <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
+            <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 shrink-0" />
               Kosten per categorie
             </CardTitle>
@@ -590,7 +590,7 @@ export default function Reports() {
       {/* Unpaid Invoices */}
       <Card>
         <CardHeader className="p-4 sm:p-6">
-          <CardTitle className="flex items-center gap-2 text-lg sm:text-2xl">
+          <CardTitle className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 shrink-0" />
             Onbetaalde facturen
           </CardTitle>

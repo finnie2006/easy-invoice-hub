@@ -317,7 +317,7 @@ export default function BtwFilingWizard({
                     >
                       <div className="flex items-start gap-4">
                         <CheckCircle2
-                          className={`h-6 w-6 flex-shrink-0 mt-1 ${
+                          className={`h-6 w-6 shrink-0 mt-1 ${
                             formData.field_5c > 0
                               ? 'text-warning'
                               : formData.field_5c < 0

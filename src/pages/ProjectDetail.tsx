@@ -247,7 +247,7 @@ export default function ProjectDetail() {
         </Button>
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold">{project.name}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{project.name}</h1>
             {getStatusBadge(project.status)}
           </div>
           {(project.client?.company_name || project.client_name) && (

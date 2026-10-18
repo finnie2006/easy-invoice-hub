@@ -76,6 +76,8 @@ export const auth = {
     api.post('/api/auth/logout'),
   callback: (code, state) =>
     api.post('/api/auth/callback', { code, state }),
+  verifyMfa: (mfaToken: string, code: { totpToken: string } | { recoveryCode: string }) =>
+    api.post('/api/auth/mfa/verify-token', { mfaToken, ...code }),
 };
 
 // Profile

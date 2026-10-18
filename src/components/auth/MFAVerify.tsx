@@ -1,126 +1,116 @@
 import { useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import type { MfaCode } from '@/contexts/AuthContext';
 
-export function MFAVerify({ userId, onVerify, onError }) {
-  const [method, setMethod] = useState('totp'); // totp or recovery
+interface MFAVerifyProps {
+  onVerify: (code: MfaCode) => Promise<void>;
+  onCancel: () => void;
+}
+
+export function MFAVerify({ onVerify, onCancel }: MFAVerifyProps) {
+  const [method, setMethod] = useState<'totp' | 'recovery'>('totp');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleVerify = async () => {
-    if (!code) return;
+  const isComplete = method === 'totp' ? code.length === 6 : code.trim().length >= 9;
 
+  const submit = async (value = code) => {
+    if (loading) return;
     setLoading(true);
     try {
-      const response = await fetch('/api/auth/mfa/verify-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          ...(method === 'totp'
-            ? { totpToken: code }
-            : { recoveryCode: code }),
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Invalid code');
-      }
-
-      const data = await response.json();
-      onVerify(data);
-    } catch (error) {
-      onError(error.message);
+      await onVerify(method === 'totp' ? { totpToken: value } : { recoveryCode: value.trim() });
     } finally {
       setLoading(false);
+      setCode('');
     }
   };
 
+  const switchMethod = () => {
+    setMethod((current) => (current === 'totp' ? 'recovery' : 'totp'));
+    setCode('');
+  };
+
   return (
-    <Card className="w-full max-w-md p-6">
-      <h2 className="text-2xl font-bold mb-4">Two-Factor Authentication</h2>
-
-      <Alert className="mb-4">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Enter your 6-digit code or a recovery code to continue
-        </AlertDescription>
-      </Alert>
-
-      <div className="space-y-4">
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              setMethod('totp');
-              setCode('');
-            }}
-            className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${
-              method === 'totp'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Authenticator
-          </button>
-          <button
-            onClick={() => {
-              setMethod('recovery');
-              setCode('');
-            }}
-            className={`flex-1 py-2 px-3 rounded text-sm font-medium transition-colors ${
-              method === 'recovery'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Recovery Code
-          </button>
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <ShieldCheck className="h-5 w-5" />
         </div>
+        <h2 className="text-2xl font-semibold tracking-tight">Tweestapsverificatie</h2>
+        <p className="text-sm text-muted-foreground">
+          {method === 'totp'
+            ? 'Voer de 6-cijferige code uit je authenticator-app in.'
+            : 'Voer een van je herstelcodes in (formaat XXXX-XXXX).'}
+        </p>
+      </div>
 
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (isComplete) void submit();
+        }}
+      >
         {method === 'totp' ? (
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              6-digit code from your app:
-            </label>
-            <Input
-              type="text"
-              inputMode="numeric"
-              placeholder="000000"
-              maxLength="6"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              className="text-center text-2xl tracking-widest"
-              autoFocus
-            />
-          </div>
+          <InputOTP
+            maxLength={6}
+            value={code}
+            onChange={(value) => setCode(value.replace(/\D/g, ''))}
+            onComplete={(value: string) => void submit(value)}
+            autoFocus
+            disabled={loading}
+            containerClassName="justify-center"
+            aria-label="Verificatiecode"
+          >
+            <InputOTPGroup>
+              {Array.from({ length: 6 }, (_, index) => (
+                <InputOTPSlot key={index} index={index} className="h-12 w-11 text-lg" />
+              ))}
+            </InputOTPGroup>
+          </InputOTP>
         ) : (
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Recovery code (format: XXXX-XXXX):
-            </label>
+          <div className="space-y-2">
+            <Label htmlFor="recovery-code">Herstelcode</Label>
             <Input
-              type="text"
+              id="recovery-code"
               placeholder="ABCD-EFGH"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
-              className="font-mono text-center"
+              className="h-11 text-center font-mono tracking-widest"
+              autoComplete="one-time-code"
               autoFocus
+              disabled={loading}
             />
           </div>
         )}
 
-        <Button
-          onClick={handleVerify}
-          disabled={loading || !code}
-          className="w-full"
-        >
-          {loading ? 'Verifying...' : 'Verify'}
+        <Button type="submit" className="h-11 w-full" disabled={loading || !isComplete}>
+          {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Verifiëren
         </Button>
+      </form>
+
+      <div className="flex items-center justify-between text-sm">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Terug
+        </button>
+        <button
+          type="button"
+          onClick={switchMethod}
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {method === 'totp' ? 'Herstelcode gebruiken' : 'Authenticator-code gebruiken'}
+        </button>
       </div>
-    </Card>
+    </div>
   );
 }

@@ -61,7 +61,6 @@ describe('AuthCallback', () => {
     render(
       <MemoryRouter
         initialEntries={['/auth/callback?code=abc&state=expected-state']}
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
       >
         <AuthCallback />
       </MemoryRouter>
@@ -84,7 +83,6 @@ describe('AuthCallback', () => {
     render(
       <MemoryRouter
         initialEntries={['/auth/callback?code=abc&state=wrong-state']}
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
       >
         <AuthCallback />
       </MemoryRouter>

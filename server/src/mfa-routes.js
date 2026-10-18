@@ -4,6 +4,8 @@
  */
 
 import bcryptjs from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
+import { verifyMfaChallengeToken } from './auth.js';
 
 import {
   generateTOTPSecret,
@@ -36,15 +38,37 @@ function ensureMFATables(pool) {
   `);
 }
 
+// Lazy one-time schema bootstrap for existing deployments that missed MFA tables.
+let mfaSchemaReady;
+async function ensureMFASchema(pool) {
+  if (!mfaSchemaReady) {
+    mfaSchemaReady = ensureMFATables(pool).catch((err) => {
+      mfaSchemaReady = undefined;
+      throw err;
+    });
+  }
+  await mfaSchemaReady;
+}
+
+export async function isMFAEnabled(pool, userId) {
+  await ensureMFASchema(pool);
+  const result = await pool.query(
+    'SELECT 1 FROM public.user_mfa WHERE user_id = $1 AND totp_enabled = true LIMIT 1',
+    [userId]
+  );
+  return result.rows.length > 0;
+}
+
+const mfaVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many verification attempts, please try again later.' },
+});
+
 export function setupMFARoutes(app, pool, authenticateToken, createTokens, setAuthCookies) {
-  // Lazy one-time schema bootstrap for existing deployments that missed MFA tables.
-  let mfaSchemaReady;
-  const ensureSchema = async () => {
-    if (!mfaSchemaReady) {
-      mfaSchemaReady = ensureMFATables(pool);
-    }
-    await mfaSchemaReady;
-  };
+  const ensureSchema = () => ensureMFASchema(pool);
 
   /**
    * POST /api/auth/mfa/setup
@@ -55,13 +79,8 @@ export function setupMFARoutes(app, pool, authenticateToken, createTokens, setAu
     try {
       await ensureSchema();
 
-      // Check if user already has MFA enabled
-      await pool.query(
-        'SELECT id FROM public.user_mfa WHERE user_id = $1',
-        [req.userId]
-      );
-
-      const { secret, qrCode } = await generateTOTPSecret(req.userId);
+      const userResult = await pool.query('SELECT email FROM public.users WHERE id = $1', [req.userId]);
+      const { secret, qrCode } = await generateTOTPSecret(userResult.rows[0]?.email || req.userId);
       const recoveryCodes = generateRecoveryCodes();
 
       // Store temporary (not yet verified) MFA data in a separate field or cache
@@ -181,6 +200,10 @@ export function setupMFARoutes(app, pool, authenticateToken, createTokens, setAu
         return res.status(404).json({ error: 'User not found' });
       }
 
+      if (!userResult.rows[0].password_hash || typeof password !== 'string') {
+        return res.status(400).json({ error: 'Invalid password' });
+      }
+
       const validPassword = await bcryptjs.compare(password, userResult.rows[0].password_hash);
       if (!validPassword) {
         return res.status(401).json({ error: 'Invalid password' });
@@ -202,15 +225,19 @@ export function setupMFARoutes(app, pool, authenticateToken, createTokens, setAu
   /**
    * POST /api/auth/mfa/verify-token
    * Verify TOTP or recovery code during login
-   * Body: { totpToken } or { recoveryCode }
-   * Note: This is called after username/password auth, before issuing JWT
+   * Body: { mfaToken, totpToken } or { mfaToken, recoveryCode }
+   * Note: mfaToken is the short-lived challenge issued by /api/auth/login after
+   * a successful password check, so this endpoint can't bypass the password.
    */
-  app.post('/api/auth/mfa/verify-token', async (req, res) => {
-    const { userId, totpToken, recoveryCode } = req.body;
+  app.post('/api/auth/mfa/verify-token', mfaVerifyLimiter, async (req, res) => {
+    const { mfaToken, totpToken, recoveryCode } = req.body || {};
+    const challenge = verifyMfaChallengeToken(mfaToken);
 
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID required' });
+    if (!challenge) {
+      return res.status(401).json({ error: 'MFA-sessie verlopen. Log opnieuw in.' });
     }
+
+    const { userId } = challenge;
 
     if (!totpToken && !recoveryCode) {
       return res.status(400).json({ error: 'TOTP token or recovery code required' });
@@ -259,12 +286,15 @@ export function setupMFARoutes(app, pool, authenticateToken, createTokens, setAu
       // Clear failed attempts on success
       await clearMFAAttempts(pool, userId);
 
-      // Issue tokens
+      // Issue tokens, unless the session was invalidated since the password step
       const tokenVersionResult = await pool.query(
         'SELECT COALESCE(token_version, 0) AS token_version FROM public.users WHERE id = $1',
         [userId]
       );
       const tokenVersion = Number(tokenVersionResult.rows[0]?.token_version || 0);
+      if (tokenVersionResult.rows.length === 0 || tokenVersion !== Number(challenge.tokenVersion || 0)) {
+        return res.status(401).json({ error: 'MFA-sessie verlopen. Log opnieuw in.' });
+      }
       const { accessToken, refreshToken } = createTokens(userId, tokenVersion);
       setAuthCookies(req, res, accessToken, refreshToken);
       res.json({ accessToken, refreshToken, userId });

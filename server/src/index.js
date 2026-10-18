@@ -14,13 +14,14 @@ import pool from './db.js';
 import {
   authenticateToken,
   createTokens,
+  createMfaChallengeToken,
   verifyAccessToken,
   verifyRefreshToken,
   setAuthCookies,
   clearAuthCookies,
   getRefreshTokenFromRequest,
 } from './auth.js';
-import { setupMFARoutes } from './mfa-routes.js';
+import { setupMFARoutes, isMFAEnabled } from './mfa-routes.js';
 import { setupOAuthRoutes } from './oauth-routes.js';
 import { isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback } from './oauth.js';
 
@@ -407,9 +408,11 @@ app.get('/api/public/branding', async (req, res) => {
     );
 
     const branding = result.rows[0] || {};
+    const registrationEnabled = await getSetting('registration_enabled', true);
     res.json({
       appName: branding.company_name || 'MijnZaak',
       logoUrl: branding.logo_url || null,
+      registrationEnabled: registrationEnabled !== false,
     });
   } catch (err) {
     console.error('Error fetching public branding:', err);
@@ -868,12 +871,34 @@ function renderInvoiceEmailTemplate(template, variables) {
 // Authentication Routes
 // ============================================
 
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 128;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Compared against when the user doesn't exist, so response time doesn't reveal valid emails.
+const DUMMY_PASSWORD_HASH = bcryptjs.hashSync(randomUUID(), 10);
+
+function readCredentials(body) {
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const password = typeof body?.password === 'string' ? body.password : '';
+  return { email, password };
+}
+
 // Register
 app.post('/api/auth/register', authLimiter, async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = readCredentials(req.body);
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password required' });
+  }
+
+  if (!EMAIL_PATTERN.test(email) || email.length > 254) {
+    return res.status(400).json({ error: 'Ongeldig e-mailadres' });
+  }
+
+  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+    return res.status(400).json({
+      error: `Wachtwoord moet tussen ${MIN_PASSWORD_LENGTH} en ${MAX_PASSWORD_LENGTH} tekens lang zijn`,
+    });
   }
 
   try {
@@ -883,7 +908,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     }
 
     // Check if user exists
-    const existingUser = await pool.query('SELECT id FROM public.users WHERE email = $1', [email]);
+    const existingUser = await pool.query('SELECT id FROM public.users WHERE LOWER(email) = $1', [email]);
     if (existingUser.rows.length > 0) {
       return res.status(409).json({ error: 'User already exists' });
     }
@@ -936,7 +961,7 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
 
 // Login
 app.post('/api/auth/login', authLimiter, async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = readCredentials(req.body);
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password required' });
@@ -949,15 +974,18 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
               COALESCE(failed_login_attempts, 0) AS failed_login_attempts,
               locked_until
        FROM public.users
-       WHERE email = $1`,
+       WHERE LOWER(email) = $1
+       ORDER BY created_at ASC
+       LIMIT 1`,
       [email]
     );
 
-    if (result.rows.length === 0) {
+    const user = result.rows[0];
+    if (!user || !user.password_hash) {
+      await bcryptjs.compare(password, DUMMY_PASSWORD_HASH);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const user = result.rows[0];
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
       return res.status(423).json({ error: 'Account tijdelijk vergrendeld. Probeer later opnieuw.' });
     }
@@ -991,7 +1019,12 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       [user.id]
     );
 
-    const { accessToken, refreshToken } = createTokens(user.id, Number(user.token_version || 0));
+    const tokenVersion = Number(user.token_version || 0);
+    if (await isMFAEnabled(pool, user.id)) {
+      return res.json({ mfaRequired: true, mfaToken: createMfaChallengeToken(user.id, tokenVersion) });
+    }
+
+    const { accessToken, refreshToken } = createTokens(user.id, tokenVersion);
     setAuthCookies(req, res, accessToken, refreshToken);
     res.json({ accessToken, refreshToken, userId: user.id });
   } catch (err) {
@@ -3087,7 +3120,7 @@ app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUp
     const message = renderInvoiceEmailTemplate(bodyTemplate, variables);
 
     await transporter.sendMail({
-      from: `${fromName} <${fromEmail}>`,
+      from: { name: fromName, address: fromEmail },
       to: recipientEmail,
       subject,
       text: message,

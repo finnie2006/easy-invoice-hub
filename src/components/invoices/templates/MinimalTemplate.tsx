@@ -46,7 +46,7 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
         </div>
         {invoice.items?.map((item) => {
           const quantity = formatInvoiceQuantity(item.quantity, item.unit);
-          const hasQuantity = item.quantity !== null && item.quantity !== undefined && item.quantity !== '';
+          const hasQuantity = item.quantity !== null && item.quantity !== undefined && String(item.quantity) !== '';
 
           return (
             <div key={item.id} className="flex py-3 border-b border-gray-100">

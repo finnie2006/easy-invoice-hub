@@ -21,6 +21,8 @@ function getRequiredSecret(name, insecureDefault) {
 
 const JWT_SECRET = getRequiredSecret('JWT_SECRET', 'your-secret-key-change-in-production');
 const JWT_REFRESH_SECRET = getRequiredSecret('JWT_REFRESH_SECRET', 'your-refresh-secret-key-change-in-production');
+// Separate key so an MFA challenge token can never be used as an access token.
+const MFA_CHALLENGE_SECRET = `${JWT_SECRET}:mfa-challenge`;
 const ACCESS_COOKIE_NAME = 'invoice_hub_access';
 const REFRESH_COOKIE_NAME = 'invoice_hub_refresh';
 
@@ -32,8 +34,11 @@ function parseCookies(req) {
     const idx = part.indexOf('=');
     if (idx === -1) return acc;
     const key = part.slice(0, idx).trim();
-    const value = decodeURIComponent(part.slice(idx + 1));
-    acc[key] = value;
+    try {
+      acc[key] = decodeURIComponent(part.slice(idx + 1));
+    } catch {
+      // Ignore malformed cookie values instead of failing the request.
+    }
     return acc;
   }, {});
 }
@@ -63,6 +68,20 @@ export function createTokens(userId, tokenVersion = 0) {
   const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
   const refreshToken = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: '7d' });
   return { accessToken, refreshToken };
+}
+
+export function createMfaChallengeToken(userId, tokenVersion = 0) {
+  return jwt.sign({ userId, tokenVersion, purpose: 'mfa' }, MFA_CHALLENGE_SECRET, { expiresIn: '5m' });
+}
+
+export function verifyMfaChallengeToken(token) {
+  if (typeof token !== 'string' || !token) return null;
+  try {
+    const decoded = jwt.verify(token, MFA_CHALLENGE_SECRET);
+    return decoded?.purpose === 'mfa' ? decoded : null;
+  } catch (err) {
+    return null;
+  }
 }
 
 export function setAuthCookies(req, res, accessToken, refreshToken) {

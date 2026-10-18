@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import bcryptjs from 'bcryptjs';
 import { randomUUID } from 'crypto';
 

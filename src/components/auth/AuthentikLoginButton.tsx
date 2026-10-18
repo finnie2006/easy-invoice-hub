@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
-import { getOAuthReturnToFromLocation } from '@/lib/auth-redirect';
+import { AlertCircle, KeyRound, Loader2 } from 'lucide-react';
+import { getOAuthReturnToFromLocation, getSafeOAuthReturnTo } from '@/lib/auth-redirect';
 
 export function AuthentikLoginButton() {
   const location = useLocation();
@@ -48,13 +48,17 @@ export function AuthentikLoginButton() {
       // Store state for CSRF validation on callback
       sessionStorage.setItem('oauth_state', data.state);
       sessionStorage.setItem('oauth_mode', 'login');
-      sessionStorage.setItem('oauth_return_to', getOAuthReturnToFromLocation(location));
+      const from = (location.state as { from?: string } | null)?.from;
+      sessionStorage.setItem(
+        'oauth_return_to',
+        from ? getSafeOAuthReturnTo(from) : getOAuthReturnToFromLocation(location)
+      );
 
       // Redirect to Authentik
       window.location.href = data.url;
     } catch (err) {
       console.error('OAuth login error:', err);
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : 'Inloggen mislukt');
       setLoading(false);
     }
   };
@@ -64,7 +68,7 @@ export function AuthentikLoginButton() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -73,21 +77,20 @@ export function AuthentikLoginButton() {
       )}
 
       <Button
+        type="button"
         onClick={handleLogin}
         disabled={loading}
         variant="outline"
-        className="w-full"
+        className="h-11 w-full"
       >
-        {loading ? 'Redirecting to Authentik...' : 'Login with Authentik'}
+        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
+        {loading ? 'Doorsturen naar Authentik…' : 'Inloggen met Authentik'}
       </Button>
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300"></div>
-        </div>
-        <div className="relative flex justify-center text-sm">
-          <span className="px-2 bg-white text-gray-500">Or</span>
-        </div>
+      <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        of met e-mail
+        <span className="h-px flex-1 bg-border" />
       </div>
     </div>
   );

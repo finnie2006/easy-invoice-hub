@@ -149,7 +149,7 @@ export function MFASetup({ onComplete, onCancel }) {
                 type="text"
                 inputMode="numeric"
                 placeholder="000000"
-                maxLength="6"
+                maxLength={6}
                 value={totpToken}
                 onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ''))}
                 className="text-center text-2xl tracking-widest"

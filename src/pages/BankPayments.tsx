@@ -70,8 +70,12 @@ const getRabobankErrorMessage = (error: unknown) => {
     : null;
 
   if (responseData && typeof responseData === 'object') {
-    const missing = Array.isArray(responseData.missing) ? responseData.missing : [];
-    const configErrors = Array.isArray(responseData.configErrors) ? responseData.configErrors : [];
+    const { missing: rawMissing, configErrors: rawConfigErrors } = responseData as {
+      missing?: unknown;
+      configErrors?: unknown;
+    };
+    const missing = Array.isArray(rawMissing) ? rawMissing : [];
+    const configErrors = Array.isArray(rawConfigErrors) ? rawConfigErrors : [];
     const details = [...missing, ...configErrors].filter((value): value is string => typeof value === 'string');
 
     if (details.length > 0) {

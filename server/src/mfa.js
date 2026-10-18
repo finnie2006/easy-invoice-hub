@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 
@@ -26,6 +27,10 @@ export async function generateTOTPSecret(email, appName = 'Easy Invoice Hub') {
  * Returns true/false
  */
 export function verifyTOTPToken(secret, token) {
+  if (typeof secret !== 'string' || typeof token !== 'string' || !/^\d{6}$/.test(token)) {
+    return false;
+  }
+
   try {
     const verified = speakeasy.totp.verify({
       secret,
@@ -46,9 +51,13 @@ export function verifyTOTPToken(secret, token) {
  * Format: XXXX-XXXX
  */
 export function generateRecoveryCodes() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const codes = [];
   for (let i = 0; i < 10; i++) {
-    const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+    let code = '';
+    for (let j = 0; j < 8; j++) {
+      code += alphabet[crypto.randomInt(alphabet.length)];
+    }
     codes.push(`${code.substring(0, 4)}-${code.substring(4, 8)}`);
   }
   return codes;
@@ -59,7 +68,10 @@ export function generateRecoveryCodes() {
  * Returns true if valid and removes it from array
  */
 export function verifyRecoveryCode(codes, code) {
-  const index = codes.indexOf(code.toUpperCase());
+  if (!Array.isArray(codes) || typeof code !== 'string') {
+    return false;
+  }
+  const index = codes.indexOf(code.trim().toUpperCase());
   if (index === -1) {
     return false;
   }

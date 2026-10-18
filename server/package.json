@@ -6,28 +6,24 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "node --watch src/index.js"
   },
   "keywords": [],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.4.1",
-    "helmet": "^8.0.0",
-    "jsonwebtoken": "^9.0.2",
-    "multer": "^2.0.2",
-    "node-fetch": "^3.3.2",
-    "nodemailer": "^9.1.0",
-    "pg": "^8.11.3",
-    "qrcode": "^1.5.3",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.3",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.1.6",
+    "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0",
     "web-push": "^3.6.7"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
   }
 }

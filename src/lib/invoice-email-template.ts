@@ -24,6 +24,7 @@ export const INVOICE_EMAIL_VARIABLES = [
   { token: '{bedrijfsnaam}', description: 'Je bedrijfsnaam' },
   { token: '{iban}', description: 'IBAN' },
   { token: '{betaalreferentie}', description: 'Betaalreferentie' },
+  { token: '{handtekening}', description: 'Afbeelding uit je e-mailhandtekening (anders onderaan geplaatst)' },
 ] as const;
 
 interface InvoiceEmailInvoice {

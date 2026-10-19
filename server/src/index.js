@@ -54,7 +54,7 @@ const BODY_LIMIT = process.env.BODY_LIMIT || '1mb';
 const UPLOAD_MAX_MB = Number(process.env.UPLOAD_MAX_MB || 10);
 const AUTH_WINDOW_MS = Number(process.env.AUTH_WINDOW_MS || 15 * 60 * 1000);
 const AUTH_MAX_REQUESTS = Number(process.env.AUTH_MAX_REQUESTS || 30);
-const ALLOWED_BUCKETS = ['receipts', 'invoice-attachments', 'logos'];
+const ALLOWED_BUCKETS = ['receipts', 'invoice-attachments', 'logos', 'email-signatures'];
 const PUBLIC_APP_SETTING_KEYS = new Set(['registration_enabled', 'environment_mode']);
 const HIDDEN_CONFIG_CHARS = /[\u0000-\u001F\u007F\u200B-\u200D\u2060\uFEFF\uFFFD]/g;
 const cleanConfigValue = (value = '') => String(value).replace(HIDDEN_CONFIG_CHARS, '').trim();
@@ -108,6 +108,7 @@ const PROFILE_UPDATABLE_FIELDS = [
   'payment_name',
   'invoice_email_subject_template',
   'invoice_email_body_template',
+  'invoice_email_signature_image_url',
 ];
 
 const CLIENT_UPDATABLE_FIELDS = [
@@ -960,6 +961,61 @@ function renderInvoiceEmailTemplate(template, variables) {
   });
 }
 
+const SIGNATURE_IMAGE_TOKEN = '{handtekening}';
+const SIGNATURE_IMAGE_CID = 'email-signature-image';
+const SIGNATURE_IMAGE_CONTENT_TYPES = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+};
+
+// Only accept files in our own email-signatures bucket, so a profile can't point at arbitrary server files.
+function resolveSignatureImagePath(url) {
+  const match = /^\/uploads\/email-signatures\/([A-Za-z0-9._-]+)$/.exec(String(url || ''));
+  if (!match) return null;
+  const extension = path.extname(match[1]).toLowerCase();
+  if (!SIGNATURE_IMAGE_CONTENT_TYPES[extension]) return null;
+  return path.join(UPLOAD_ROOT, 'email-signatures', match[1]);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildInvoiceEmailContent(message, signatureImageUrl) {
+  const imagePath = resolveSignatureImagePath(signatureImageUrl);
+  const hasImage = Boolean(imagePath && fs.existsSync(imagePath));
+  const text = message.split(SIGNATURE_IMAGE_TOKEN).join('').replace(/\n{3,}/g, '\n\n').trimEnd();
+
+  if (!hasImage) {
+    return { text, html: undefined, attachments: [] };
+  }
+
+  const imageTag = `<img src="cid:${SIGNATURE_IMAGE_CID}" alt="" style="display:block;max-width:300px;height:auto;border:0;margin-top:8px;">`;
+  const escaped = escapeHtml(message);
+  const body = escaped.includes(SIGNATURE_IMAGE_TOKEN)
+    ? escaped.split(SIGNATURE_IMAGE_TOKEN).join(imageTag)
+    : `${escaped}\n${imageTag}`;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#222;">${body.replace(/\r?\n/g, '<br>')}</div>`;
+
+  return {
+    text,
+    html,
+    attachments: [{
+      filename: path.basename(imagePath),
+      path: imagePath,
+      cid: SIGNATURE_IMAGE_CID,
+      contentType: SIGNATURE_IMAGE_CONTENT_TYPES[path.extname(imagePath).toLowerCase()],
+    }],
+  };
+}
+
 // ============================================
 // Authentication Routes
 // ============================================
@@ -1381,6 +1437,11 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 
 // Update profile
 app.put('/api/profile', authenticateToken, async (req, res) => {
+  const signatureImageUrl = req.body?.invoice_email_signature_image_url;
+  if (signatureImageUrl && !resolveSignatureImagePath(signatureImageUrl)) {
+    return res.status(400).json({ error: 'Ongeldige afbeelding voor de e-mailhandtekening' });
+  }
+
   const updatePayload = buildValidatedUpdate(req.body, PROFILE_UPDATABLE_FIELDS);
   if (updatePayload.error) {
     return res.status(400).json({ error: updatePayload.error });
@@ -1397,7 +1458,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating profile:', err);
-    res.status(500).json({ error: 'Failed to update profile' });
+    res.status(500).json({ error: 'Opslaan van de instellingen mislukt' });
   }
 });
 
@@ -3251,7 +3312,8 @@ app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUp
 
     invoice = invoiceResult.rows[0];
     const profileResult = await pool.query(
-      `SELECT company_name, iban, invoice_email_subject_template, invoice_email_body_template
+      `SELECT company_name, iban, invoice_email_subject_template, invoice_email_body_template,
+              invoice_email_signature_image_url
        FROM public.profiles
        WHERE user_id = $1`,
       [req.userId]
@@ -3276,6 +3338,7 @@ app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUp
       : profile.invoice_email_body_template || DEFAULT_INVOICE_EMAIL_BODY;
     subject = renderInvoiceEmailTemplate(subjectTemplate, variables).trim() || `Factuur ${invoice.invoice_number}`;
     const message = renderInvoiceEmailTemplate(bodyTemplate, variables);
+    const content = buildInvoiceEmailContent(message, profile.invoice_email_signature_image_url);
 
     await transporter.sendMail({
       from: { name: smtpConfig.fromName, address: smtpConfig.fromEmail },
@@ -3283,14 +3346,18 @@ app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUp
       bcc: toBoolean(bccSelf) && userEmail ? userEmail : undefined,
       to: recipientEmail,
       subject,
-      text: message,
-      attachments: req.file
-        ? [{
-          filename: req.file.originalname || `Factuur-${invoice.invoice_number}.pdf`,
-          content: req.file.buffer,
-          contentType: 'application/pdf',
-        }]
-        : undefined,
+      text: content.text,
+      html: content.html,
+      attachments: [
+        ...(req.file
+          ? [{
+            filename: req.file.originalname || `Factuur-${invoice.invoice_number}.pdf`,
+            content: req.file.buffer,
+            contentType: 'application/pdf',
+          }]
+          : []),
+        ...content.attachments,
+      ],
     });
 
     await logInvoiceEmail({ invoiceId: invoice.id, userId: req.userId, recipientEmail, subject, status: 'sent' });
@@ -3604,6 +3671,13 @@ const ensureRuntimeSchema = async () => {
   await pool.query(`
     ALTER TABLE public.profiles
     ADD COLUMN IF NOT EXISTS default_km_rate numeric(8,2)
+  `);
+
+  await pool.query(`
+    ALTER TABLE public.profiles
+    ADD COLUMN IF NOT EXISTS invoice_email_subject_template text,
+    ADD COLUMN IF NOT EXISTS invoice_email_body_template text,
+    ADD COLUMN IF NOT EXISTS invoice_email_signature_image_url text
   `);
 
   await pool.query(`

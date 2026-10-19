@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useProfile, Profile } from '@/hooks/useProfile';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Save, Building2, Palette, Mail } from 'lucide-react';
+import { Loader2, Save, Building2, Palette, Mail, ImagePlus, Trash2 } from 'lucide-react';
+import { files as filesApi } from '@/api/client';
+import { useToast } from '@/hooks/use-toast';
 import AdminSettings from '@/components/settings/AdminSettings';
 import SystemSettings from '@/components/settings/SystemSettings';
 import { MFASettings } from '@/components/settings/MFASettings';
@@ -22,6 +24,9 @@ const NUMERIC_PROFILE_FIELDS = ['default_hourly_rate', 'default_km_rate', 'defau
 export default function Settings() {
   const { profile, isLoading, updateProfile, isUpdating, appName } = useProfile();
   const [formData, setFormData] = useState<Partial<Profile>>({});
+  const [isUploadingSignature, setIsUploadingSignature] = useState(false);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   // Merge profile with form data for display
   const displayData = { ...profile, ...formData };
@@ -39,6 +44,40 @@ export default function Settings() {
     }
     updateProfile(payload);
     setFormData({});
+  };
+
+  const handleSignatureImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      toast({
+        title: 'Ongeldig bestand',
+        description: 'Gebruik een PNG- of JPG-afbeelding.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploadingSignature(true);
+    try {
+      const response = await filesApi.upload(file, 'email-signatures');
+      setFormData(prev => ({ ...prev, invoice_email_signature_image_url: response.data.url }));
+    } catch (error) {
+      console.error('Error uploading signature image:', error);
+      toast({
+        title: 'Uploaden mislukt',
+        description: 'De afbeelding kon niet worden geüpload.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingSignature(false);
+    }
+  };
+
+  const handleSignatureImageRemove = () => {
+    setFormData(prev => ({ ...prev, invoice_email_signature_image_url: null }));
   };
 
   const handleBrandingToggle = (checked: boolean) => {
@@ -301,6 +340,51 @@ export default function Settings() {
                     rows={10}
                     className="font-mono text-sm"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Afbeelding in handtekening</Label>
+                  {displayData.invoice_email_signature_image_url && (
+                    <div className="rounded-lg border bg-white p-3 w-fit">
+                      <img
+                        src={displayData.invoice_email_signature_image_url}
+                        alt="Handtekening"
+                        className="max-h-24 max-w-[300px] object-contain"
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      ref={signatureInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      className="hidden"
+                      onChange={handleSignatureImageChange}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => signatureInputRef.current?.click()}
+                      disabled={isUploadingSignature}
+                    >
+                      {isUploadingSignature ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <ImagePlus className="h-4 w-4 mr-2" />
+                      )}
+                      {displayData.invoice_email_signature_image_url ? 'Andere afbeelding' : 'Afbeelding uploaden'}
+                    </Button>
+                    {displayData.invoice_email_signature_image_url && (
+                      <Button type="button" variant="ghost" size="sm" onClick={handleSignatureImageRemove}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Verwijderen
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    PNG of JPG, bijvoorbeeld je logo. Wordt onder de groet getoond, of op de plek van {'{handtekening}'} in het bericht. Klik daarna op Opslaan.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { profile as profileApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { isAxiosError } from 'axios';
 
 export interface Profile {
   id: string;
@@ -24,6 +25,7 @@ export interface Profile {
   payment_name: string | null;
   invoice_email_subject_template: string | null;
   invoice_email_body_template: string | null;
+  invoice_email_signature_image_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -59,7 +61,9 @@ export function useProfile() {
     onError: (error) => {
       toast({
         title: 'Fout bij opslaan',
-        description: error.message,
+        description: isAxiosError(error) && error.response?.data?.error
+          ? error.response.data.error
+          : error.message,
         variant: 'destructive',
       });
     },

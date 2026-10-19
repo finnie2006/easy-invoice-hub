@@ -1,5 +1,6 @@
 import bcryptjs from 'bcryptjs';
 import { randomUUID } from 'crypto';
+import { decryptSettingValue } from './settings-crypto.js';
 
 const AUTHENTIK_SERVER_URL = (process.env.AUTHENTIK_SERVER_URL || '').trim();
 const AUTHENTIK_CLIENT_ID = (process.env.AUTHENTIK_CLIENT_ID || '').trim();
@@ -58,7 +59,7 @@ async function getAuthentikRuntimeConfig(pool, fallbackRedirectUri = '') {
 
     if (key === 'authentik_url') fromDb.serverUrl = value;
     if (key === 'authentik_client_id') fromDb.clientId = value;
-    if (key === 'authentik_client_secret') fromDb.clientSecret = value;
+    if (key === 'authentik_client_secret') fromDb.clientSecret = decryptSettingValue(value).trim();
     if (key === 'authentik_redirect_uri') fromDb.redirectUri = value;
   }
 

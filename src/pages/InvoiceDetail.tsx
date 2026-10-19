@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
 import { useInvoice, useInvoices } from '@/hooks/useInvoices';
 import { useProfile } from '@/hooks/useProfile';
 import { useClients } from '@/hooks/useClients';
@@ -9,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
@@ -43,6 +46,15 @@ import {
   type InvoiceData,
 } from '@/components/invoices/templates';
 
+interface InvoiceEmailLogEntry {
+  id: string;
+  recipient_email: string;
+  subject: string | null;
+  status: 'sent' | 'failed';
+  error: string | null;
+  created_at: string;
+}
+
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -51,6 +63,17 @@ export default function InvoiceDetail() {
   const { profile } = useProfile();
   const { clients } = useClients();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: emailLog = [] } = useQuery({
+    queryKey: ['invoice-emails', id],
+    queryFn: async () => {
+      const response = await invoicesApi.getEmails(id);
+      return (response.data || []) as InvoiceEmailLogEntry[];
+    },
+    enabled: !!user && !!id,
+  });
+  const lastEmail = emailLog[0];
 
   const invoiceRef = useRef<HTMLDivElement>(null);
   const hiddenInvoiceRef = useRef<HTMLDivElement>(null);
@@ -60,6 +83,8 @@ export default function InvoiceDetail() {
   const [emailName, setEmailName] = useState('');
   const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
+  const [emailReplyTo, setEmailReplyTo] = useState('');
+  const [emailBccSelf, setEmailBccSelf] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -73,13 +98,14 @@ export default function InvoiceDetail() {
   }, [selectedDesign]);
 
   const getErrorMessage = (error: unknown, fallback: string) => {
-    if (error instanceof Error && error.message) {
-      return error.message;
-    }
-
+    // Prefer the server's message: AxiosError is also an Error with a generic "status code" message.
     const axiosError = error as AxiosError<{ error?: string }>;
     if (axiosError?.response?.data?.error) {
       return axiosError.response.data.error;
+    }
+
+    if (error instanceof Error && error.message) {
+      return error.message;
     }
 
     return fallback;
@@ -289,6 +315,7 @@ export default function InvoiceDetail() {
 
     setEmailTo(recipientEmail);
     setEmailName(recipientName);
+    setEmailReplyTo('');
 
     if (invoice) {
       const variables = getInvoiceEmailVariables(invoice, profile, recipientName);
@@ -319,6 +346,10 @@ export default function InvoiceDetail() {
       if (emailName) {
         formData.append('recipientName', emailName);
       }
+      if (emailReplyTo.trim()) {
+        formData.append('replyTo', emailReplyTo.trim());
+      }
+      formData.append('bccSelf', String(emailBccSelf));
 
       formData.append('invoicePdf', pdf.output('blob'), getInvoicePdfFilename());
 
@@ -343,6 +374,7 @@ export default function InvoiceDetail() {
       });
     } finally {
       setIsSendingEmail(false);
+      queryClient.invalidateQueries({ queryKey: ['invoice-emails', id] });
     }
   };
 
@@ -500,6 +532,18 @@ export default function InvoiceDetail() {
                 <Badge variant="secondary">Concept</Badge>
               )}
             </div>
+            {lastEmail && (
+              <p
+                className={`text-sm mt-1 ${lastEmail.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}
+                title={lastEmail.error || undefined}
+              >
+                {lastEmail.status === 'failed' ? 'E-mail naar ' : 'Verstuurd naar '}
+                {lastEmail.recipient_email} op{' '}
+                {format(new Date(lastEmail.created_at), "d MMM yyyy 'om' HH:mm", { locale: nl })}
+                {lastEmail.status === 'failed' && ' mislukt'}
+                {emailLog.length > 1 && ` (${emailLog.length} pogingen)`}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
@@ -727,6 +771,26 @@ export default function InvoiceDetail() {
                 placeholder="Bericht aan de klant"
                 rows={8}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email-reply-to">Antwoorden naar</Label>
+              <Input
+                id="email-reply-to"
+                type="email"
+                value={emailReplyTo}
+                onChange={(e) => setEmailReplyTo(e.target.value)}
+                placeholder={user?.email || 'Standaard antwoordadres'}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="email-bcc-self"
+                checked={emailBccSelf}
+                onCheckedChange={(checked) => setEmailBccSelf(checked === true)}
+              />
+              <Label htmlFor="email-bcc-self" className="font-normal">
+                Stuur mij een kopie (BCC{user?.email ? ` naar ${user.email}` : ''})
+              </Label>
             </div>
           </div>
           <DialogFooter>

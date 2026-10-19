@@ -114,6 +114,8 @@ export const invoices = {
     api.delete(`/api/invoices/${id}`),
   sendEmail: (id, data) =>
     api.post(`/api/invoices/${id}/send-email`, data),
+  getEmails: (id) =>
+    api.get(`/api/invoices/${id}/emails`),
 };
 
 // Invoice Items
@@ -255,6 +257,8 @@ export const appSettings = {
     api.put(`/api/app-settings/${key}`, { value }),
   upsertMany: (settings) =>
     api.put('/api/app-settings', { settings }),
+  testSmtp: (config, recipient) =>
+    api.post('/api/app-settings/smtp/test', { config, recipient }),
 };
 
 export const publicBranding = {

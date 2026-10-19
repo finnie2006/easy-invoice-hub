@@ -24,6 +24,12 @@ import {
 import { setupMFARoutes, isMFAEnabled } from './mfa-routes.js';
 import { setupOAuthRoutes } from './oauth-routes.js';
 import { isAuthentikConfigured, getAuthorizationURL, handleOAuthCallback } from './oauth.js';
+import {
+  SECRET_SETTING_KEYS,
+  encryptSettingValue,
+  decryptSettingValue,
+  isEncryptedSetting,
+} from './settings-crypto.js';
 
 dotenv.config();
 
@@ -507,7 +513,93 @@ async function getSetting(key, fallback = null) {
     return fallback;
   }
 
-  return result.rows[0].setting_value;
+  const value = result.rows[0].setting_value;
+  return SECRET_SETTING_KEYS.has(key) ? decryptSettingValue(value) : value;
+}
+
+const SMTP_SECURITY_MODES = new Set(['auto', 'starttls', 'ssl', 'none']);
+const SMTP_EMAIL_SETTING_KEYS = new Set(['smtp_from_email', 'smtp_reply_to']);
+
+function isValidEmail(value) {
+  return EMAIL_PATTERN.test(String(value || '').trim());
+}
+
+// Returns a Dutch error message when a setting value is invalid, otherwise null.
+function validateSettingValue(key, value) {
+  const text = value === null || value === undefined ? '' : String(value).trim();
+
+  if (key === 'smtp_port' && text !== '') {
+    const port = Number(text);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      return 'SMTP-poort moet een getal tussen 1 en 65535 zijn.';
+    }
+  }
+
+  if (SMTP_EMAIL_SETTING_KEYS.has(key) && text !== '' && !isValidEmail(text)) {
+    return `Ongeldig e-mailadres voor ${key === 'smtp_from_email' ? 'afzender' : 'antwoordadres'}.`;
+  }
+
+  if (key === 'smtp_security' && text !== '' && !SMTP_SECURITY_MODES.has(text)) {
+    return 'Ongeldige SMTP-beveiliging.';
+  }
+
+  return null;
+}
+
+function toBoolean(value) {
+  return value === true || value === 'true';
+}
+
+// Reads the SMTP settings; non-empty values in `overrides` (e.g. unsaved form values) take precedence.
+async function getSmtpConfig(overrides = {}) {
+  const pick = async (key, fallback) => {
+    const value = overrides[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return typeof value === 'boolean' ? value : String(value).trim();
+    }
+    const stored = await getSetting(key, fallback);
+    return stored === null || stored === undefined || stored === '' ? fallback : stored;
+  };
+
+  const user = String(await pick('smtp_user', ''));
+  return {
+    host: String(await pick('smtp_host', '')),
+    port: Number(await pick('smtp_port', 587)),
+    user,
+    password: String(await pick('smtp_password', '')),
+    security: String(await pick('smtp_security', 'auto')),
+    allowSelfSigned: toBoolean(await pick('smtp_allow_self_signed', false)),
+    fromEmail: String(await pick('smtp_from_email', user || 'no-reply@localhost')),
+    fromName: String(await pick('smtp_from_name', 'Easy Invoice Hub')),
+    replyTo: String(await pick('smtp_reply_to', '')),
+  };
+}
+
+function createSmtpTransport(config) {
+  const security = SMTP_SECURITY_MODES.has(config.security) ? config.security : 'auto';
+  const secure = security === 'ssl' || (security === 'auto' && config.port === 465);
+
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure,
+    requireTLS: security === 'starttls',
+    ignoreTLS: security === 'none',
+    tls: config.allowSelfSigned ? { rejectUnauthorized: false } : undefined,
+    auth: config.user ? { user: config.user, pass: config.password } : undefined,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
+  });
+}
+
+function describeSmtpError(err) {
+  if (err?.code === 'EAUTH') return 'Inloggen bij de SMTP-server mislukt. Controleer gebruikersnaam en wachtwoord.';
+  if (err?.code === 'ETIMEDOUT' || err?.code === 'ECONNECTION' || err?.code === 'ESOCKET') {
+    return `Kan geen verbinding maken met de SMTP-server (${err.message}). Controleer host, poort en beveiliging.`;
+  }
+  if (err?.code === 'EENVELOPE') return `De mailserver weigerde de ontvanger of afzender (${err.message}).`;
+  return err?.message || 'Onbekende fout bij het versturen van de e-mail.';
 }
 
 async function isAdmin(userId) {
@@ -2578,41 +2670,73 @@ app.get('/api/app-settings', authenticateToken, async (req, res) => {
       'SELECT setting_key, setting_value FROM public.app_settings ORDER BY setting_key ASC'
     );
     const rows = admin
-      ? result.rows
+      ? result.rows.map((row) => (
+        SECRET_SETTING_KEYS.has(row.setting_key)
+          ? { setting_key: row.setting_key, setting_value: '', is_set: Boolean(row.setting_value) }
+          : row
+      ))
       : result.rows.filter((row) => PUBLIC_APP_SETTING_KEYS.has(row.setting_key));
 
     res.json(rows);
   } catch (err) {
     console.error('Error fetching app settings:', err);
-    res.status(500).json({ error: 'Failed to fetch app settings' });
+    res.status(500).json({ error: 'Ophalen van instellingen mislukt' });
   }
 });
 
+// Writes one setting. Secrets are encrypted, and an empty secret is skipped unless `clear` is set,
+// because the client never receives the stored secret and sends it back empty when unchanged.
+async function upsertAppSetting(db, { key, value, clear }) {
+  let storedValue = value;
+
+  if (SECRET_SETTING_KEYS.has(key)) {
+    if (clear) {
+      storedValue = '';
+    } else if (value === undefined || value === null || value === '') {
+      return;
+    } else {
+      storedValue = encryptSettingValue(String(value));
+    }
+  }
+
+  await db.query(
+    `INSERT INTO public.app_settings (setting_key, setting_value)
+     VALUES ($1, $2::jsonb)
+     ON CONFLICT (setting_key)
+     DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_at = now()`,
+    [key, JSON.stringify(storedValue ?? '')]
+  );
+}
+
 app.put('/api/app-settings/:key', authenticateToken, requireAdmin, async (req, res) => {
   const { key } = req.params;
-  const { value } = req.body;
+  const { value, clear } = req.body;
+
+  const validationError = validateSettingValue(key, value);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
 
   try {
-    const result = await pool.query(
-      `INSERT INTO public.app_settings (setting_key, setting_value)
-       VALUES ($1, $2::jsonb)
-       ON CONFLICT (setting_key)
-       DO UPDATE SET setting_value = EXCLUDED.setting_value
-       RETURNING setting_key, setting_value`,
-      [key, JSON.stringify(value)]
-    );
-
-    res.json(result.rows[0]);
+    await upsertAppSetting(pool, { key, value, clear });
+    res.json({ setting_key: key, success: true });
   } catch (err) {
     console.error('Error updating app setting:', err);
-    res.status(500).json({ error: 'Failed to update app setting' });
+    res.status(500).json({ error: 'Opslaan van instelling mislukt' });
   }
 });
 
 app.put('/api/app-settings', authenticateToken, requireAdmin, async (req, res) => {
   const { settings } = req.body;
   if (!Array.isArray(settings)) {
-    return res.status(400).json({ error: 'Settings array is required' });
+    return res.status(400).json({ error: 'Lijst met instellingen ontbreekt' });
+  }
+
+  for (const setting of settings) {
+    const validationError = validateSettingValue(setting.key, setting.value);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
   }
 
   const client = await pool.connect();
@@ -2620,13 +2744,7 @@ app.put('/api/app-settings', authenticateToken, requireAdmin, async (req, res) =
     await client.query('BEGIN');
 
     for (const setting of settings) {
-      await client.query(
-        `INSERT INTO public.app_settings (setting_key, setting_value)
-         VALUES ($1, $2::jsonb)
-         ON CONFLICT (setting_key)
-         DO UPDATE SET setting_value = EXCLUDED.setting_value`,
-        [setting.key, JSON.stringify(setting.value)]
-      );
+      await upsertAppSetting(client, setting);
     }
 
     await client.query('COMMIT');
@@ -2634,9 +2752,51 @@ app.put('/api/app-settings', authenticateToken, requireAdmin, async (req, res) =
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error updating app settings in bulk:', err);
-    res.status(500).json({ error: 'Failed to update app settings' });
+    res.status(500).json({ error: 'Opslaan van instellingen mislukt' });
   } finally {
     client.release();
+  }
+});
+
+app.post('/api/app-settings/smtp/test', authenticateToken, requireAdmin, async (req, res) => {
+  const overrides = req.body?.config || {};
+
+  for (const [key, value] of Object.entries(overrides)) {
+    const validationError = validateSettingValue(key, value);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
+  }
+
+  try {
+    const smtpConfig = await getSmtpConfig(overrides);
+    if (!smtpConfig.host) {
+      return res.status(400).json({ error: 'SMTP-host is niet ingesteld.' });
+    }
+
+    let recipient = String(req.body?.recipient || '').trim();
+    if (!recipient) {
+      const userResult = await pool.query('SELECT email FROM public.users WHERE id = $1', [req.userId]);
+      recipient = userResult.rows[0]?.email || '';
+    }
+    if (!isValidEmail(recipient)) {
+      return res.status(400).json({ error: 'Geen geldig e-mailadres voor de testmail.' });
+    }
+
+    const transporter = createSmtpTransport(smtpConfig);
+    await transporter.verify();
+    await transporter.sendMail({
+      from: { name: smtpConfig.fromName, address: smtpConfig.fromEmail },
+      replyTo: smtpConfig.replyTo || undefined,
+      to: recipient,
+      subject: 'Testmail SMTP-instellingen',
+      text: `Dit is een testmail vanuit ${smtpConfig.fromName}.\n\nAls je dit bericht ontvangt, zijn de SMTP-instellingen correct geconfigureerd.\n\nServer: ${smtpConfig.host}:${smtpConfig.port}`,
+    });
+
+    res.json({ success: true, recipient });
+  } catch (err) {
+    console.error('Error sending SMTP test email:', err);
+    res.status(502).json({ error: describeSmtpError(err) });
   }
 });
 
@@ -3068,10 +3228,16 @@ app.delete('/api/files', authenticateToken, async (req, res) => {
 // ============================================
 
 app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUpload, async (req, res) => {
-  const { recipientEmail, recipientName, emailSubject, customMessage } = req.body;
-  if (!recipientEmail) {
-    return res.status(400).json({ error: 'Recipient email is required' });
+  const { recipientEmail, recipientName, emailSubject, customMessage, replyTo, bccSelf } = req.body;
+  if (!recipientEmail || !isValidEmail(recipientEmail)) {
+    return res.status(400).json({ error: 'Vul een geldig e-mailadres voor de ontvanger in.' });
   }
+  if (replyTo && !isValidEmail(replyTo)) {
+    return res.status(400).json({ error: 'Het antwoordadres is geen geldig e-mailadres.' });
+  }
+
+  let invoice = null;
+  let subject = '';
 
   try {
     const invoiceResult = await pool.query(
@@ -3080,10 +3246,10 @@ app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUp
     );
 
     if (invoiceResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Invoice not found' });
+      return res.status(404).json({ error: 'Factuur niet gevonden' });
     }
 
-    const invoice = invoiceResult.rows[0];
+    invoice = invoiceResult.rows[0];
     const profileResult = await pool.query(
       `SELECT company_name, iban, invoice_email_subject_template, invoice_email_body_template
        FROM public.profiles
@@ -3092,36 +3258,29 @@ app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUp
     );
     const profile = profileResult.rows[0] || {};
 
-    const smtpHost = await getSetting('smtp_host', '');
-    const smtpPort = Number(await getSetting('smtp_port', 587));
-    const smtpUser = await getSetting('smtp_user', '');
-    const smtpPassword = await getSetting('smtp_password', '');
-    const fromEmail = await getSetting('smtp_from_email', smtpUser || 'no-reply@localhost');
-    const fromName = await getSetting('smtp_from_name', 'Easy Invoice Hub');
-
-    if (!smtpHost) {
-      return res.status(400).json({ error: 'SMTP is not configured. Set SMTP settings in admin panel.' });
+    const smtpConfig = await getSmtpConfig();
+    if (!smtpConfig.host) {
+      return res.status(400).json({ error: 'SMTP is niet ingesteld. Vraag een beheerder de SMTP-instellingen in te vullen.' });
     }
 
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth: smtpUser ? { user: smtpUser, pass: smtpPassword } : undefined,
-    });
+    const userResult = await pool.query('SELECT email FROM public.users WHERE id = $1', [req.userId]);
+    const userEmail = userResult.rows[0]?.email || '';
+    const transporter = createSmtpTransport(smtpConfig);
 
-    const variables = buildInvoiceEmailVariables(invoice, profile, recipientName, fromName);
+    const variables = buildInvoiceEmailVariables(invoice, profile, recipientName, smtpConfig.fromName);
     const subjectTemplate = Object.prototype.hasOwnProperty.call(req.body, 'emailSubject')
       ? emailSubject
       : profile.invoice_email_subject_template || DEFAULT_INVOICE_EMAIL_SUBJECT;
     const bodyTemplate = Object.prototype.hasOwnProperty.call(req.body, 'customMessage')
       ? customMessage
       : profile.invoice_email_body_template || DEFAULT_INVOICE_EMAIL_BODY;
-    const subject = renderInvoiceEmailTemplate(subjectTemplate, variables).trim() || `Factuur ${invoice.invoice_number}`;
+    subject = renderInvoiceEmailTemplate(subjectTemplate, variables).trim() || `Factuur ${invoice.invoice_number}`;
     const message = renderInvoiceEmailTemplate(bodyTemplate, variables);
 
     await transporter.sendMail({
-      from: { name: fromName, address: fromEmail },
+      from: { name: smtpConfig.fromName, address: smtpConfig.fromEmail },
+      replyTo: replyTo || smtpConfig.replyTo || userEmail || undefined,
+      bcc: toBoolean(bccSelf) && userEmail ? userEmail : undefined,
       to: recipientEmail,
       subject,
       text: message,
@@ -3134,10 +3293,51 @@ app.post('/api/invoices/:id/send-email', authenticateToken, handleInvoiceEmailUp
         : undefined,
     });
 
+    await logInvoiceEmail({ invoiceId: invoice.id, userId: req.userId, recipientEmail, subject, status: 'sent' });
     res.json({ success: true });
   } catch (err) {
     console.error('Error sending invoice email:', err);
-    res.status(500).json({ error: 'Failed to send invoice email' });
+    const message = describeSmtpError(err);
+    if (invoice) {
+      await logInvoiceEmail({
+        invoiceId: invoice.id,
+        userId: req.userId,
+        recipientEmail,
+        subject,
+        status: 'failed',
+        error: message,
+      });
+    }
+    res.status(502).json({ error: `Versturen van de factuur mislukt: ${message}` });
+  }
+});
+
+async function logInvoiceEmail({ invoiceId, userId, recipientEmail, subject, status, error = null }) {
+  try {
+    await pool.query(
+      `INSERT INTO public.invoice_email_log (invoice_id, user_id, recipient_email, subject, status, error)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [invoiceId, userId, recipientEmail, subject || null, status, error]
+    );
+  } catch (logErr) {
+    console.error('Error writing invoice email log:', logErr);
+  }
+}
+
+app.get('/api/invoices/:id/emails', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, recipient_email, subject, status, error, created_at
+       FROM public.invoice_email_log
+       WHERE invoice_id = $1 AND user_id = $2
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [req.params.id, req.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching invoice email log:', err);
+    res.status(500).json({ error: 'Ophalen van e-mailgeschiedenis mislukt' });
   }
 });
 
@@ -3589,6 +3789,36 @@ const ensureRuntimeSchema = async () => {
   `);
 
   await pool.query('CREATE INDEX IF NOT EXISTS idx_monthly_salaries_user_year ON public.monthly_salaries (user_id, year)');
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.invoice_email_log (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      invoice_id uuid NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+      user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+      recipient_email text NOT NULL,
+      subject text,
+      status text NOT NULL CHECK (status IN ('sent', 'failed')),
+      error text,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_invoice_email_log_invoice_created ON public.invoice_email_log (invoice_id, created_at DESC)');
+
+  // Encrypt secrets that were stored in plain text before settings encryption existed.
+  const secretRows = await pool.query(
+    'SELECT setting_key, setting_value FROM public.app_settings WHERE setting_key = ANY($1::text[])',
+    [[...SECRET_SETTING_KEYS]]
+  );
+  for (const row of secretRows.rows) {
+    const value = row.setting_value;
+    if (typeof value === 'string' && value !== '' && !isEncryptedSetting(value)) {
+      await pool.query(
+        'UPDATE public.app_settings SET setting_value = $2::jsonb, updated_at = now() WHERE setting_key = $1',
+        [row.setting_key, JSON.stringify(encryptSettingValue(value))]
+      );
+    }
+  }
 };
 
 const startServer = async () => {

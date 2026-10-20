@@ -27,7 +27,7 @@ import { nl } from 'date-fns/locale';
 import { invoices as invoicesApi } from '@/api/client';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import type { AxiosError } from 'axios';
 import {
   DEFAULT_INVOICE_EMAIL_BODY,

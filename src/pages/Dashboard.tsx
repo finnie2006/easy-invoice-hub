@@ -312,9 +312,11 @@ export default function Dashboard() {
       revenue: invoiceRevenueForMonth + otherIncomeForMonth,
     };
   });
-  const desiredMonthlyRevenue = Number(profile?.default_hourly_rate || 0) > 0
-    ? Number(profile?.default_hourly_rate || 0) * 120
-    : totalRevenue / elapsedMonths;
+  const desiredMonthlyRevenue = Number(profile?.monthly_revenue_target || 0) > 0
+    ? Number(profile?.monthly_revenue_target)
+    : Number(profile?.default_hourly_rate || 0) > 0
+      ? Number(profile?.default_hourly_rate || 0) * 120
+      : totalRevenue / elapsedMonths;
   const monthsBelowTarget = monthlyRevenue.filter((month) => month.revenue < desiredMonthlyRevenue);
   const paidInvoicesWithPaymentDate = paidInvoices.filter((invoice) => invoice.paid_at);
   const averagePaymentTerm = paidInvoicesWithPaymentDate.length > 0

@@ -19,7 +19,7 @@ import {
   DEFAULT_INVOICE_EMAIL_SUBJECT,
   INVOICE_EMAIL_VARIABLES,
 } from '@/lib/invoice-email-template';
-const NUMERIC_PROFILE_FIELDS = ['default_hourly_rate', 'default_km_rate', 'default_payment_terms'] as const;
+const NUMERIC_PROFILE_FIELDS = ['default_hourly_rate', 'default_km_rate', 'monthly_revenue_target', 'default_payment_terms'] as const;
 
 export default function Settings() {
   const { profile, isLoading, updateProfile, isUpdating, appName } = useProfile();
@@ -308,6 +308,23 @@ export default function Settings() {
                     onChange={handleChange}
                     placeholder="14"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="monthly_revenue_target">Omzetdoel per maand (€)</Label>
+                  <Input
+                    id="monthly_revenue_target"
+                    name="monthly_revenue_target"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={displayData.monthly_revenue_target ?? ''}
+                    onChange={handleChange}
+                    placeholder="6000.00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Leeg laten om het doel af te leiden van je uurtarief (120 uur per maand).
+                  </p>
                 </div>
               </div>
             </div>

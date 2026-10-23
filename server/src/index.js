@@ -100,6 +100,7 @@ const PROFILE_UPDATABLE_FIELDS = [
   'iban',
   'default_hourly_rate',
   'default_km_rate',
+  'monthly_revenue_target',
   'default_payment_terms',
   'logo_url',
   'use_company_branding',
@@ -3678,6 +3679,11 @@ const ensureRuntimeSchema = async () => {
     ADD COLUMN IF NOT EXISTS invoice_email_subject_template text,
     ADD COLUMN IF NOT EXISTS invoice_email_body_template text,
     ADD COLUMN IF NOT EXISTS invoice_email_signature_image_url text
+  `);
+
+  await pool.query(`
+    ALTER TABLE public.profiles
+    ADD COLUMN IF NOT EXISTS monthly_revenue_target numeric(12,2)
   `);
 
   await pool.query(`

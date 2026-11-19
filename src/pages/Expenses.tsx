@@ -2,6 +2,9 @@ import { useState, useRef, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useExpenses, Expense, ExpenseInsert, EXPENSE_CATEGORIES } from '@/hooks/useExpenses';
 import { useBtwPeriods } from '@/hooks/useBtwPeriods';
+import { useBusinessAssets, ASSET_CATEGORIES } from '@/hooks/useBusinessAssets';
+import { Switch } from '@/components/ui/switch';
+import { DEPRECIATION_THRESHOLD, MIN_FISCAL_USEFUL_LIFE_YEARS, getDepreciationForYear } from '@/lib/depreciation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search, AlertTriangle, Pencil, Globe2 } from 'lucide-react';
+import { Loader2, Plus, Receipt, Trash2, FileText, Upload, Eye, Download, X, Search, AlertTriangle, Pencil, Globe2, TrendingDown } from 'lucide-react';
 import { format, parseISO, startOfMonth, endOfMonth, startOfYear, endOfYear } from 'date-fns';
 import { nl } from 'date-fns/locale';
 import { calculateExpenseVatAmounts, getExpensePaidAmount } from '@/lib/expense-vat';
@@ -21,6 +24,7 @@ import { readExpenseDocument, type ExpenseDocumentFields, type ExpenseDocumentRe
 export default function Expenses() {
   const { expenses, isLoading, createExpense, updateExpense, deleteExpense, isCreating, getSignedReceiptUrl } = useExpenses();
   const { isPeriodClosed, getBtwPeriodForDate, getNextAvailablePeriod } = useBtwPeriods();
+  const { getAssetForExpense, createAssetAsync, updateAssetAsync, deleteAssetAsync } = useBusinessAssets();
   const [searchParams, setSearchParams] = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
@@ -40,6 +44,12 @@ export default function Expenses() {
   // Form state
   const [amountInputMode, setAmountInputMode] = useState<'incl' | 'excl'>('incl');
   const [amountInput, setAmountInput] = useState<string>('');
+
+  // Afschrijving (bedrijfsmiddel)
+  const [depreciate, setDepreciate] = useState(false);
+  const [usefulLifeYears, setUsefulLifeYears] = useState<string>(String(MIN_FISCAL_USEFUL_LIFE_YEARS));
+  const [residualValue, setResidualValue] = useState<string>('0');
+  const [assetCategory, setAssetCategory] = useState<string>('overig');
   
   const [expenseDate, setExpenseDate] = useState<Date>(new Date());
   const [selectedBtwPeriod, setSelectedBtwPeriod] = useState<string>('');
@@ -59,6 +69,11 @@ export default function Expenses() {
     if (type === 'domestic') return 'Binnenland';
     if (type === 'non_eu') return 'Buiten EU';
     return 'EU';
+  };
+
+  const getDefaultAssetCategory = (expenseCategory?: string) => {
+    if (expenseCategory === 'hardware' || expenseCategory === 'software') return 'computer';
+    return 'overig';
   };
 
   const getBtwPercentage = () => {
@@ -193,6 +208,18 @@ export default function Expenses() {
     }
   }, [formData.has_reverse_charge]);
 
+  const currentAmountExclBtw = calculateAmounts().amountExclBtw;
+  const hasLinkedAsset = !!(editingExpense && getAssetForExpense(editingExpense.id));
+  const canDepreciate = currentAmountExclBtw >= DEPRECIATION_THRESHOLD || hasLinkedAsset;
+  const parsedUsefulLife = Math.max(1, parseInt(usefulLifeYears) || MIN_FISCAL_USEFUL_LIFE_YEARS);
+  const parsedResidualValue = Math.max(0, parseFloat(residualValue) || 0);
+  const firstYearDepreciation = getDepreciationForYear({
+    purchase_date: format(expenseDate, 'yyyy-MM-dd'),
+    purchase_price: currentAmountExclBtw,
+    residual_value: parsedResidualValue,
+    useful_life_years: parsedUsefulLife,
+  }, expenseDate.getFullYear());
+
   const resetForm = () => {
     setSelectedFile(null);
     setDocumentReadResult(null);
@@ -203,6 +230,10 @@ export default function Expenses() {
     setPeriodWarning(null);
     setSelectedBtwPeriod('');
     setEditingExpense(null);
+    setDepreciate(false);
+    setUsefulLifeYears(String(MIN_FISCAL_USEFUL_LIFE_YEARS));
+    setResidualValue('0');
+    setAssetCategory('overig');
     setFormData({
       vendor_name: '',
       description: '',
@@ -235,7 +266,40 @@ export default function Expenses() {
     }
     setExpenseDate(new Date(expense.expense_date));
     setSelectedBtwPeriod(expense.btw_period || '');
+    const linkedAsset = getAssetForExpense(expense.id);
+    setDepreciate(!!linkedAsset);
+    setUsefulLifeYears(String(linkedAsset?.useful_life_years ?? MIN_FISCAL_USEFUL_LIFE_YEARS));
+    setResidualValue(String(Number(linkedAsset?.residual_value ?? 0)));
+    setAssetCategory(linkedAsset?.category || getDefaultAssetCategory(expense.category));
     setDialogOpen(true);
+  };
+
+  const syncBusinessAsset = async (
+    expenseId: string,
+    expenseData: { vendor_name: string; description: string | null; expense_date: string },
+    amountExclBtw: number,
+    shouldDepreciate: boolean,
+  ) => {
+    const existing = getAssetForExpense(expenseId);
+    if (!shouldDepreciate) {
+      if (existing) await deleteAssetAsync(existing.id);
+      return;
+    }
+
+    const assetData = {
+      name: expenseData.description || expenseData.vendor_name,
+      purchase_date: expenseData.expense_date,
+      purchase_price: amountExclBtw,
+      residual_value: Math.max(0, parseFloat(residualValue) || 0),
+      useful_life_years: Math.max(1, parseInt(usefulLifeYears) || MIN_FISCAL_USEFUL_LIFE_YEARS),
+      category: assetCategory,
+    };
+
+    if (existing) {
+      await updateAssetAsync({ id: existing.id, updates: assetData });
+    } else {
+      await createAssetAsync({ ...assetData, expense_id: expenseId });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -259,19 +323,30 @@ export default function Expenses() {
       reverse_charge_type: formData.has_reverse_charge ? (formData.reverse_charge_type || 'eu') : null,
     };
 
-    if (editingExpense) {
-      updateExpense({
-        id: editingExpense.id,
-        updates: expenseData,
-        file: selectedFile || undefined,
-      });
-    } else {
-      await createExpense({
-        expense: expenseData,
-        file: selectedFile || undefined,
-      });
+    const shouldDepreciate = canDepreciate && depreciate && amountExclBtw > 0;
+
+    try {
+      if (editingExpense) {
+        updateExpense({
+          id: editingExpense.id,
+          updates: expenseData,
+          file: selectedFile || undefined,
+        });
+        await syncBusinessAsset(editingExpense.id, expenseData, amountExclBtw, shouldDepreciate);
+      } else {
+        const created = await createExpense({
+          expense: expenseData,
+          file: selectedFile || undefined,
+        });
+        if (shouldDepreciate && created?.id) {
+          await syncBusinessAsset(created.id, expenseData, amountExclBtw, true);
+        }
+      }
+    } catch {
+      // Foutmeldingen worden al via toasts in de hooks getoond.
+      return;
     }
-    
+
     setDialogOpen(false);
     resetForm();
   };
@@ -398,7 +473,10 @@ export default function Expenses() {
                   <Label htmlFor="category">Categorie</Label>
                   <Select 
                     value={formData.category} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                    onValueChange={(value) => {
+                      setFormData(prev => ({ ...prev, category: value }));
+                      if (!depreciate) setAssetCategory(getDefaultAssetCategory(value));
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -526,6 +604,80 @@ export default function Expenses() {
                   </div>
                 )}
               </div>
+
+              {/* Afschrijving */}
+              {canDepreciate && (
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="depreciate" className="flex items-center gap-2">
+                        <TrendingDown className="h-4 w-4" />
+                        Afschrijven als bedrijfsmiddel
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Aankopen vanaf {formatCurrency(DEPRECIATION_THRESHOLD)} excl. BTW die langer dan een jaar meegaan
+                        schrijf je af over meerdere jaren. De BTW trek je gewoon direct af.
+                      </p>
+                    </div>
+                    <Switch id="depreciate" checked={depreciate} onCheckedChange={setDepreciate} />
+                  </div>
+
+                  {depreciate && (
+                    <>
+                      <div className="grid gap-4 grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="useful_life_years">Afschrijvingstermijn (jaren)</Label>
+                          <Input
+                            id="useful_life_years"
+                            type="number"
+                            min="1"
+                            max="50"
+                            step="1"
+                            value={usefulLifeYears}
+                            onChange={(e) => setUsefulLifeYears(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="residual_value">Restwaarde (€)</Label>
+                          <Input
+                            id="residual_value"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={residualValue}
+                            onChange={(e) => setResidualValue(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Soort bedrijfsmiddel</Label>
+                        <Select value={assetCategory} onValueChange={setAssetCategory}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ASSET_CATEGORIES.map((cat) => (
+                              <SelectItem key={cat.value} value={cat.value}>
+                                {cat.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Per jaar {formatCurrency((currentAmountExclBtw - parsedResidualValue) / parsedUsefulLife)} afschrijving
+                        · in {expenseDate.getFullYear()}: {formatCurrency(firstYearDepreciation)} (vanaf de aankoopmaand).
+                        Deze uitgave telt niet meer als directe kosten in winst en rapportages.
+                      </p>
+                      {parsedUsefulLife < MIN_FISCAL_USEFUL_LIFE_YEARS && (
+                        <p className="text-xs text-warning">
+                          Fiscaal mag je maximaal 20% per jaar afschrijven, dus meestal minimaal {MIN_FISCAL_USEFUL_LIFE_YEARS} jaar.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* File Upload */}
               <div className="space-y-2">
@@ -809,6 +961,11 @@ export default function Expenses() {
                             {getReverseChargeTypeLabel(expense.reverse_charge_type)}
                           </Badge>
                         )}
+                        {getAssetForExpense(expense.id) && (
+                          <Badge variant="secondary" className="text-xs">
+                            Afschrijving {getAssetForExpense(expense.id)?.useful_life_years} jr
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-right">
                         <div className="font-bold">{formatCurrency(getExpensePaidAmount(expense))}</div>
@@ -851,6 +1008,11 @@ export default function Expenses() {
                             {expense.has_reverse_charge && (
                               <Badge variant="secondary" title="Aankoop met btw verlegd" className="text-xs">
                                 {getReverseChargeTypeLabel(expense.reverse_charge_type)}
+                              </Badge>
+                            )}
+                            {getAssetForExpense(expense.id) && (
+                              <Badge variant="secondary" title="Wordt afgeschreven als bedrijfsmiddel" className="text-xs">
+                                Afschrijving {getAssetForExpense(expense.id)?.useful_life_years} jr
                               </Badge>
                             )}
                           </div>
@@ -946,7 +1108,7 @@ export default function Expenses() {
           <AlertDialogHeader>
             <AlertDialogTitle>Uitgave verwijderen</AlertDialogTitle>
             <AlertDialogDescription>
-              Weet je zeker dat je de uitgave van <strong>{deleteConfirmExpense?.vendor_name}</strong> wilt verwijderen? Dit kan niet ongedaan worden gemaakt.
+              Weet je zeker dat je de uitgave van <strong>{deleteConfirmExpense?.vendor_name}</strong> wilt verwijderen?{deleteConfirmExpense && getAssetForExpense(deleteConfirmExpense.id) ? ' Het gekoppelde bedrijfsmiddel en de afschrijving worden ook verwijderd.' : ''} Dit kan niet ongedaan worden gemaakt.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

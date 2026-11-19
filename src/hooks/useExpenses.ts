@@ -132,6 +132,8 @@ export function useExpenses() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      // Een gekoppeld bedrijfsmiddel wordt in de database mee verwijderd.
+      queryClient.invalidateQueries({ queryKey: ['business-assets'] });
       toast({
         title: 'Uitgave verwijderd',
       });

@@ -2440,17 +2440,28 @@ app.get('/api/business-assets', authenticateToken, async (req, res) => {
 
 // Create business asset
 app.post('/api/business-assets', authenticateToken, async (req, res) => {
-  const { name, purchase_date, purchase_price, residual_value, useful_life_years, category, is_active, notes } = req.body;
+  const { name, purchase_date, purchase_price, residual_value, useful_life_years, category, is_active, notes, expense_id } = req.body;
 
   try {
+    if (expense_id) {
+      const owned = await pool.query(
+        'SELECT 1 FROM public.expenses WHERE id = $1 AND user_id = $2',
+        [expense_id, req.userId]
+      );
+      if (owned.rows.length === 0) return res.status(404).json({ error: 'Expense not found' });
+    }
+
     const result = await pool.query(
-      `INSERT INTO public.business_assets (user_id, name, purchase_date, purchase_price, residual_value, useful_life_years, category, is_active, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO public.business_assets (user_id, name, purchase_date, purchase_price, residual_value, useful_life_years, category, is_active, notes, expense_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [req.userId, name, purchase_date, purchase_price, residual_value, useful_life_years, category, is_active, notes]
+      [req.userId, name, purchase_date, purchase_price, residual_value ?? 0, useful_life_years ?? 5, category, is_active ?? true, notes, expense_id || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Deze uitgave is al gekoppeld aan een bedrijfsmiddel' });
+    }
     console.error('Error creating business asset:', err);
     res.status(500).json({ error: 'Failed to create business asset' });
   }

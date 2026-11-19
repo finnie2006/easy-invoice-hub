@@ -3,6 +3,7 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { useExpenses } from '@/hooks/useExpenses';
 import { useOtherIncome } from '@/hooks/useOtherIncome';
 import { useBusinessAssets, BusinessAssetInsert, ASSET_CATEGORIES } from '@/hooks/useBusinessAssets';
+import { getExpenseCostExclBtw, isDepreciatingInYear } from '@/lib/depreciation';
 import { useAnnualTaxData, TAX_CONSTANTS } from '@/hooks/useAnnualTaxData';
 import { useMileage } from '@/hooks/useMileage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,7 +42,7 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
   const { invoices } = useInvoices();
   const { expenses } = useExpenses();
   const { otherIncome } = useOtherIncome();
-  const { assets, createAsset, deleteAsset, isCreating, getDepreciationForYear, getBookValueEndOfYear } = useBusinessAssets();
+  const { assets, createAsset, deleteAsset, isCreating, getDepreciationForYear, getBookValueEndOfYear, capitalizedExpenseIds } = useBusinessAssets();
   const { taxData, upsertTaxData, isSaving, getTaxConstants } = useAnnualTaxData(selectedYear);
   const { entries: mileageEntries } = useMileage();
 
@@ -134,7 +135,8 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
   const invoiceRevenueExclBtw = paidInvoices.reduce((sum, inv) => sum + Number(inv.subtotal), 0);
   const otherIncomeRevenue = yearOtherIncome.reduce((sum, income) => sum + Number(income.amount), 0);
   const totalRevenueExclBtw = invoiceRevenueExclBtw + otherIncomeRevenue;
-  const totalExpensesExclBtw = yearExpenses.reduce((sum, exp) => sum + Number(exp.amount_excl_btw || 0), 0);
+  // Geactiveerde aankopen (bedrijfsmiddelen) tellen via de afschrijving, niet als directe kosten.
+  const totalExpensesExclBtw = yearExpenses.reduce((sum, exp) => sum + getExpenseCostExclBtw(exp, capitalizedExpenseIds), 0);
 
   // Depreciation
   const totalDepreciation = assets.reduce((sum, asset) => sum + getDepreciationForYear(asset, selectedYear), 0);
@@ -167,11 +169,7 @@ export default function AnnualTaxHelper({ selectedYear }: AnnualTaxHelperProps) 
   const taxableProfit = profitAfterAftrek - mkbVrijstelling;
 
   // Active assets for this year
-  const activeAssets = assets.filter((asset) => {
-    const purchaseYear = new Date(asset.purchase_date).getFullYear();
-    const endYear = purchaseYear + asset.useful_life_years - 1;
-    return purchaseYear <= selectedYear && endYear >= selectedYear;
-  });
+  const activeAssets = assets.filter((asset) => isDepreciatingInYear(asset, selectedYear));
 
   return (
     <div className="space-y-6">

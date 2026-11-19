@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useExpenses, EXPENSE_CATEGORIES } from "@/hooks/useExpenses";
 import { useOtherIncome } from "@/hooks/useOtherIncome";
+import { useBusinessAssets } from "@/hooks/useBusinessAssets";
+import { getDepreciationForPeriod, getExpenseCostExclBtw, getTotalDepreciationForPeriod } from "@/lib/depreciation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,6 +33,7 @@ export default function Reports() {
   const { invoices, isLoading: loadingInvoices } = useInvoices();
   const { expenses, isLoading: loadingExpenses } = useExpenses();
   const { otherIncome, isLoading: loadingOtherIncome } = useOtherIncome();
+  const { assets, isLoading: loadingAssets, capitalizedExpenseIds } = useBusinessAssets();
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [period, setPeriod] = useState<Period>("year");
 
@@ -97,7 +100,12 @@ export default function Reports() {
 
   // Calculate expense stats
   const totalExpenses = periodExpenses.reduce((sum, exp) => sum + getExpensePaidAmount(exp), 0);
-  const totalExpensesExclBtw = periodExpenses.reduce((sum, exp) => sum + Number(exp.amount_excl_btw || 0), 0);
+  // Alle inkopen excl. BTW (basis voor de BTW-aangifte)
+  const totalPurchasesExclBtw = periodExpenses.reduce((sum, exp) => sum + Number(exp.amount_excl_btw || 0), 0);
+  // Directe kosten: geactiveerde aankopen tellen via de afschrijving
+  const totalExpensesExclBtw = periodExpenses.reduce((sum, exp) => sum + getExpenseCostExclBtw(exp, capitalizedExpenseIds), 0);
+  const periodDepreciation = getTotalDepreciationForPeriod(assets, start, end);
+  const totalCostsExclBtw = totalExpensesExclBtw + periodDepreciation;
   const reverseChargeVat = periodExpenses.reduce((sum, exp) => sum + getExpenseReverseChargeVat(exp), 0);
   const totalExpensesVat = periodExpenses.reduce((sum, exp) => sum + getExpenseDeductibleVat(exp), 0);
 
@@ -109,7 +117,7 @@ export default function Reports() {
   }).filter((cat) => cat.total > 0);
 
   // Profit/Loss
-  const profit = totalRevenueExclBtw - totalExpensesExclBtw;
+  const profit = totalRevenueExclBtw - totalCostsExclBtw;
   const vatToPay = (totalRevenueVat + reverseChargeVat) - totalExpensesVat;
 
   const formatCurrency = (amount: number) => {
@@ -147,7 +155,8 @@ export default function Reports() {
 
       const revenue = monthInvoices.reduce((sum, inv) => sum + Number(inv.subtotal), 0);
       const additionalIncome = monthOtherIncome.reduce((sum, income) => sum + Number(income.amount), 0);
-      const expenses = monthExpenses.reduce((sum, exp) => sum + Number(exp.amount_excl_btw || 0), 0);
+      const expenses = monthExpenses.reduce((sum, exp) => sum + getExpenseCostExclBtw(exp, capitalizedExpenseIds), 0)
+        + assets.reduce((sum, asset) => sum + getDepreciationForPeriod(asset, monthStart, monthEnd), 0);
 
       return {
         month: format(monthStart, "MMM", { locale: nl }),
@@ -155,9 +164,9 @@ export default function Reports() {
         kosten: expenses,
       };
     });
-  }, [paidInvoices, periodExpenses, periodOtherIncome, selectedYear, period]);
+  }, [paidInvoices, periodExpenses, periodOtherIncome, selectedYear, period, assets, capitalizedExpenseIds]);
 
-  const isLoading = loadingInvoices || loadingExpenses || loadingOtherIncome;
+  const isLoading = loadingInvoices || loadingExpenses || loadingOtherIncome || loadingAssets;
 
   // Available years
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
@@ -182,6 +191,8 @@ export default function Reports() {
             { veld: "Omzet totaal excl. BTW", bedrag: totalRevenueExclBtw, __style: "total" as const },
             { veld: "BTW over omzet", bedrag: totalRevenueVat },
             { veld: "Kosten excl. BTW", bedrag: totalExpensesExclBtw },
+            { veld: "Afschrijvingen", bedrag: periodDepreciation },
+            { veld: "Inkopen excl. BTW (BTW-basis)", bedrag: totalPurchasesExclBtw },
             { veld: "Voorbelasting", bedrag: totalExpensesVat },
             { veld: "Reverse-charge BTW", bedrag: reverseChargeVat },
             { veld: "Winst / verlies", bedrag: profit, __style: "total" as const },
@@ -427,8 +438,11 @@ export default function Reports() {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
-            <div className="wrap-break-word text-xl font-bold tabular-nums text-destructive sm:text-2xl">{formatCurrency(totalExpensesExclBtw)}</div>
-            <p className="text-xs text-muted-foreground mt-1">{periodExpenses.length} uitgaven</p>
+            <div className="wrap-break-word text-xl font-bold tabular-nums text-destructive sm:text-2xl">{formatCurrency(totalCostsExclBtw)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {periodExpenses.length} uitgaven
+              {periodDepreciation > 0 && ` · incl. ${formatCurrency(periodDepreciation)} afschrijving`}
+            </p>
           </CardContent>
         </Card>
 
@@ -528,8 +542,8 @@ export default function Reports() {
                   <TableCell className="py-3 pl-3 pr-0 text-right tabular-nums">{formatCurrency(totalRevenueVat)}</TableCell>
                 </TableRow>
                 <TableRow className="border-t">
-                  <TableCell className="py-3 pl-0 pr-3 font-medium">Kosten excl. BTW</TableCell>
-                  <TableCell className="py-3 pl-3 pr-0 text-right tabular-nums">{formatCurrency(totalExpensesExclBtw)}</TableCell>
+                  <TableCell className="py-3 pl-0 pr-3 font-medium">Inkopen excl. BTW</TableCell>
+                  <TableCell className="py-3 pl-3 pr-0 text-right tabular-nums">{formatCurrency(totalPurchasesExclBtw)}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell className="py-3 pl-0 pr-3 font-medium">Voorbelasting (BTW kosten)</TableCell>

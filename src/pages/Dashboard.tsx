@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useExpenses } from '@/hooks/useExpenses';
+import { useBusinessAssets } from '@/hooks/useBusinessAssets';
+import { getExpenseCostExclBtw, getTotalDepreciationForPeriod } from '@/lib/depreciation';
 import { useOtherIncome } from '@/hooks/useOtherIncome';
 import { useProfile } from '@/hooks/useProfile';
 import { useClients } from '@/hooks/useClients';
@@ -65,6 +67,7 @@ const calculateProgressiveTax = (income: number) => {
 export default function Dashboard() {
   const { invoices, overdueInvoices, isLoading: loadingInvoices } = useInvoices();
   const { expenses, isLoading: loadingExpenses } = useExpenses();
+  const { assets, isLoading: loadingAssets, capitalizedExpenseIds } = useBusinessAssets();
   const { otherIncome, isLoading: loadingOtherIncome } = useOtherIncome();
   const { profile, isLoading: loadingProfile } = useProfile();
   const { clients, isLoading: loadingClients } = useClients();
@@ -109,14 +112,18 @@ export default function Dashboard() {
   const totalExpenses = yearExpenses
     .reduce((sum, exp) => sum + getExpensePaidAmount(exp), 0);
 
-  const totalExpensesExclBtw = yearExpenses.reduce((sum, expense) => sum + toNumber(expense.amount_excl_btw), 0);
+  // Geactiveerde aankopen tellen via de afschrijving, niet als directe kosten.
+  const directExpensesExclBtw = yearExpenses.reduce((sum, expense) => sum + getExpenseCostExclBtw(expense, capitalizedExpenseIds), 0);
+  const depreciationToDate = getTotalDepreciationForPeriod(assets, yearStart, now);
+  const fullYearDepreciation = getTotalDepreciationForPeriod(assets, yearStart, yearEnd);
+  const totalExpensesExclBtw = directExpensesExclBtw + depreciationToDate;
   const profit = totalRevenue - totalExpensesExclBtw;
   const invoiceExpenseRatio = totalRevenue > 0 ? Math.min(1, totalExpensesExclBtw / totalRevenue) : 0;
   const estimatedBusinessProfit = Math.max(0, profit);
   const elapsedMonths = Math.max(1, now.getMonth() + 1);
   const remainingMonths = Math.max(1, 12 - now.getMonth());
   const annualRevenueForecast = totalRevenue / elapsedMonths * 12;
-  const annualExpenseForecast = totalExpensesExclBtw / elapsedMonths * 12;
+  const annualExpenseForecast = directExpensesExclBtw / elapsedMonths * 12 + fullYearDepreciation;
   const annualProfitForecast = annualRevenueForecast - annualExpenseForecast;
   const taxConstants = getTaxConstants(currentYear);
   const meetsHoursRequirement = Number(taxData?.hours_worked || 0) >= 1225;
@@ -291,7 +298,8 @@ export default function Dashboard() {
   const previousYearRevenue = previousYearInvoices.reduce((sum, invoice) => sum + toNumber(invoice.subtotal), 0)
     + previousYearOtherIncome.reduce((sum, income) => sum + toNumber(income.amount), 0);
   const previousYearProfit = previousYearRevenue
-    - previousYearExpenses.reduce((sum, expense) => sum + toNumber(expense.amount_excl_btw), 0);
+    - previousYearExpenses.reduce((sum, expense) => sum + getExpenseCostExclBtw(expense, capitalizedExpenseIds), 0)
+    - getTotalDepreciationForPeriod(assets, previousYearStart, previousYearEnd);
   const annualScenarios = [
     { label: 'Huidig tempo', revenue: annualRevenueForecast, profit: annualProfitForecast },
     { label: 'Groei', revenue: annualRevenueForecast * 1.2, profit: annualRevenueForecast * 1.2 - annualExpenseForecast * 1.1 },
@@ -339,7 +347,7 @@ export default function Dashboard() {
   };
 
   const isLoading = loadingInvoices || loadingExpenses || loadingOtherIncome || loadingProfile || loadingClients
-    || loadingProjects || loadingTimeEntries || loadingSalaries || loadingTaxData;
+    || loadingProjects || loadingTimeEntries || loadingSalaries || loadingTaxData || loadingAssets;
 
   if (isLoading) {
     return (

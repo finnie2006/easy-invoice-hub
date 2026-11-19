@@ -2,6 +2,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { businessAssets as businessAssetsApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import {
+  getBookValueEndOfYear,
+  getCapitalizedExpenseIds,
+  getDepreciationForYear,
+} from '@/lib/depreciation';
 
 export interface BusinessAsset {
   id: string;
@@ -14,6 +19,7 @@ export interface BusinessAsset {
   category: string;
   is_active: boolean;
   notes: string | null;
+  expense_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -26,6 +32,7 @@ export interface BusinessAssetInsert {
   useful_life_years?: number;
   category?: string;
   notes?: string | null;
+  expense_id?: string | null;
 }
 
 export const ASSET_CATEGORIES = [
@@ -78,54 +85,32 @@ export function useBusinessAssets() {
     },
   });
 
-  // Calculate depreciation for a given year
-  const getDepreciationForYear = (asset: BusinessAsset, year: number): number => {
-    const purchaseYear = new Date(asset.purchase_date).getFullYear();
-    const depreciableAmount = Number(asset.purchase_price) - Number(asset.residual_value);
-    const yearlyDepreciation = depreciableAmount / asset.useful_life_years;
-    const endYear = purchaseYear + asset.useful_life_years - 1;
+  const updateAsset = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<BusinessAssetInsert> }) => {
+      await businessAssetsApi.update(id, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['business-assets'] });
+    },
+    onError: (error) => {
+      toast({ title: 'Fout bij bijwerken bedrijfsmiddel', description: error.message, variant: 'destructive' });
+    },
+  });
 
-    if (year < purchaseYear || year > endYear) return 0;
-    
-    // First year: pro-rata based on purchase month
-    if (year === purchaseYear) {
-      const purchaseMonth = new Date(asset.purchase_date).getMonth();
-      const monthsActive = 12 - purchaseMonth;
-      return yearlyDepreciation * (monthsActive / 12);
-    }
-    
-    // Last year: remaining
-    if (year === endYear) {
-      const purchaseMonth = new Date(asset.purchase_date).getMonth();
-      const firstYearMonths = 12 - purchaseMonth;
-      const firstYearDep = yearlyDepreciation * (firstYearMonths / 12);
-      const middleYears = endYear - purchaseYear - 1;
-      const totalSoFar = firstYearDep + (middleYears * yearlyDepreciation);
-      return depreciableAmount - totalSoFar;
-    }
-    
-    return yearlyDepreciation;
-  };
-
-  // Get book value at end of year
-  const getBookValueEndOfYear = (asset: BusinessAsset, year: number): number => {
-    const purchaseYear = new Date(asset.purchase_date).getFullYear();
-    if (year < purchaseYear) return 0;
-    
-    let totalDepreciation = 0;
-    for (let y = purchaseYear; y <= year; y++) {
-      totalDepreciation += getDepreciationForYear(asset, y);
-    }
-    
-    return Math.max(Number(asset.residual_value), Number(asset.purchase_price) - totalDepreciation);
-  };
+  const capitalizedExpenseIds = getCapitalizedExpenseIds(assets);
+  const getAssetForExpense = (expenseId: string) => assets.find((asset) => asset.expense_id === expenseId);
 
   return {
     assets,
     isLoading,
     createAsset: createAsset.mutate,
+    createAssetAsync: createAsset.mutateAsync,
+    updateAssetAsync: updateAsset.mutateAsync,
     deleteAsset: deleteAsset.mutate,
+    deleteAssetAsync: deleteAsset.mutateAsync,
     isCreating: createAsset.isPending,
+    capitalizedExpenseIds,
+    getAssetForExpense,
     getDepreciationForYear,
     getBookValueEndOfYear,
   };

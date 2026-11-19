@@ -53,14 +53,14 @@ export function MinimalTemplate({ invoice, profile }: InvoiceTemplateProps) {
               <div className="flex-1">
                 <p>{item.description}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  {hasQuantity ? `${quantity} × ` : ''}{formatCurrency(item.unit_price)}
+                  {hasQuantity ? `${quantity} × ` : ''}{formatCurrency(Number(item.unit_price))}
                   {item.discount_type && item.discount_value > 0 && (
-                    <span> · korting {item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)}</span>
+                    <span> · korting {item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(Number(item.discount_value))}</span>
                   )}
                   {' '}· {item.btw_percentage}% BTW
                 </p>
               </div>
-              <div className="w-24 text-right">{formatCurrency(Number(item.total))}</div>
+              <div className="w-24 text-right">{formatCurrency(Number(item.subtotal))}</div>
             </div>
           );
         })}

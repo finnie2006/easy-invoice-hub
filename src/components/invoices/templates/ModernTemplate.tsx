@@ -87,16 +87,16 @@ export function ModernTemplate({ invoice, profile }: InvoiceTemplateProps) {
                 <tr key={item.id} className={`border-b border-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
                   <td className="py-4 pr-4 text-gray-800 wrap-break-word whitespace-pre-wrap align-top">{item.description}</td>
                   <td className="text-right py-4 text-gray-600 align-top tabular-nums">{formatInvoiceQuantity(item.quantity, item.unit)}</td>
-                  <td className="text-right py-4 text-gray-600 align-top tabular-nums">{formatCurrency(item.unit_price)}</td>
+                  <td className="text-right py-4 text-gray-600 align-top tabular-nums">{formatCurrency(Number(item.unit_price))}</td>
                   {hasItemDiscounts && (
                     <td className="text-right py-4 text-gray-600 align-top tabular-nums">
                       {item.discount_type && item.discount_value > 0 
-                        ? item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)
+                        ? item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(Number(item.discount_value))
                         : '—'}
                     </td>
                   )}
                   <td className="text-right py-4 text-gray-600 align-top tabular-nums">{item.btw_percentage}%</td>
-                  <td className="text-right py-4 font-medium text-gray-900 align-top tabular-nums">{formatCurrency(Number(item.total))}</td>
+                  <td className="text-right py-4 font-medium text-gray-900 align-top tabular-nums">{formatCurrency(Number(item.subtotal))}</td>
                 </tr>
               ))}
             </tbody>

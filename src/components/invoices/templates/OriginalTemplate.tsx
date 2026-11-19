@@ -77,16 +77,16 @@ export function OriginalTemplate({ invoice, profile }: InvoiceTemplateProps) {
                 <td className="py-4 text-gray-400">{index + 1}</td>
                 <td className="py-4 text-gray-800">{item.description}</td>
                 <td className="text-right py-4 text-gray-600">{formatInvoiceQuantity(item.quantity, item.unit)}</td>
-                <td className="text-right py-4 text-gray-600">{formatCurrency(item.unit_price)}</td>
+                <td className="text-right py-4 text-gray-600">{formatCurrency(Number(item.unit_price))}</td>
                 {hasItemDiscounts && (
                   <td className="text-right py-4 text-gray-600">
                     {item.discount_type && item.discount_value > 0 
-                      ? item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(item.discount_value)
+                      ? item.discount_type === 'percentage' ? `${item.discount_value}%` : formatCurrency(Number(item.discount_value))
                       : '—'}
                   </td>
                 )}
                 <td className="text-right py-4 text-gray-600">{item.btw_percentage}%</td>
-                <td className="text-right py-4 font-medium" style={{ color: theme.primary }}>{formatCurrency(Number(item.total))}</td>
+                <td className="text-right py-4 font-medium" style={{ color: theme.primary }}>{formatCurrency(Number(item.subtotal))}</td>
               </tr>
             ))}
           </tbody>

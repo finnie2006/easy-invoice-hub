@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useMonthlySalaries } from '@/hooks/useMonthlySalaries';
 import { useAnnualTaxData } from '@/hooks/useAnnualTaxData';
+import { useMileage } from '@/hooks/useMileage';
 import { useProjects, useTimeEntries } from '@/hooks/useProjects';
 import { 
   FileText, 
@@ -76,6 +77,7 @@ export default function Dashboard() {
   const currentYear = new Date().getFullYear();
   const { salaries, isLoading: loadingSalaries } = useMonthlySalaries(currentYear);
   const { taxData, isLoading: loadingTaxData, getTaxConstants } = useAnnualTaxData(currentYear);
+  const { entries: mileageEntries, isLoading: loadingMileage } = useMileage();
   const annualSalary = salaries.reduce((sum, salary) => sum + Number(salary.gross_amount || 0), 0);
 
   const now = new Date();
@@ -116,14 +118,29 @@ export default function Dashboard() {
   const directExpensesExclBtw = yearExpenses.reduce((sum, expense) => sum + getExpenseCostExclBtw(expense, capitalizedExpenseIds), 0);
   const depreciationToDate = getTotalDepreciationForPeriod(assets, yearStart, now);
   const fullYearDepreciation = getTotalDepreciationForPeriod(assets, yearStart, yearEnd);
-  const totalExpensesExclBtw = directExpensesExclBtw + depreciationToDate;
+
+  // Autokosten: geregistreerde ritten (privéauto, km-tarief) gaan voor; anders de zakelijke-auto-gegevens uit de jaaraangifte.
+  const yearMileageEntries = mileageEntries.filter((entry) => (
+    new Date(`${entry.travel_date}T00:00:00`).getFullYear() === currentYear
+  ));
+  const mileageKm = yearMileageEntries.reduce((sum, entry) => sum + toNumber(entry.kilometers), 0);
+  const mileageDeduction = yearMileageEntries.reduce((sum, entry) => sum + toNumber(entry.kilometers) * toNumber(entry.rate), 0);
+  const usesMileageEntries = yearMileageEntries.length > 0;
+  const vehicleTotalKm = toNumber(taxData?.vehicle_total_km);
+  const vehicleBusinessKm = toNumber(taxData?.vehicle_business_km);
+  const vehicleCosts = toNumber(taxData?.vehicle_costs);
+  const vehicleBusinessPercentage = vehicleTotalKm > 0 ? Math.min(100, (vehicleBusinessKm / vehicleTotalKm) * 100) : 0;
+  const deductibleVehicleCosts = usesMileageEntries ? mileageDeduction : vehicleCosts * (vehicleBusinessPercentage / 100);
+
+  const totalExpensesExclBtw = directExpensesExclBtw + depreciationToDate + deductibleVehicleCosts;
   const profit = totalRevenue - totalExpensesExclBtw;
   const invoiceExpenseRatio = totalRevenue > 0 ? Math.min(1, totalExpensesExclBtw / totalRevenue) : 0;
   const estimatedBusinessProfit = Math.max(0, profit);
   const elapsedMonths = Math.max(1, now.getMonth() + 1);
   const remainingMonths = Math.max(1, 12 - now.getMonth());
   const annualRevenueForecast = totalRevenue / elapsedMonths * 12;
-  const annualExpenseForecast = directExpensesExclBtw / elapsedMonths * 12 + fullYearDepreciation;
+  const annualExpenseForecast = directExpensesExclBtw / elapsedMonths * 12 + fullYearDepreciation
+    + (usesMileageEntries ? mileageDeduction / elapsedMonths * 12 : deductibleVehicleCosts);
   const annualProfitForecast = annualRevenueForecast - annualExpenseForecast;
   const taxConstants = getTaxConstants(currentYear);
   const meetsHoursRequirement = Number(taxData?.hours_worked || 0) >= 1225;
@@ -332,11 +349,6 @@ export default function Dashboard() {
       return sum + differenceInDays(new Date(invoice.paid_at as string), new Date(invoice.invoice_date));
     }, 0) / paidInvoicesWithPaymentDate.length
     : null;
-  const vehicleTotalKm = toNumber(taxData?.vehicle_total_km);
-  const vehicleBusinessKm = toNumber(taxData?.vehicle_business_km);
-  const vehicleCosts = toNumber(taxData?.vehicle_costs);
-  const vehicleBusinessPercentage = vehicleTotalKm > 0 ? Math.min(100, (vehicleBusinessKm / vehicleTotalKm) * 100) : 0;
-  const deductibleVehicleCosts = vehicleCosts * (vehicleBusinessPercentage / 100);
   const privateKm = Math.max(0, vehicleTotalKm - vehicleBusinessKm);
 
   const formatCurrency = (amount: number) => {
@@ -347,7 +359,7 @@ export default function Dashboard() {
   };
 
   const isLoading = loadingInvoices || loadingExpenses || loadingOtherIncome || loadingProfile || loadingClients
-    || loadingProjects || loadingTimeEntries || loadingSalaries || loadingTaxData || loadingAssets;
+    || loadingProjects || loadingTimeEntries || loadingSalaries || loadingTaxData || loadingAssets || loadingMileage;
 
   if (isLoading) {
     return (
@@ -538,7 +550,7 @@ export default function Dashboard() {
               {formatCurrency(profit)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Omzet en kosten excl. BTW
+              Omzet en kosten excl. BTW{deductibleVehicleCosts > 0 ? ', incl. autokosten' : ''}
             </p>
           </CardContent>
         </Card>
@@ -610,16 +622,31 @@ export default function Dashboard() {
             <CardDescription>Kilometerregistratie en aftrekbare autokosten.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex justify-between gap-4 text-sm">
-              <span className="text-muted-foreground">Zakelijk / totaal</span>
-              <span className="font-medium">
-                {vehicleBusinessKm.toLocaleString('nl-NL')} / {vehicleTotalKm.toLocaleString('nl-NL')} km
-              </span>
-            </div>
-            <div className="flex justify-between gap-4 text-sm">
-              <span className="text-muted-foreground">Privégebruik</span>
-              <span className="font-medium">{privateKm.toLocaleString('nl-NL')} km</span>
-            </div>
+            {usesMileageEntries ? (
+              <>
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-muted-foreground">Ritten in {currentYear}</span>
+                  <span className="font-medium">{yearMileageEntries.length}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-muted-foreground">Zakelijke kilometers</span>
+                  <span className="font-medium">{mileageKm.toLocaleString('nl-NL')} km</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-muted-foreground">Zakelijk / totaal</span>
+                  <span className="font-medium">
+                    {vehicleBusinessKm.toLocaleString('nl-NL')} / {vehicleTotalKm.toLocaleString('nl-NL')} km
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4 text-sm">
+                  <span className="text-muted-foreground">Privégebruik</span>
+                  <span className="font-medium">{privateKm.toLocaleString('nl-NL')} km</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between gap-4 border-t pt-3 text-sm">
               <span className="text-muted-foreground">Aftrekbare autokosten</span>
               <span className="font-bold text-success">{formatCurrency(deductibleVehicleCosts)}</span>

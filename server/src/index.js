@@ -420,7 +420,7 @@ app.get('/api/public/branding', async (req, res) => {
     const branding = result.rows[0] || {};
     const registrationEnabled = await getSetting('registration_enabled', true);
     res.json({
-      appName: branding.company_name || 'MijnZaak',
+      appName: branding.company_name || 'Kasboek',
       logoUrl: branding.logo_url || null,
       registrationEnabled: registrationEnabled !== false,
     });
@@ -573,7 +573,7 @@ async function getSmtpConfig(overrides = {}) {
     security: String(await pick('smtp_security', 'auto')),
     allowSelfSigned: toBoolean(await pick('smtp_allow_self_signed', false)),
     fromEmail: String(await pick('smtp_from_email', user || 'no-reply@localhost')),
-    fromName: String(await pick('smtp_from_name', 'Easy Invoice Hub')),
+    fromName: String(await pick('smtp_from_name', 'Kasboek')),
     replyTo: String(await pick('smtp_reply_to', '')),
   };
 }
@@ -959,7 +959,7 @@ function buildInvoiceEmailVariables(invoice, profile, recipientName, fallbackCom
     totaalbedrag: formatInvoiceEmailCurrency(invoice.total),
     klantnaam: clientName,
     contactnaam: contactName,
-    bedrijfsnaam: profile?.company_name || fallbackCompanyName || 'Easy Invoice Hub',
+    bedrijfsnaam: profile?.company_name || fallbackCompanyName || 'Kasboek',
     iban: profile?.iban || '',
     betaalreferentie: invoice.payment_reference || invoice.invoice_number || '',
   };
@@ -2996,7 +2996,7 @@ app.post('/api/push/test', authenticateToken, async (req, res) => {
     let sentCount = 0;
     for (const row of result.rows) {
       const sent = await sendPushNotification(row, {
-        title: 'MijnZaak testmelding',
+        title: 'Kasboek testmelding',
         body: 'Pushmeldingen staan goed ingesteld op dit apparaat.',
         tag: 'push-test',
         url: '/settings',
@@ -3240,7 +3240,7 @@ app.get('/api/calendar/ical', async (req, res) => {
     const lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//Easy Invoice Hub//Calendar//EN',
+      'PRODID:-//Kasboek//Calendar//EN',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
     ];

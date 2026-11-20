@@ -75,7 +75,7 @@ export function getInvoiceEmailVariables(
     totaalbedrag: formatCurrency(invoice.total),
     klantnaam: clientName,
     contactnaam: contactName,
-    bedrijfsnaam: profile?.company_name || 'Easy Invoice Hub',
+    bedrijfsnaam: profile?.company_name || 'Kasboek',
     iban: profile?.iban || '',
     betaalreferentie: invoice.payment_reference || invoice.invoice_number || '',
   };

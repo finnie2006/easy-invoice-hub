@@ -1,8 +1,8 @@
 {
-  "name": "easy-invoice-hub-server",
+  "name": "kasboek-server",
   "version": "1.0.0",
   "type": "module",
-  "description": "Backend server for Easy Invoice Hub",
+  "description": "Backend server for Kasboek",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

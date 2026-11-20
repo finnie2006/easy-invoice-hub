@@ -1,6 +1,6 @@
 {
-  "name": "MijnZaak",
-  "short_name": "MijnZaak",
+  "name": "Kasboek",
+  "short_name": "Kasboek",
   "description": "Facturen, klanten en btw op orde.",
   "start_url": "/",
   "scope": "/",

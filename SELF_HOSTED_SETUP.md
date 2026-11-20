@@ -1,4 +1,4 @@
-# Self-Hosted Easy Invoice Hub Setup
+# Self-Hosted Kasboek Setup
 
 Dit project is nu omgezet van Supabase naar een zelf-gehoste PostgreSQL-database met een Node.js backend.
 

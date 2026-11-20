@@ -483,7 +483,7 @@ export default function SystemSettings() {
                 name="smtp_from_name"
                 value={config.smtp_from_name}
                 onChange={handleChange}
-                placeholder="MijnZaak"
+                placeholder="Kasboek"
               />
             </div>
 

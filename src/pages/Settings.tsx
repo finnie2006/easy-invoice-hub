@@ -118,7 +118,7 @@ export default function Settings() {
               <div className="space-y-0.5">
                 <Label htmlFor="use_company_branding">Bedrijfsbranding gebruiken</Label>
                 <p className="text-sm text-muted-foreground">
-                  Toon je bedrijfsnaam in plaats van "MijnZaak"
+                  Toon je bedrijfsnaam in plaats van "Kasboek"
                 </p>
               </div>
               <Switch

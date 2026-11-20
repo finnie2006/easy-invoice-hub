@@ -1,10 +1,10 @@
 # Authentik OAuth Integration Guide
 
-This document describes how to set up and configure Authentik OAuth integration with Easy Invoice Hub.
+This document describes how to set up and configure Authentik OAuth integration with Kasboek.
 
 ## Overview
 
-Easy Invoice Hub supports OAuth 2.0 authentication via Authentik, allowing users to:
+Kasboek supports OAuth 2.0 authentication via Authentik, allowing users to:
 - Sign in with their Authentik credentials
 - Automatically create accounts on first login
 - Use 2FA through Authentik or app-level TOTP
@@ -13,7 +13,7 @@ Easy Invoice Hub supports OAuth 2.0 authentication via Authentik, allowing users
 
 1. **Authentik Server** running and accessible (e.g., `https://authentik.example.com`)
 2. **OAuth2/OIDC Application** created in Authentik
-3. **Easy Invoice Hub** deployed with HTTPS in production
+3. **Kasboek** deployed with HTTPS in production
 
 ## Step 1: Create OAuth Application in Authentik
 
@@ -25,8 +25,8 @@ Easy Invoice Hub supports OAuth 2.0 authentication via Authentik, allowing users
 
    | Field | Value |
    |-------|-------|
-   | Name | Easy Invoice Hub |
-   | Slug | easy-invoice-hub |
+   | Name | Kasboek |
+   | Slug | kasboek |
    | Provider | Create New Provider (see below) |
 
 4. Click **Create**
@@ -39,7 +39,7 @@ Easy Invoice Hub supports OAuth 2.0 authentication via Authentik, allowing users
 
    | Field | Value |
    |-------|-------|
-   | Name | Easy Invoice Hub OIDC |
+   | Name | Kasboek OIDC |
    | Client Type | Confidential |
    | Redirect URIs | `http://localhost:8080/auth/callback` (dev) or `https://your-domain/auth/callback` (prod) |
    | Scopes | openid, profile, email (default) |
@@ -47,7 +47,7 @@ Easy Invoice Hub supports OAuth 2.0 authentication via Authentik, allowing users
 4. Click **Save**
 5. Note the **Client ID** and **Client Secret** (you'll need these)
 
-## Step 2: Configure Easy Invoice Hub
+## Step 2: Configure Kasboek
 
 ### Environment Variables
 
@@ -162,7 +162,7 @@ This table tracks which OAuth providers are linked to each user account.
 
 ## Account Linking (Optional)
 
-Users can link an existing Easy Invoice Hub account to their Authentik account:
+Users can link an existing Kasboek account to their Authentik account:
 
 1. User logs in with email/password
 2. In Settings, click "Link Authentik Account"

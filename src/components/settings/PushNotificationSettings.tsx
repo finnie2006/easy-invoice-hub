@@ -39,7 +39,7 @@ export function PushNotificationSettings() {
           App en meldingen
         </CardTitle>
         <CardDescription>
-          Installeer MijnZaak als app en ontvang betaaltermijnmeldingen.
+          Installeer Kasboek als app en ontvang betaaltermijnmeldingen.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

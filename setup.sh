@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Easy Invoice Hub - Self-Hosted Setup Script
+# Kasboek - Self-Hosted Setup Script
 # This script sets up the complete self-hosted environment
 
 set -e  # Exit on error
 
 echo "======================================"
-echo "Easy Invoice Hub - Self-Hosted Setup"
+echo "Kasboek - Self-Hosted Setup"
 echo "======================================"
 echo ""
 
@@ -91,7 +91,7 @@ echo ""
 echo "Next steps:"
 echo "  1. Open http://localhost:8080 in your browser"
 echo "  2. Register a new account (first user becomes admin)"
-echo "  3. Start using Easy Invoice Hub!"
+echo "  3. Start using Kasboek!"
 echo ""
 echo "For more information:"
 echo "  📖 See SELF_HOSTED_SETUP.md for detailed setup instructions"

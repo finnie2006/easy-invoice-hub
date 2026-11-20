@@ -1,6 +1,6 @@
-# Easy Invoice Hub
+# Kasboek
 
-Easy Invoice Hub is een self-hosted facturatie- en administratie-app voor freelancers en kleine ondernemers. De app helpt met facturen, klanten, projecten, uren, uitgaven, kilometers, BTW-aangiftevoorbereiding en rapportages, zonder afhankelijkheid van een externe SaaS-dienst.
+Kasboek is een self-hosted facturatie- en administratie-app voor freelancers en kleine ondernemers. De app helpt met facturen, klanten, projecten, uren, uitgaven, kilometers, BTW-aangiftevoorbereiding en rapportages, zonder afhankelijkheid van een externe SaaS-dienst.
 
 De applicatie bestaat uit een React/Vite frontend, een Node.js/Express API en een PostgreSQL database. Kant-en-klare Docker images staan op GitHub Container Registry, dus je kunt hem binnen een paar minuten draaien.
 
@@ -433,4 +433,4 @@ Dit project valt onder de MIT License. Zie [LICENSE](LICENSE).
 
 ## Disclaimer
 
-Easy Invoice Hub helpt bij het voorbereiden van facturen, rapportages en BTW-gegevens, maar is geen juridisch, financieel of fiscaal advies. Controleer de uitvoer voordat je aangifte doet of officiële documenten verstuurt.
+Kasboek helpt bij het voorbereiden van facturen, rapportages en BTW-gegevens, maar is geen juridisch, financieel of fiscaal advies. Controleer de uitvoer voordat je aangifte doet of officiële documenten verstuurt.

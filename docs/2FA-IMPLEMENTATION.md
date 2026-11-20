@@ -1,6 +1,6 @@
 # Two-Factor Authentication (2FA) Implementation Guide
 
-This document describes the TOTP-based 2FA system added to Easy Invoice Hub.
+This document describes the TOTP-based 2FA system added to Kasboek.
 
 ## Files Added
 

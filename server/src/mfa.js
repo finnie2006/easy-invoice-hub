@@ -6,7 +6,7 @@ import QRCode from 'qrcode';
  * Generate a new TOTP secret for the user
  * Returns { secret, qrCode }
  */
-export async function generateTOTPSecret(email, appName = 'Easy Invoice Hub') {
+export async function generateTOTPSecret(email, appName = 'Kasboek') {
   const secret = speakeasy.generateSecret({
     name: `${appName} (${email})`,
     length: 32,

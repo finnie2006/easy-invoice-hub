@@ -1,4 +1,4 @@
-const APP_CACHE = 'easy-invoice-hub-v2';
+const APP_CACHE = 'kasboek-v3';
 const APP_SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/pwa-icon.svg', '/pwa-icon-192.png', '/pwa-icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -47,10 +47,10 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data ? event.data.json() : {};
   } catch (error) {
-    payload = { title: 'MijnZaak', body: event.data?.text() || 'Nieuwe melding' };
+    payload = { title: 'Kasboek', body: event.data?.text() || 'Nieuwe melding' };
   }
 
-  const title = payload.title || 'MijnZaak';
+  const title = payload.title || 'Kasboek';
   const options = {
     body: payload.body || 'Er is een factuurmelding.',
     icon: payload.icon || '/pwa-icon.svg',

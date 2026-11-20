@@ -105,7 +105,7 @@ export function AuthPage() {
     },
     staleTime: 5 * 60 * 1000,
   });
-  const appName = branding?.appName || 'MijnZaak';
+  const appName = branding?.appName || 'Kasboek';
   const registrationEnabled = branding?.registrationEnabled !== false;
   const isRegister = mode === 'register' && registrationEnabled;
 

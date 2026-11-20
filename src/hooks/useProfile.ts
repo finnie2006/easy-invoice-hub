@@ -75,7 +75,7 @@ export function useProfile() {
     if (profile?.use_company_branding && profile?.company_name) {
       return profile.company_name;
     }
-    return 'MijnZaak';
+    return 'Kasboek';
   };
 
   return {

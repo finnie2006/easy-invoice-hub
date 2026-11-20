@@ -12,6 +12,7 @@ export interface MileageEntry {
   kilometers: number;
   rate: number;
   notes: string | null;
+  invoice_id: string | null;
   is_finalized: boolean;
   finalized_at: string | null;
   created_at: string;
@@ -50,6 +51,20 @@ export function useMileage() {
     },
   });
 
+  const updateEntry = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<MileageEntryInsert> }) => {
+      const response = await mileageApi.update(id, data);
+      return response.data as MileageEntry;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mileage'] });
+      toast({ title: 'Rit bijgewerkt' });
+    },
+    onError: (error) => {
+      toast({ title: 'Fout bij bijwerken', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const deleteEntry = useMutation({
     mutationFn: async (id: string) => {
       await mileageApi.delete(id);
@@ -82,6 +97,8 @@ export function useMileage() {
     entries,
     isLoading,
     createEntry: createEntry.mutateAsync,
+    updateEntry: updateEntry.mutateAsync,
+    isUpdating: updateEntry.isPending,
     deleteEntry: deleteEntry.mutate,
     isCreating: createEntry.isPending,
     finalizeYear: finalizeYear.mutateAsync,

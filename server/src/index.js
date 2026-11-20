@@ -190,6 +190,7 @@ const MILEAGE_UPDATABLE_FIELDS = [
   'kilometers',
   'rate',
   'notes',
+  'invoice_id',
 ];
 
 const OTHER_INCOME_UPDATABLE_FIELDS = [
@@ -882,6 +883,14 @@ function buildValidatedUpdate(body, allowedFields) {
   const values = requestedFields.map((field) => body[field]);
   const setClause = requestedFields.map((field, i) => `${field} = $${i + 1}`).join(', ');
   return { fields: requestedFields, values, setClause };
+}
+
+async function userOwnsInvoice(invoiceId, userId) {
+  const result = await pool.query(
+    'SELECT 1 FROM public.invoices WHERE id = $1 AND user_id = $2',
+    [invoiceId, userId]
+  );
+  return result.rows.length > 0;
 }
 
 async function ensureDefaultSubscriptionPlans(userId) {
@@ -1808,7 +1817,7 @@ app.get('/api/mileage', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/mileage', authenticateToken, async (req, res) => {
-  const { travel_date, destination, purpose, kilometers, rate, notes } = req.body;
+  const { travel_date, destination, purpose, kilometers, rate, notes, invoice_id } = req.body;
   const parsedKilometers = Number(kilometers);
   const parsedRate = Number(rate ?? 0.25);
 
@@ -1817,11 +1826,15 @@ app.post('/api/mileage', authenticateToken, async (req, res) => {
   }
 
   try {
+    if (invoice_id && !(await userOwnsInvoice(invoice_id, req.userId))) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
     const result = await pool.query(
-      `INSERT INTO public.mileage_entries (user_id, travel_date, destination, purpose, kilometers, rate, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO public.mileage_entries (user_id, travel_date, destination, purpose, kilometers, rate, notes, invoice_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [req.userId, travel_date, destination.trim(), purpose.trim(), parsedKilometers, parsedRate, notes || null]
+      [req.userId, travel_date, destination.trim(), purpose.trim(), parsedKilometers, parsedRate, notes || null, invoice_id || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -1854,16 +1867,47 @@ app.post('/api/mileage/finalize-year', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/mileage/:id', authenticateToken, async (req, res) => {
-  const updatePayload = buildValidatedUpdate(req.body, MILEAGE_UPDATABLE_FIELDS);
+  const body = { ...(req.body || {}) };
+  if ('invoice_id' in body && !body.invoice_id) body.invoice_id = null;
+  if ('notes' in body && !body.notes) body.notes = null;
+  if ('destination' in body) body.destination = String(body.destination ?? '').trim();
+  if ('purpose' in body) body.purpose = String(body.purpose ?? '').trim();
+
+  const updatePayload = buildValidatedUpdate(body, MILEAGE_UPDATABLE_FIELDS);
   if (updatePayload.error) {
     return res.status(400).json({ error: updatePayload.error });
   }
 
-  const { fields, values, setClause } = updatePayload;
-  values.push(req.userId);
-  values.push(req.params.id);
+  const invalid =
+    ('travel_date' in body && !body.travel_date) ||
+    ('destination' in body && !body.destination) ||
+    ('purpose' in body && !body.purpose) ||
+    ('kilometers' in body && !(Number(body.kilometers) > 0)) ||
+    ('rate' in body && !(Number(body.rate) >= 0));
+  if (invalid) {
+    return res.status(400).json({ error: 'Invalid mileage entry' });
+  }
 
   try {
+    const existing = await pool.query(
+      'SELECT is_finalized FROM public.mileage_entries WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.userId]
+    );
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'Mileage entry not found' });
+
+    // Definitieve ritten tellen mee in de aangifte; alleen de factuurkoppeling mag nog wijzigen.
+    if (existing.rows[0].is_finalized && updatePayload.fields.some((field) => field !== 'invoice_id')) {
+      return res.status(409).json({ error: 'Definitieve ritten kunnen niet worden aangepast' });
+    }
+
+    if (body.invoice_id && !(await userOwnsInvoice(body.invoice_id, req.userId))) {
+      return res.status(404).json({ error: 'Invoice not found' });
+    }
+
+    const { fields, values, setClause } = updatePayload;
+    values.push(req.userId);
+    values.push(req.params.id);
+
     const result = await pool.query(
       `UPDATE public.mileage_entries SET ${setClause}, updated_at = NOW()
        WHERE user_id = $${fields.length + 1} AND id = $${fields.length + 2}
@@ -3662,6 +3706,8 @@ const ensureRuntimeSchema = async () => {
   await pool.query('ALTER TABLE public.mileage_entries ADD COLUMN IF NOT EXISTS finalized_at timestamptz');
 
   await pool.query('CREATE INDEX IF NOT EXISTS idx_mileage_entries_user_date ON public.mileage_entries (user_id, travel_date DESC)');
+  await pool.query('ALTER TABLE public.mileage_entries ADD COLUMN IF NOT EXISTS invoice_id uuid REFERENCES public.invoices(id) ON DELETE SET NULL');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_mileage_entries_invoice_id ON public.mileage_entries (invoice_id) WHERE invoice_id IS NOT NULL');
 
   await pool.query(`
     ALTER TABLE public.expenses

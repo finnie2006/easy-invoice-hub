@@ -885,6 +885,18 @@ function buildValidatedUpdate(body, allowedFields) {
   return { fields: requestedFields, values, setClause };
 }
 
+// node-postgres zet een DATE-kolom om naar een Date op lokale middernacht. Als JSON wordt dat
+// een UTC-tijdstempel (bijv. 2026-11-19T23:00:00.000Z), wat in de frontend een dag kan verschuiven.
+function toDateOnlyString(value) {
+  if (!(value instanceof Date)) return value;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+}
+
+function serializeMileageEntry(row) {
+  return row ? { ...row, travel_date: toDateOnlyString(row.travel_date) } : row;
+}
+
 async function userOwnsInvoice(invoiceId, userId) {
   const result = await pool.query(
     'SELECT 1 FROM public.invoices WHERE id = $1 AND user_id = $2',
@@ -1809,7 +1821,7 @@ app.get('/api/mileage', authenticateToken, async (req, res) => {
       'SELECT * FROM public.mileage_entries WHERE user_id = $1 ORDER BY travel_date DESC, created_at DESC',
       [req.userId]
     );
-    res.json(result.rows);
+    res.json(result.rows.map(serializeMileageEntry));
   } catch (err) {
     console.error('Error fetching mileage entries:', err);
     res.status(500).json({ error: 'Failed to fetch mileage entries' });
@@ -1836,7 +1848,7 @@ app.post('/api/mileage', authenticateToken, async (req, res) => {
        RETURNING *`,
       [req.userId, travel_date, destination.trim(), purpose.trim(), parsedKilometers, parsedRate, notes || null, invoice_id || null]
     );
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(serializeMileageEntry(result.rows[0]));
   } catch (err) {
     console.error('Error creating mileage entry:', err);
     res.status(500).json({ error: 'Failed to create mileage entry' });
@@ -1915,7 +1927,7 @@ app.put('/api/mileage/:id', authenticateToken, async (req, res) => {
       values
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Mileage entry not found' });
-    res.json(result.rows[0]);
+    res.json(serializeMileageEntry(result.rows[0]));
   } catch (err) {
     console.error('Error updating mileage entry:', err);
     res.status(500).json({ error: 'Failed to update mileage entry' });

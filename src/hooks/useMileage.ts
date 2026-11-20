@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { format, parseISO } from 'date-fns';
 import { mileage as mileageApi } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,12 @@ export interface MileageEntry {
   updated_at: string;
 }
 
+// Oudere servers sturen travel_date als volledige tijdstempel (bijv. 2026-11-19T23:00:00.000Z).
+// Zet die om naar de lokale kalenderdatum zodat overal met yyyy-MM-dd gerekend kan worden.
+export function normalizeTravelDate(value: string): string {
+  return value.length > 10 ? format(parseISO(value), 'yyyy-MM-dd') : value;
+}
+
 export type MileageEntryInsert = Omit<MileageEntry, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'is_finalized' | 'finalized_at'>;
 
 export function useMileage() {
@@ -31,7 +38,7 @@ export function useMileage() {
     queryFn: async () => {
       if (!user) return [];
       const response = await mileageApi.getAll();
-      return response.data as MileageEntry[];
+      return (response.data as MileageEntry[]).map((entry) => ({ ...entry, travel_date: normalizeTravelDate(entry.travel_date) }));
     },
     enabled: !!user,
   });
